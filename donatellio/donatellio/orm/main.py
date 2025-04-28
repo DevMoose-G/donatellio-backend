@@ -2,6 +2,10 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+import donatellio.orm.models.image
+import donatellio.orm.models.project
+import donatellio.orm.models.user
+from donatellio.orm.base import Base
 from donatellio.settings import settings
 
 # Database URL (using async driver)
@@ -21,15 +25,9 @@ AsyncSessionLocal = sessionmaker(
     expire_on_commit=False
 )
 
-# Base class for ORM models
-Base = declarative_base()
-
-import models.image
-import models.project
-import models.user
-
 # Utility to initialize the database (create tables)
 async def init_db():
+    print("Tables to create:", Base.metadata.tables.keys())
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

@@ -2,7 +2,7 @@ from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
-from donatellio.orm.main import Base
+from donatellio.orm.base import Base
 
 class Project(Base):
     __tablename__ = "projects" 
