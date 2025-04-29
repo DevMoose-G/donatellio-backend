@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 
 @dataclass
 class RedisPayload:
-    job_id: str
+    project_id: str
     function_name: str
     payload: dict
 
@@ -40,7 +40,7 @@ class RedisStream:
             self.stream_key,
             {
                 "function_name": payload.function_name,
-                "job_id": payload.job_id,
+                "project_id": payload.project_id,
                 "payload": json.dumps(payload.payload) # temporary (find some way to auto convert to JSON)
             },
         )

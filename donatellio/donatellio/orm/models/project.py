@@ -8,7 +8,7 @@ class Project(Base):
     __tablename__ = "projects" 
     
     id = Column(String(128), primary_key=True)
-    prompt = Column(String(1024), nullable=False)
+    name = Column(String(128), nullable=False)
     user_id = Column(String(128), ForeignKey("users.id"), nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -16,3 +16,5 @@ class Project(Base):
 
     owner = relationship("User", back_populates="projects")
     images = relationship("Image", back_populates="project")
+
+    

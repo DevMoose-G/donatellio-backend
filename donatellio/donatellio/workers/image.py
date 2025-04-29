@@ -1,8 +1,10 @@
 import os
+from typing import List
 import uuid
 from openai import OpenAI
 import requests
 from donatellio.consts import BASE_URL
+from donatellio.donatellio.workers.prompts import ELABORATION_PROMPT
 from donatellio.orm.dal.image import ImageDAL
 from donatellio.orm.main import get_db
 from donatellio.orm.models.image import Image
@@ -16,7 +18,7 @@ CURRENT_DIR = os.path.dirname(__file__)
 # Configure OpenAI
 client = OpenAI(api_key=settings.openai_api_key,)
 
-def generate_image(prompt, n, size, quality) -> str:
+def generate_image(project_id, prompt, n, size, quality) -> str:
     if n!=1:
         n=1
     
@@ -39,16 +41,15 @@ def generate_image(prompt, n, size, quality) -> str:
         img.save(f"{CURRENT_DIR}/../static/{image_name}")
         images.append(img)
     
-    img_url = f"http://localhost:8000/static/{image_name}"
+    img_url = f"{BASE_URL}/static/{image_name}"
 
-    ImageDAL(get_db()).create_image(Image(id, prompt, ))
+    ImageDAL(get_db()).create_image(Image(img_id, prompt, project_id, img_url, None))
 
     return img_url
 
-def edit_image(original_image_url, prompt, n, size, quality) -> str:
-    if n!=1:
-        n=1
-    image_name = f"{str(uuid.uuid4())}.png"
+def edit_image(project_id, original_image_url, prompt, n, size, quality) -> str:
+    img_id = str(uuid.uuid4())
+    image_name = f"{img_id}.png"
 
     response = requests.get(original_image_url)
     img = PIL.Image.open(BytesIO(response.content))
@@ -72,4 +73,15 @@ def edit_image(original_image_url, prompt, n, size, quality) -> str:
         img.save(f"{CURRENT_DIR}/../static/{image_name}")
         images.append(img)
     
-    return f"{BASE_URL}/static/{image_name}"
+    img_url = f"{BASE_URL}/static/{image_name}"
+
+    ImageDAL(get_db()).create_image(Image(img_id, prompt, project_id, img_url, original_image_url))
+    
+    return img_url
+
+def get_elaborating_questions(project_id: str, current_prompt: str, image_id: str=None) -> List[str]:
+    res = client.completions.create(model="gpt-4.1-mini", prompt=f"{ELABORATION_PROMPT}\n\n{current_prompt}", max_tokens=128)
+    questions_str = res.choices[0].text
+    questions = questions_str.split("\n")
+    assert len(questions) > 1
+    return questions
