@@ -11,7 +11,8 @@ class Project(Base):
     prompt = Column(String(1024), nullable=False)
     user_id = Column(String(128), ForeignKey("users.id"), nullable=False)
 
-    owner = relationship("User", back_populates="projects")
-
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    owner = relationship("User", back_populates="projects")
+    images = relationship("Image", back_populates="project")

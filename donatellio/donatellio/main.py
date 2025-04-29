@@ -22,6 +22,7 @@ from donatellio.models import InferenceJob
 from donatellio.tasks import run_custom_inference
 
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 # Initialize FastAPI
 app = FastAPI()
@@ -39,7 +40,16 @@ class CreateImageRequest(BaseModel):
     size: str
     quality: str
 
+class EditImageRequest(BaseModel):
+    original_image_url: str
+    job_id: str
+    prompt: str
+    n: int
+    size: str
+    quality: str
+
 class CreateUserRequest(BaseModel):
+    username: str
     email: str
     password: str
 
@@ -50,23 +60,22 @@ def sign_payload(payload):
 # Serve all files under ./static at the /static URL path
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
-
 @app.post("/register")
-def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    db_user = db.query(User).filter(
-        (User.username == user.username) | (User.email == user.email)
-    ).first()
+async def register(user: CreateUserRequest, db: AsyncSession = Depends(get_db)):
+    db_user = await db.execute(
+        select(User).where((User.username == user.username) | (User.email == user.email))
+        # db.query(User).filter(
+        #     (User.username == user.username) | (User.email == user.email)
+        # )
+    )
+    db_user = db_user.scalars().first()
     if db_user:
         raise HTTPException(status_code=400, detail="User already exists")
     hashed_pw = get_password_hash(user.password)
-    new_user = User(email=user.email, hashed_password=hashed_pw)
+    new_user = User(id=str(uuid.uuid4()), email=user.email, password=hashed_pw, username=user.username)
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     return {"msg": "User created", "user_id": new_user.id}
 
 @app.websocket("/ws/jobs/{job_id}")
@@ -114,3 +123,29 @@ async def create_image(
     msg_id = await stream.send_msg(RedisPayload(job_id, "generate_image", req.model_dump()))
 
     return {"job_id": job_id}
+
+
+@app.post("/image/edit", status_code=202)
+async def edit_image(
+    req: EditImageRequest,
+    image_dal: ImageDAL = Depends(get_image_dal)
+):
+    """
+    Proxy endpoint for OpenAI ChatCompletion.
+    Saves request+response to Postgres.
+    """
+    # Persist to DB
+    # job = InferenceJob(
+    #     id=job_id,
+    #     payload=req.model_dump(),
+    #     status="queued"
+    # )
+    # db.add(job)
+    # await db.commit()
+
+    stream = RedisStream("image-jobs")
+    await stream.setup_group(new_only=False)
+
+    msg_id = await stream.send_msg(RedisPayload(req.job_id, "edit_image", req.model_dump()))
+
+    return {"job_id": req.job_id}

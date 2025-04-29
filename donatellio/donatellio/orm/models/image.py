@@ -13,6 +13,8 @@ class Image(Base):
     url = Column(String(1024), nullable=False)
     original_image_url = Column(String(1024), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # should keep track of openai parameters
 
     project = relationship("Project", back_populates="images")
