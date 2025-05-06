@@ -22,6 +22,9 @@ from donatellio.orm.main import AsyncSessionLocal, get_db
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
+from dotenv import load_dotenv
+load_dotenv()    # reads .env from cwd
+
 # Initialize FastAPI
 app = FastAPI()
 
@@ -68,22 +71,27 @@ async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_
 
 # is it good to have one socket per project and have the frontend filter if it is image or text?
 @app.websocket("/ws/projects/{project_id}")
-async def job_updates(websocket: WebSocket, project_id: str):
+async def job_updates(websocket: WebSocket, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal)):
     await websocket.accept()
     stream = RedisStream("completed-jobs")
     await stream.setup_group(new_only=False)
     while True:
+
         response = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
         if len(response.messages) == 0:
             await asyncio.sleep(2)
-            continue
-        msg = response.messages[0]
-        payload = json.loads(msg.json.payload)
-        if msg.json.project_id == project_id:
-            if msg.json.function_name == "generate_image":
-                await websocket.send_json(payload)
-                await stream.ack_msg(msg.id)
-                break
+        else:
+            msg = response.messages[0]
+            payload = json.loads(msg.json.payload)
+            if msg.json.project_id == project_id:
+                if msg.json.function_name == "generate_image":
+                    await websocket.send_json(payload)
+                    await stream.ack_msg(msg.id)
+        
+        image_urls = await project_dal.get_images(project_id)
+        if image_urls != []:
+            await websocket.send_json({"image_url": image_urls[0]})
+            break
     
     await websocket.close()
 
@@ -100,7 +108,7 @@ async def create_image(
     await stream.setup_group(new_only=False)
 
     user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
-    await project_dal.create_project(Project(project_id, "test", user.id))
+    await project_dal.create_project(Project(id=project_id, name="test", user_id=user.id))
 
     msg_id = await stream.send_msg(RedisPayload(image_id, "generate_image", {** req.model_dump(), "project_id": project_id}))
 

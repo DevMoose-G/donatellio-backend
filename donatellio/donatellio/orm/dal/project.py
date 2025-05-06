@@ -29,6 +29,13 @@ class ProjectDAL:
         image_prompts.sort(key=lambda x: x.created_at)
 
         return ResponseImagePromptChat(chats=image_prompts)
+
+    async def get_images(self, project_id: str) -> List[str]:
+        project = await self.get_project_by_id(project_id)
+        imageurls = await project.image_urls
+        
+        return imageurls
+
     
     async def get_all_projects_by(self, filter) -> List[Project]:
         projects = await self.session.execute(

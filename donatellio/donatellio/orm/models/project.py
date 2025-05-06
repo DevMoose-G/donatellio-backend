@@ -15,6 +15,11 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     owner = relationship("User", back_populates="projects")
-    images = relationship("Image", back_populates="project")
+    images = relationship("Image", back_populates="project", lazy="selectin")
+
+    @property
+    async def image_urls(self):
+        images = sorted(self.images, key=lambda x: x.created_at, reverse=True)
+        return [image.url for image in images]
 
     

@@ -1,0 +1,12 @@
+fastapi
+pydantic
+rq
+sqlalchemy
+pydantic-settings
+psycopg2
+asyncpg
+passlib
+alembic
+sqlalchemy_utils
+bcrypt
+pillow

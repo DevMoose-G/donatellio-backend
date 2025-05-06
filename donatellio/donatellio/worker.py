@@ -17,7 +17,7 @@ async def mainloop():
             print("got a message")
             params = json.loads(msg.json.payload)
             if msg.json.function_name == "generate_image":
-                filepath = generate_image(**params)
+                filepath = await generate_image(**params)
                 await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_url": filepath}))
             elif msg.json.function_name == "get_elaborating_questions":
                 questions = get_elaborating_questions(**params)

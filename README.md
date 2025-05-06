@@ -1,3 +1,9 @@
+## Setup
+do pip install -r requirements.txt
+create a static folder in the 1st donatellio folder (so donatellio/static)
+Setup postgres database
+In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/main.py`
+
 ## Project Overview
 
 This project implements a scalable, provider-agnostic inference API using FastAPI, Redis (as a broker), RQ (Redis Queue), custom GPU providers (RunPod & Lambda Labs), and PostgreSQL (via SQLAlchemy). The architecture separates concerns into modular services for ease of development, testing, and deployment.

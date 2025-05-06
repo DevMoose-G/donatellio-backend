@@ -2,7 +2,10 @@
 
 from pydantic import Field, AnyUrl
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv, find_dotenv
 
+# walk up until you hit the first .env
+load_dotenv(find_dotenv())
 
 class Settings(BaseSettings):
     # Redis
@@ -10,6 +13,7 @@ class Settings(BaseSettings):
 
     # PostgreSQL (asyncpg)
     database_url: str = Field(..., env="DATABASE_URL")
+    database_sync_url: str = Field(..., env="DATABASE_SYNC_URL")
 
     # OpenAI
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")

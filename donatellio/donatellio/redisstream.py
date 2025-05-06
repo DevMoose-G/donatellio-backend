@@ -27,12 +27,17 @@ class RedisStream:
         self.stream_key = stream_key
         self.group_name = group_name
 
+    # part of the consumer setup
     async def setup_group(self, new_only=False):
-        groups = await r.xinfo_groups(self.stream_key)
-        group_names = [g["name"] for g in groups]
+        group_names = []
+        try:
+            groups = await r.xinfo_groups(self.stream_key)
+            group_names = [g["name"] for g in groups]
+        except:
+            print("No groups found. Redis key may not exist.")
         if self.group_name not in group_names:
             # $ means only read from this point onwards
-            await r.xgroup_create(self.stream_key, self.group_name, "$" if new_only else '0') 
+            await r.xgroup_create(self.stream_key, self.group_name, "$" if new_only else '0', mkstream=True) 
 
     # returns the message id
     async def send_msg(self, payload: RedisPayload) -> int:
