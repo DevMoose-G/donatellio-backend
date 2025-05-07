@@ -1,0 +1,3 @@
+Improve cold start by storing model in persistent volume on RunPod and just using symlinks to use the model weights. No need to download weights every cold start
+TensorRT optimizations
+Consider keeping workers at 1 at all times (cost for a a40 runpod is 282.72 per month)
