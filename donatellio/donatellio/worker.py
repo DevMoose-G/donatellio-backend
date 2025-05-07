@@ -1,7 +1,7 @@
 import asyncio
 import json
 from donatellio.redisstream import RedisPayload, RedisStream
-from donatellio.workers.image import generate_image, get_elaborating_questions
+from donatellio.workers.image import edit_image, generate_image, get_elaborating_questions
 
 
 async def mainloop():
@@ -12,12 +12,15 @@ async def mainloop():
         response = await stream.consume_msg("consumer", new_only=True, n_msgs=10)
         if response.messages == []:
             print("No messages available")
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
         for msg in response.messages:
             print("got a message")
             params = json.loads(msg.json.payload)
             if msg.json.function_name == "generate_image":
                 filepath = await generate_image(**params)
+                await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_url": filepath}))
+            elif msg.json.function_name == "edit_image":
+                filepath = await edit_image(**params)
                 await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_url": filepath}))
             elif msg.json.function_name == "get_elaborating_questions":
                 questions = get_elaborating_questions(**params)

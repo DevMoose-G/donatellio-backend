@@ -40,3 +40,7 @@ class ItemImagePromptChat(BaseModel):
 
 class ResponseImagePromptChat(BaseModel):
     chats: List[ItemImagePromptChat]
+
+class WSImageEditsResponse(BaseModel):
+    image_urls: List[str]
+    chats: List[ItemImagePromptChat]

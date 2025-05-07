@@ -10,3 +10,6 @@ alembic
 sqlalchemy_utils
 bcrypt
 pillow
+fastapi[standard]
+requests
+openai

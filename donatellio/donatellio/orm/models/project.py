@@ -19,7 +19,7 @@ class Project(Base):
 
     @property
     async def image_urls(self):
-        images = sorted(self.images, key=lambda x: x.created_at, reverse=True)
-        return [image.url for image in images]
+        images = sorted(self.images, key=lambda x: x.created_at)
+        return [image.url for image in images if image.url != ""]
 
     

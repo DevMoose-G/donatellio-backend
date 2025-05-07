@@ -14,7 +14,7 @@ DATABASE_URL = settings.database_url
 # Create the async engine
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,       # Set to False in production
+    echo=False,      # set to true for debugging
     future=True
 )
 

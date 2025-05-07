@@ -1,10 +1,11 @@
+import io
 import os
 from typing import List
 import uuid
 from openai import OpenAI
 import requests
 from donatellio.consts import BASE_URL
-from donatellio.workers.prompts import ELABORATION_PROMPT
+from donatellio.workers.prompts import ELABORATION_PROMPT, IMAGE_GEN_PROMPT
 from donatellio.orm.dal.image import ImageDAL
 from donatellio.orm.main import AsyncSessionLocal, get_db
 from donatellio.orm.models.image import Image
@@ -20,14 +21,13 @@ STATIC_DIR = f"{CURRENT_DIR}/../../static"
 # Configure OpenAI
 client = OpenAI(api_key=settings.openai_api_key,)
 
-async def generate_image(project_id, prompt, n, size, quality) -> str:
+async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
     if n!=1:
         n=1
     
-    img_id = str(uuid.uuid4())
-    image_name = f"{img_id}.png"
+    image_name = f"{image_id}.png"
 
-    prompt += "\nDon't put any background. Image has to be transparent."
+    prompt += f"\n{IMAGE_GEN_PROMPT}"
 
     res = client.images.generate(
         model="gpt-image-1",
@@ -48,29 +48,31 @@ async def generate_image(project_id, prompt, n, size, quality) -> str:
     img_url = f"{BASE_URL}/static/{image_name}"
     
     async with AsyncSessionLocal() as session:
-        await ImageDAL(session).create_image(Image(id=img_id, prompt=prompt, project_id=project_id, url=img_url, original_image_url=None))
+        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url)
 
     return img_url
 
-async def edit_image(project_id, original_image_url, prompt, n, size, quality) -> str:
-    img_id = str(uuid.uuid4())
-    image_name = f"{img_id}.png"
+async def edit_image(image_id, project_id, original_image_url, prompt, n, size, quality) -> str:
+    image_name = f"{image_id}.png"
 
     response = requests.get(original_image_url)
     img = PIL.Image.open(BytesIO(response.content))
 
-    prompt += "\nImage has to have a transparent background."
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    prompt += f"\n{IMAGE_GEN_PROMPT}"
 
     res = client.images.edit(
         model="gpt-image-1",
         image=[
-            img
+            ("image.png", buf, "image/png")
         ],
         prompt=prompt,
         n=n,
         size=size,
         quality=quality,
-        background="transparent" # not sure if this param is allowed
     )
 
     images = []
@@ -83,7 +85,7 @@ async def edit_image(project_id, original_image_url, prompt, n, size, quality) -
     img_url = f"{BASE_URL}/static/{image_name}"
 
     async with AsyncSessionLocal() as session:
-        await ImageDAL(session).create_image(Image(img_id, prompt, project_id, img_url, original_image_url))
+        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url, original_image_url=original_image_url)
     
     return img_url
 
