@@ -163,6 +163,14 @@ async def get_image_chat_history(
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
 
+@app.get("/model/{project_id}/view", status_code=200)
+async def get_model_info(
+    project_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal)
+):
+    response = await project_dal.get_image_prompt_chats(project_id)
+    return response
+
 @app.get("/image/elaborate", status_code=200)
 async def get_elaborating_questions(
     req: RequestGetElaboratingQuestions,

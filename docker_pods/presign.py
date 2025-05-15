@@ -29,19 +29,33 @@ def main():
     parser.add_argument(
         "key", help="The key (path and filename) in the S3 bucket.",
     )
+    parser.add_argument(
+        "type", help="File type ('png' or 'glb')",
+    )
     args = parser.parse_args()
     
     # By default, this will use credentials from ~/.aws/credentials
     s3_client = boto3.client("s3")
     
-    # The presigned URL is specified to expire in 1000 seconds
-    url = generate_presigned_url(
-        s3_client, 
-        "put_object", 
-        {"Bucket": args.bucket, "Key": args.key, "ContentType": "model/gltf-binary"}, 
-        1000
-    )
-    print(f"Generated PUT presigned URL: {url}")
+    # The presigned URL is specified to expire in 10_000 seconds
+    content_type = "image/png" if args.type == "png" else "model/gltf-binary"
+    urls = []
+    if content_type == "image/png":
+        for i in range(6):
+            urls.append(generate_presigned_url(
+                s3_client, 
+                "put_object", 
+                {"Bucket": args.bucket, "Key": args.key+"_"+str(i)+".png", "ContentType": "image/png"},  # , "ContentType": "model/gltf-binary"
+                10_000
+            ))
+    else:
+        urls.append(generate_presigned_url(
+            s3_client, 
+            "put_object", 
+            {"Bucket": args.bucket, "Key": args.key, "ContentType": "model/gltf-binary"},  # , "ContentType": "model/gltf-binary"
+            10_000
+        ))
+    print(f"Generated PUT presigned URL: {urls}")
 
 if __name__ == "__main__":
     main()

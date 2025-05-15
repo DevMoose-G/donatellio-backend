@@ -15,6 +15,8 @@ class Image(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
+    multiview_image_dir = Column(String(1024), nullable=True)
+
     # should keep track of openai parameters
 
     project = relationship("Project", back_populates="images")
