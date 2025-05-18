@@ -1,5 +1,7 @@
 FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
+# COPY MODEL WEIGHTS (FOR PRODUCTION)
+
 # Install Python & GIT
 RUN apt-get update && \
     apt-get install -y python3-pip python3-dev python3-venv git && \
@@ -24,7 +26,7 @@ ENV PATH="/.venv/bin:$PATH"
 RUN pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
 RUN pip install torch-cluster -f https://data.pyg.org/whl/torch-2.5.1+cu124.html
 
-ENV ON_RUNPOD=true
+ENV ON_RUNPOD=True
 
 # need to do git clone before running this
 COPY Step1X-3D/ /app/Step1X-3D
@@ -44,5 +46,7 @@ WORKDIR /app/Step1X-3D
 COPY test_input.json /app/Step1X-3D/test_input.json
 
 COPY src/handler.py /app/Step1X-3D/handler.py
+
+RUN ln -s /runpod-volume /workspace
 
 CMD ["python", "-u", "handler.py"]
