@@ -1,9 +1,8 @@
 from typing import List
-from hy3dgen.shapegen.pipelines import Hunyuan3DDiTFlowMatchingPipeline
-from hy3dgen.texgen import Hunyuan3DPaintPipeline
 from pydantic import BaseModel
 import runpod
-
+from step1x3d_geometry.models.pipelines.pipeline import Step1X3DGeometryPipeline
+import torch
 import requests
 
 class GenerateModelRequest(BaseModel):
@@ -11,13 +10,41 @@ class GenerateModelRequest(BaseModel):
     presigned_urls: List[str]
     only_multiview: bool = False
 
-cache_dir = "/workspace/hunyuan3d/cache"
-
-shape_pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained('tencent/Hunyuan3D-2', device='cuda', cache_dir=cache_dir)
-paint_pipe = Hunyuan3DPaintPipeline.from_pretrained(
-    'tencent/Hunyuan3D-2', 
+from step1x3d_texture.pipelines.step1x_3d_texture_synthesis_pipeline import (
+    Step1X3DTexturePipeline,
 )
-   
+from step1x3d_geometry.models.pipelines.pipeline_utils import reduce_face, remove_degenerate_face
+import trimesh
+
+on_runpod = os.getenv("ON_RUNPOD", False)
+cache_dir = "/workspace/cache/step1x-3d"
+
+# define the pipelines
+geometry_pipeline = Step1X3DGeometryPipeline.from_pretrained(cache_dir if on_runpod else "stepfun-ai/Step1X-3D", subfolder='Step1X-3D-Geometry-1300m').to("cuda")
+texture_pipeline = Step1X3DTexturePipeline.from_pretrained(cache_dir if on_runpod else "stepfun-ai/Step1X-3D" , subfolder="Step1X-3D-Texture")
+
+def generate_textured_mesh(untexture_mesh_path, input_image_path) -> str:
+    untexture_mesh = trimesh.load(untexture_mesh_path)
+
+    untexture_mesh = remove_degenerate_face(untexture_mesh)
+    untexture_mesh = reduce_face(untexture_mesh)
+
+    # texture mapping
+    textured_mesh = texture_pipeline(input_image_path, untexture_mesh)
+
+    # export textured mesh as .glb format
+    return textured_mesh
+
+def generate_mesh(input_image_path) -> str:
+    # run pipeline and obtain the untextured mesh 
+    generator = torch.Generator(device=geometry_pipeline.device).manual_seed(2025)
+    out = geometry_pipeline(input_image_path, guidance_scale=7.5, num_inference_steps=50)
+
+    # export untextured mesh as .glb format
+    out.mesh[0].export("untexture_mesh.glb")
+    
+    return generate_textured_mesh("untexture_mesh.glb", input_image_path)
+
 def random_string(length: int) -> str:
     import secrets
     import string
@@ -47,24 +74,6 @@ def upload_asset(file_loc, presigned_url, content_type):
         "status_code":200
     }
 
-def generate_multiview(img_filepath):
-    initial_mesh = shape_pipe(image=img_filepath)[0]
-
-    # 2) Produce high-res multiview RGBs (e.g. 8 views at 512×512)
-    multiviews = paint_pipe(
-        image=img_filepath, 
-        mesh=initial_mesh, 
-        num_views=6
-    ).images  # list of PIL Images at 512×512
-
-    # Save for editing
-    multiview_paths = []
-    for i, view in enumerate(multiviews):
-        multiview_paths.append(f'view_{i}.png')
-        view.save(multiview_paths[-1])
-
-    return multiview_paths
-
 def handler(event):
     request: GenerateModelRequest = GenerateModelRequest(**event['input'])
 
@@ -81,12 +90,16 @@ def handler(event):
             "message":"cannot download image",
             "status_code":404
         }
+
+    # rembg = BackgroundRemover()
+    # image = rembg(image)
     
     if request.only_multiview:
+        raise Exception("Unsupported for step1x-3d")
         multiview_paths = generate_multiview("downloaded_image.png")
         errored_responses = []
-        for path in multiview_paths:
-            response = upload_asset(mesh_file_loc, request.presigned_urls.pop(index=0), "image/png")
+        for i, path in enumerate(multiview_paths):
+            response = upload_asset(path, request.presigned_urls[i], "image/png")
             if response['status_code'] != 200:
                 errored_responses.append(response)
         if len(errored_responses) > 0:
@@ -95,7 +108,7 @@ def handler(event):
             }
     else:
         
-        mesh = shape_pipe(image="downloaded_image.png")[0]
+        mesh = generate_mesh("downloaded_image.png")
         mesh_file_loc = f"mesh{random_string(16)}.glb"
         mesh.export(mesh_file_loc)
 

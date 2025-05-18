@@ -44,3 +44,6 @@ class ResponseImagePromptChat(BaseModel):
 class WSImageEditsResponse(BaseModel):
     image_urls: List[str]
     chats: List[ItemImagePromptChat]
+
+class WSMeshResponse(BaseModel):
+    mesh_urls: List[str]

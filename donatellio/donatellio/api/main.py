@@ -11,7 +11,7 @@ from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 import requests
 
-from donatellio.api.types import RequestCreateImage, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse
+from donatellio.api.types import RequestCreateImage, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSMeshResponse
 from donatellio.orm import ImageDAL, get_image_dal, ProjectDAL, get_project_dal, Project, UserDAL, get_user_dal
 from donatellio.utils.hashing import get_password_hash
 from donatellio.orm.models.user import User
@@ -70,10 +70,10 @@ async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_
     return {"user_id": db_user.id}
 
 # is it good to have one socket per project and have the frontend filter if it is image or text?
-@app.websocket("/ws/projects/{project_id}")
-async def job_updates(websocket: WebSocket, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal)):
+@app.websocket("/ws/projects/{project_id}/image")
+async def image_updates(websocket: WebSocket, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal)):
     await websocket.accept()
-    stream = RedisStream("completed-jobs")
+    stream = RedisStream("completed-jobs", group_name="image")
     await stream.setup_group(new_only=False)
     await asyncio.sleep(2)
     while True:
@@ -93,6 +93,35 @@ async def job_updates(websocket: WebSocket, project_id: str, project_dal: Projec
             if msg.json.project_id == project_id:
                 if msg.json.function_name == "generate_image":
                     await websocket.send_json(payload)
+                    await stream.ack_msg(msg.id)
+        
+        
+            # break
+    
+    await websocket.close()
+
+@app.websocket("/ws/projects/{project_id}/mesh")
+async def mesh_updates(websocket: WebSocket, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal)):
+    await websocket.accept()
+    stream = RedisStream("completed-jobs", group_name="mesh")
+    await stream.setup_group(new_only=False)
+    await asyncio.sleep(2)
+    while True:
+
+        meshes = await project_dal.get_meshes(project_id)
+        if meshes != []:
+            mesh_urls = await project_dal.get_image_urls(project_id)
+            await websocket.send_json(WSMeshResponse(mesh_urls=mesh_urls).model_dump(mode="json"))
+
+        response = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
+        if len(response.messages) == 0:
+            await asyncio.sleep(2)
+        else:
+            msg = response.messages[0]
+            payload = json.loads(msg.json.payload)
+            if msg.json.project_id == project_id:
+                if msg.json.function_name == "generate_mesh":
+                    await websocket.send_json(WSMeshResponse(mesh_urls=[payload["url"]]).model_dump(mode="json"))
                     await stream.ack_msg(msg.id)
         
         

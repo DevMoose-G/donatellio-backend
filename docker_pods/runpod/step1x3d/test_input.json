@@ -1,0 +1,8 @@
+{
+    "input": {
+        "image_url": "https://content.stylitics.com/images/items/15758947",
+        "presigned_urls": [
+            "https://donatellio.s3.amazonaws.com/meshes/loveseat2.glb?AWSAccessKeyId=AKIA2K6MDJHO3SY7V4FE&Signature=zEkseuSL0AT2CuEVKh%2FOAyh%2BVfA%3D&content-type=model%2Fgltf-binary&Expires=1747516330"
+        ]
+    }
+}

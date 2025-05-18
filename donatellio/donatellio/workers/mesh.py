@@ -5,6 +5,9 @@ import uuid
 from openai import OpenAI
 import requests
 from donatellio.consts import BASE_URL
+from donatellio.orm.dal.mesh import MeshDAL
+from donatellio.providers.storage import StorageProvider
+from donatellio.providers.runpod import RunpodProvider
 from donatellio.workers.prompts import ELABORATION_PROMPT, IMAGE_GEN_PROMPT
 from donatellio.orm.dal.image import ImageDAL
 from donatellio.orm.main import AsyncSessionLocal, get_db
@@ -22,31 +25,17 @@ STATIC_DIR = f"{CURRENT_DIR}/../../static"
 client = OpenAI(api_key=settings.openai_api_key,)
 
 async def generate_mesh(image_id, project_id, prompt, size, quality) -> str:
-    async with AsyncSessionLocal() as session:
-        image = await ImageDAL(session).get_image_by_id(image_id)
-    image_name = f"{image_id}.png"
 
-    prompt += f"\n{IMAGE_GEN_PROMPT}"
+    # generate presigned url
+    mesh_id = str(uuid.uuid4())
+    storage_provider = StorageProvider()
+    presigned_url = storage_provider.generate_presigned_url_for_mesh(mesh_id)
 
-    res = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        n=n,
-        size=size,
-        quality=quality,
-        background="transparent"
-    )
-
-    images = []
-    for img_data in res.data:
-        img_bytes = base64.b64decode(img_data.b64_json)
-        img = PIL.Image.open(BytesIO(img_bytes))
-        img.save(f"{STATIC_DIR}/{image_name}")
-        images.append(img)
+    # call generate_mesh in runpod
+    runpod_service = RunpodProvider()
+    runpod_service.generate_mesh(project_id=project_id, image_id=image_id, mesh_id=mesh_id, presigned_url=presigned_url)
     
-    img_url = f"{BASE_URL}/static/{image_name}"
-    
-    async with AsyncSessionLocal() as session:
-        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url)
+    with AsyncSessionLocal() as session:
+        mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
 
-    return img_url
+    return mesh.url

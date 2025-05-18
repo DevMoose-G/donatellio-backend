@@ -2,6 +2,7 @@ from typing import List
 from fastapi import Depends
 from sqlalchemy import select
 from donatellio.api.types import ItemImagePromptChat, ResponseImagePromptChat
+from donatellio.orm.models.mesh import Mesh
 from donatellio.orm.models.project import Project
 from donatellio.orm.models.image import Image
 from donatellio.orm.main import AsyncSessionLocal, get_db
@@ -39,6 +40,10 @@ class ProjectDAL:
     async def get_images(self, project_id: str) -> List[Image]:
         project = await self.get_project_by_id(project_id)
         return project.images
+    
+    async def get_meshes(self, project_id: str) -> List[Mesh]:
+        project = await self.get_project_by_id(project_id)
+        return project.meshes
 
     
     async def get_all_projects_by(self, filter) -> List[Project]:

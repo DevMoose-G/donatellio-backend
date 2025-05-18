@@ -37,7 +37,7 @@ def main():
     # By default, this will use credentials from ~/.aws/credentials
     s3_client = boto3.client("s3")
     
-    # The presigned URL is specified to expire in 10_000 seconds
+    # The presigned URL is specified to expire in 3600  seconds (an hour)
     content_type = "image/png" if args.type == "png" else "model/gltf-binary"
     urls = []
     if content_type == "image/png":
@@ -46,14 +46,14 @@ def main():
                 s3_client, 
                 "put_object", 
                 {"Bucket": args.bucket, "Key": args.key+"_"+str(i)+".png", "ContentType": "image/png"},  # , "ContentType": "model/gltf-binary"
-                10_000
+                3600 
             ))
     else:
         urls.append(generate_presigned_url(
             s3_client, 
             "put_object", 
-            {"Bucket": args.bucket, "Key": args.key, "ContentType": "model/gltf-binary"},  # , "ContentType": "model/gltf-binary"
-            10_000
+            {"Bucket": args.bucket, "Key": args.key+".glb", "ContentType": "model/gltf-binary"},  # , "ContentType": "model/gltf-binary"
+            3600 
         ))
     print(f"Generated PUT presigned URL: {urls}")
 

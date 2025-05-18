@@ -16,6 +16,7 @@ class Project(Base):
 
     owner = relationship("User", back_populates="projects")
     images = relationship("Image", back_populates="project", lazy="selectin")
+    meshes = relationship("Mesh", back_populates="project")
 
     @property
     async def image_urls(self):
