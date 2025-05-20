@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional
 from pydantic import BaseModel
 import runpod
@@ -5,6 +6,8 @@ from step1x3d_geometry.models.pipelines.pipeline import Step1X3DGeometryPipeline
 import requests
 import os
 from step1x3d_geometry.models.pipelines.pipeline_utils import reduce_face, remove_degenerate_face
+from torch import set_float32_matmul_precision
+set_float32_matmul_precision('high')
 
 class GenerateModelRequest(BaseModel):
     image_url: str
@@ -32,20 +35,25 @@ class GenerateModelRequest(BaseModel):
 on_runpod = os.getenv("ON_RUNPOD", False)
 cache_dir = "/runpod-volume/cache/step1x-3d"
 
+MODEL_ID = "stepfun-ai/Step1X-3D"
+device   = "cuda"
+
 if on_runpod:
     if not os.path.isdir(cache_dir):
         raise Exception(f"Cannot find cached model at {cache_dir}")
 
-# define the pipelines
-geometry_pipeline = Step1X3DGeometryPipeline.from_pretrained(cache_dir if on_runpod else "stepfun-ai/Step1X-3D", subfolder='Step1X-3D-Geometry-1300m').to("cuda")
+geom_pipe = Step1X3DGeometryPipeline.from_pretrained(
+    cache_dir if on_runpod else "stepfun-ai/Step1X-3D", 
+    subfolder='Step1X-3D-Geometry-1300m'
+).to(device)
 
-def generate_mesh(input_image_path:str, request: GenerateModelRequest) -> str:
-    # run pipeline and obtain the untextured mesh 
-    out = geometry_pipeline(
-        input_image_path,
+
+def generate_meshes(request: GenerateModelRequest, n_meshes: int) -> str:
+    out = geom_pipe(
+        request.image_url,
         label=request.label,
         caption=request.caption,
-        num_meshes_per_prompt=request.n_meshes,
+        num_meshes_per_prompt=n_meshes,
         octree_resolution=request.octree_resolution,
         guidance_scale=request.guidance_scale, 
         num_inference_steps=request.n_inference_steps, 
@@ -56,9 +64,10 @@ def generate_mesh(input_image_path:str, request: GenerateModelRequest) -> str:
     )
 
     # export untextured mesh as .glb format
-    untexture_mesh = remove_degenerate_face(out.mesh[0])
-    untexture_mesh = reduce_face(untexture_mesh)
-    return untexture_mesh
+    # meshes = []
+    # untexture_mesh = remove_degenerate_face(out.mesh[0])
+    # untexture_mesh = reduce_face(untexture_mesh)
+    return out.mesh
 
 def random_string(length: int) -> str:
     import secrets
@@ -89,35 +98,36 @@ def upload_asset(file_loc, presigned_url, content_type):
         "status_code":200
     }
 
-def handler(event):
+def generator_handler(event):
     request: GenerateModelRequest = GenerateModelRequest(**event['input'])
+    if len(request.presigned_urls) != request.n_meshes:
+        raise Exception("# of presigned urls must match the # of meshes generated")
 
-    # Send a GET request to the image URL
-    response = requests.get(request.image_url)
-
-    # Check if the request was successful
-    if response.status_code == 200:
-        with open("downloaded_image.png", "wb") as file:
-            file.write(response.content)  # Write the content of the image
-        print("Image downloaded successfully.")
-    else:
-        return {
-            "message":"cannot download image",
-            "status_code":404
+    # As soon as a mesh is done, yield it
+    for i in range(request.n_meshes):
+        mesh = generate_meshes(request, 1)[0]
+        
+        # upload
+        mesh_file_loc = f"mesh{random_string(16)}.glb"
+        mesh.export(mesh_file_loc)
+        response = upload_asset(mesh_file_loc, request.presigned_urls[i], "model/gltf-binary")
+        if response['status_code'] != 200:
+            yield {
+                "message": "failed to upload mesh",
+                "error_msg": response
+            }
+            continue
+        
+        yield {
+            "message":f"success. Mesh uploaded to {request.presigned_urls[i]}", 
+            "mesh_urls":[request.presigned_urls[i]],
+            "status_code":200
         }
-    
-    mesh = generate_mesh("downloaded_image.png", request)
-    mesh_file_loc = f"mesh{random_string(16)}.glb"
-    mesh.export(mesh_file_loc)
 
-    response = upload_asset(mesh_file_loc, request.presigned_urls[0], "model/gltf-binary")
-    if response['status_code'] != 200:
-        return response
 
-    return {
-        "message":f"success. File uploaded to {request.presigned_urls}",
-        "status_code":200
-    }
-
+# Start with streaming enabled
 if __name__ == '__main__':
-    runpod.serverless.start({'handler': handler })
+    runpod.serverless.start({
+        "handler": generator_handler,
+        "return_aggregate_stream": True                                             
+    })
