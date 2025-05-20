@@ -1,0 +1,9 @@
+{
+    "input": {
+        "mesh_url": "https://donatellio.s3.amazonaws.com/meshes/sidecar-def.glb?AWSAccessKeyId=AKIA2K6MDJHO3SY7V4FE&Signature=QKTFkSGCtC2fzTppc7OYtCvod7U%3D&Expires=1747697766",
+        "image_url": "https://cdn.pixabay.com/photo/2021/11/21/20/01/motorcycle-6815150_1280.png",
+        "presigned_urls": [
+            "https://donatellio.s3.amazonaws.com/meshes/sidecar-def-texture.glb?AWSAccessKeyId=AKIA2K6MDJHO3SY7V4FE&Signature=ZdxHr%2FoZUwaCSYtojdiz97KZo1c%3D&content-type=model%2Fgltf-binary&Expires=1747698270"
+        ]
+    }
+}

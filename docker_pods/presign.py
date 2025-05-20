@@ -32,6 +32,9 @@ def main():
     parser.add_argument(
         "type", help="File type ('png' or 'glb')",
     )
+    parser.add_argument(
+        "client_method", help="The name of the client method that the URL performs.", default="put_object"
+    )
     args = parser.parse_args()
     
     # By default, this will use credentials from ~/.aws/credentials
@@ -41,21 +44,35 @@ def main():
     content_type = "image/png" if args.type == "png" else "model/gltf-binary"
     urls = []
     if content_type == "image/png":
-        for i in range(6):
+        if args.client_method == "put_object":
+            for i in range(6):
+                method_params = {"Bucket": args.bucket, "Key": args.key+"_"+str(i)+".png", "ContentType": "image/png"}
+                
+                urls.append(generate_presigned_url(
+                    s3_client, 
+                    str(args.client_method), 
+                    method_params,  # , "ContentType": "model/gltf-binary"
+                    3600
+                ))
+        else:
+            method_params = {"Bucket": args.bucket, "Key": args.key+".png"}
             urls.append(generate_presigned_url(
                 s3_client, 
-                "put_object", 
-                {"Bucket": args.bucket, "Key": args.key+"_"+str(i)+".png", "ContentType": "image/png"},  # , "ContentType": "model/gltf-binary"
-                3600 
-            ))
+                str(args.client_method), 
+                method_params,  # , "ContentType": "model/gltf-binary"
+                36000
+            )) 
     else:
+        method_params = {"Bucket": args.bucket, "Key": args.key+".glb", "ContentType": "model/gltf-binary"}
+        if args.client_method != "put_object":
+            del method_params['ContentType']  
         urls.append(generate_presigned_url(
             s3_client, 
-            "put_object", 
-            {"Bucket": args.bucket, "Key": args.key+".glb", "ContentType": "model/gltf-binary"},  # , "ContentType": "model/gltf-binary"
+            str(args.client_method), 
+            method_params,  # , "ContentType": "model/gltf-binary"
             3600 
         ))
-    print(f"Generated PUT presigned URL: {urls}")
+    print(f"Generated {args.client_method} presigned URL: {urls}")
 
 if __name__ == "__main__":
     main()

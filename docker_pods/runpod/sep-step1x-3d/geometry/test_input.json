@@ -1,0 +1,8 @@
+{
+    "input": {
+        "image_url": "https://cdn.pixabay.com/photo/2021/11/21/20/01/motorcycle-6815150_1280.png",
+        "presigned_urls": [
+            "https://donatellio.s3.amazonaws.com/meshes/sidecar-def2.glb?AWSAccessKeyId=AKIA2K6MDJHO3SY7V4FE&Signature=ibjjAyOk2%2B9I34W5fUEUKs6Yn%2FE%3D&content-type=model%2Fgltf-binary&Expires=1747696533"
+        ]
+    }
+}
