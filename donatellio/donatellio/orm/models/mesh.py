@@ -10,7 +10,7 @@ class Mesh(Base):
     id = Column(String(128), primary_key=True)
     project_id = Column(String(128), ForeignKey("projects.id"), nullable=False)
     image_id = Column(String(128), ForeignKey("images.id"), nullable=False) # images?
-    url = Column(String(1024), nullable=True)
+    storage_key = Column(String(1024), nullable=True)
 
     status = Column(String(32), nullable=False, default="PENDING")
 

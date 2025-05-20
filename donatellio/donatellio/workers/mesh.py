@@ -24,18 +24,15 @@ STATIC_DIR = f"{CURRENT_DIR}/../../static"
 # Configure OpenAI
 client = OpenAI(api_key=settings.openai_api_key,)
 
-async def generate_mesh(image_id, project_id, prompt, size, quality) -> str:
+async def generate_mesh(image_id, project_id) -> str:
 
     # generate presigned url
     mesh_id = str(uuid.uuid4())
     storage_provider = StorageProvider()
-    presigned_url = storage_provider.generate_presigned_url_for_mesh(mesh_id)
+    presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
 
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
-    runpod_service.generate_mesh(project_id=project_id, image_id=image_id, mesh_id=mesh_id, presigned_url=presigned_url)
+    await runpod_service.generate_mesh(project_id=project_id, image_id=image_id, mesh_id=mesh_id, presigned_url=presigned_url)
     
-    with AsyncSessionLocal() as session:
-        mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
-
-    return mesh.url
+    return mesh_id

@@ -6,7 +6,7 @@ from donatellio.workers.image import edit_image, generate_image, get_elaborating
 
 
 async def mainloop():
-    stream = RedisStream("image-jobs")
+    stream = RedisStream("requested-jobs")
     completed_images_stream = RedisStream("completed-jobs", group_name="image")
     completed_meshes_stream = RedisStream("completed-jobs", group_name="mesh")
     await stream.setup_group(new_only=False)
@@ -19,18 +19,18 @@ async def mainloop():
             print("got a message")
             params = json.loads(msg.json.payload)
             if msg.json.function_name == "generate_image":
-                filepath = await generate_image(**params)
-                await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_url": filepath}))
+                s3_key = await generate_image(**params)
+                await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))
             elif msg.json.function_name == "edit_image":
-                filepath = await edit_image(**params)
-                await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_url": filepath}))
+                s3_key = await edit_image(**params)
+                await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))
             elif msg.json.function_name == "get_elaborating_questions":
                 questions = get_elaborating_questions(**params)
                 breakpoint() # untested
                 # await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"questions": questions}))
             elif msg.json.function_name == "generate_mesh":
-                url = await generate_mesh(**params)
-                await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"url": url}))
+                mesh_id = await generate_mesh(**params)
+                await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"mesh_id": mesh_id}))
             else:
                 raise RuntimeError(f"Unknown function: {msg.json.function_name}")
                 

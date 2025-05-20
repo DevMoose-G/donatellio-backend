@@ -13,8 +13,8 @@ class ImageDAL:
     async def get_image_by_url(self, url) -> Image:
         return await self.session.query(Image).filter(Image.url == url).first()
     
-    async def create_image(self, id: str, prompt: str, project_id: str, url: str, original_image_url: str | None = None) -> Image:
-        image = Image(id=id, prompt=prompt, project_id=project_id, url=url, original_image_url=original_image_url)
+    async def create_image(self, id: str, prompt: str, project_id: str, storage_key: str=None, original_image_id: str | None = None) -> Image:
+        image = Image(id=id, prompt=prompt, project_id=project_id, storage_key=storage_key, original_image_id=original_image_id)
         self.session.add(image)
         await self.session.commit()
         await self.session.refresh(image)

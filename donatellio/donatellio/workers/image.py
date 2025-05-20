@@ -5,6 +5,7 @@ import uuid
 from openai import OpenAI
 import requests
 from donatellio.consts import BASE_URL
+from donatellio.providers.storage import StorageProvider
 from donatellio.workers.prompts import ELABORATION_PROMPT, IMAGE_GEN_PROMPT
 from donatellio.orm.dal.image import ImageDAL
 from donatellio.orm.main import AsyncSessionLocal, get_db
@@ -45,17 +46,19 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
         img.save(f"{STATIC_DIR}/{image_name}")
         images.append(img)
     
-    img_url = f"{BASE_URL}/static/{image_name}"
+    # img_url = f"{BASE_URL}/static/{image_name}"
+    storage_provider = StorageProvider()
+    key = storage_provider.upload_image(image_name, f"{STATIC_DIR}/{image_name}")
     
     async with AsyncSessionLocal() as session:
-        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url)
+        await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
 
-    return img_url
+    return key
 
-async def edit_image(image_id, project_id, original_image_url, prompt, n, size, quality) -> str:
+async def edit_image(image_id, project_id, original_image_id, prompt, n, size, quality) -> str:
     image_name = f"{image_id}.png"
 
-    response = requests.get(original_image_url)
+    response = requests.get(original_image_id)
     img = PIL.Image.open(BytesIO(response.content))
 
     buf = io.BytesIO()
@@ -85,7 +88,7 @@ async def edit_image(image_id, project_id, original_image_url, prompt, n, size, 
     img_url = f"{BASE_URL}/static/{image_name}"
 
     async with AsyncSessionLocal() as session:
-        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url, original_image_url=original_image_url)
+        await ImageDAL(session).update_image(id=image_id, project_id=project_id, url=img_url, original_image_id=original_image_id)
     
     return img_url
 

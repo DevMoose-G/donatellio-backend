@@ -24,9 +24,31 @@ class StorageProvider:
         )
         return url
     
-    def generate_presigned_url_for_mesh(self, mesh_name):
-        self.__generate_presigned_url(
+    def generate_put_url_for_mesh(self, mesh_name):
+        return self.__generate_presigned_url(
             "put_object", 
             {"Bucket": self.bucket, "Key": f"meshes/{mesh_name}.glb", "ContentType": "model/gltf-binary"},
             3600 # 1 hr
         )
+    
+    def generate_put_url_for_image(self, image_name):
+        return self.__generate_presigned_url(
+            "put_object", 
+            {"Bucket": self.bucket, "Key": f"images/{image_name}.png", "ContentType": "image/png"},
+            3600 # 1 hr
+        )
+    
+    def generate_get_url(self, storage_key) -> str:
+        return self.__generate_presigned_url(
+            "get_object",
+            {"Bucket": self.bucket, "Key": storage_key},
+            10 * 60 # 10 mins
+        )
+    
+    def upload_image(self, image_filename, image_path):
+        try:
+            key = f"images/{image_filename}"
+            self.s3_client.upload_file(image_path, self.bucket, key)
+            return key
+        except ClientError as e:
+            print(e)
