@@ -4,28 +4,27 @@ from sqlalchemy.orm import relationship
 
 from donatellio.orm.base import Base
 
-class Mesh(Base):
-    __tablename__ = "meshes"
+class Texture(Base):
+    __tablename__ = "textures"
 
     id = Column(String(128), primary_key=True)
     project_id = Column(String(128), ForeignKey("projects.id"), nullable=False)
-    image_id = Column(String(128), ForeignKey("images.id"), nullable=False) # images?
+    image_id = Column(String(128), ForeignKey("images.id"), nullable=False)
+    mesh_id = Column(String(128), ForeignKey("meshes.id"), nullable=False)
     storage_key = Column(String(1024), nullable=True)
 
     status = Column(String(32), nullable=False, default="PENDING")
-
+    
+    prompt = Column(String(1024), nullable=True)
+    n_inference_steps = Column(Integer, nullable=False, default=50)
+    guidance_scale = Column(Float, nullable=False, default=3.0)
     seed = Column(Integer, nullable=True)
-    octree_resolution = Column(String(8), nullable=False, default="256") # either 256, 384, 512 (maybe others?)
-    num_inference_steps = Column(Integer, nullable=False, default=30) # more steps = smoother, detailed shapes
-    face_count = Column(Integer, nullable=True, default=40000) # 5k-100k faces
-    guidance_scale = Column(Float, nullable=False, default=5.5) # 1-15, higher=listen to image more
-    mc_level = Column(Float, nullable=False, default=0.0)
-    label = Column(String(512), nullable=True)
-    caption = Column(String(1024), nullable=True)
-
+    lora_scale = Column(Float, nullable=False, default=1.0)
+    reference_conditioning_scale = Column(Float, nullable=False, default=1.0) # Weight for image/geometry conditioning
+    
     gpu_provider_response = Column(String(1024), nullable=True) # Runpod, etc message after inference
     
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    project = relationship("Project", back_populates="meshes")
+    project = relationship("Project", back_populates="textures")

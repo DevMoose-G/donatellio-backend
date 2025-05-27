@@ -11,7 +11,7 @@ from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 import requests
 
-from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, RequestCreateImage, RequestCreateMesh, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
+from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
 from donatellio.providers.storage import StorageProvider
 from donatellio.orm.dal.mesh import MeshDAL, get_mesh_dal
 from donatellio.orm import ImageDAL, get_image_dal, ProjectDAL, get_project_dal, Project, UserDAL, get_user_dal
@@ -120,15 +120,27 @@ async def mesh_updates(websocket: WebSocket, project_id: str, mesh_dal: MeshDAL 
     current_img_s3_keys = []
     while True:
         # assert project_dal.get_project_by_id(project_id) != None
-        images = await project_dal.get_images(project_id)
         meshes = await project_dal.get_meshes(project_id)
-        if meshes != []:
+        textures = await project_dal.get_textures(project_id)
+        
+        texture_items = []
+        if textures != []:
+            storage_provider = StorageProvider()
+            for texture in textures:
+                if texture.storage_key not in current_img_s3_keys and texture.storage_key != None:
+                    texture_url = storage_provider.generate_get_url(texture.storage_key)
+                    texture_items.append(WSMeshItem(id=texture.id, url=texture_url, image_id=texture.image_id))
+                    current_img_s3_keys.append(texture.storage_key)
+
+        if texture_items != []:
+            await websocket.send_json(WSMeshResponse(meshes=texture_items).model_dump(mode="json"))
+        elif meshes != []:
             mesh_items = []
             storage_provider = StorageProvider()
             for mesh in meshes:
                 if mesh.storage_key not in current_img_s3_keys and mesh.storage_key != None:
                     mesh_url = storage_provider.generate_get_url(mesh.storage_key)
-                    mesh_items.append(WSMeshItem(id=mesh.id, url=mesh_url))
+                    mesh_items.append(WSMeshItem(id=mesh.id, url=mesh_url, image_id=mesh.image_id))
                     current_img_s3_keys.append(mesh.storage_key)
 
             if mesh_items != []:
@@ -143,10 +155,13 @@ async def mesh_updates(websocket: WebSocket, project_id: str, mesh_dal: MeshDAL 
             if msg.json.project_id == project_id:
                 if msg.json.function_name == "generate_mesh":
                     storage_provider = StorageProvider()
-                    mesh_id = payload["mesh_id"]
-                    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-                    mesh_url = storage_provider.generate_get_url(mesh.storage_key)
-                    await websocket.send_json(WSMeshResponse(mesh_urls=[mesh_url]).model_dump(mode="json"))
+                    mesh_ids = payload["mesh_ids"]
+                    
+                    mesh_urls = []
+                    for mesh_id in mesh_ids:
+                        mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+                        mesh_urls.append(storage_provider.generate_get_url(mesh.storage_key))
+                    await websocket.send_json(WSMeshResponse(mesh_urls=mesh_urls).model_dump(mode="json"))
                     await stream.ack_msg(msg.id)
         
             # break
@@ -165,7 +180,7 @@ async def get_market_assets(limit: int, project_dal: ProjectDAL = Depends(get_pr
         if uploaded_meshes == []:
             continue
         url = storage_provider.generate_get_url(uploaded_meshes[-1].storage_key)
-        assets.append(AssetDisplay(project_id=project.id, url=url, user_name=project.user.username))
+        assets.append(AssetDisplay(project_id=project.id, url=url, user_name=project.owner.username))
     return GetAssetsResponse(assets=assets, count=len(assets))
 
 @app.get("/user/projects", status_code=200)
@@ -222,7 +237,7 @@ async def create_image(
 #         "image_urls": image_urls
 #     }
 
-@app.post("/image/{project_id}/edit/", status_code=202)
+@app.post("/image/{project_id}/edit", status_code=202)
 async def edit_image(
     req: RequestEditImage,
     project_id: str,
@@ -275,6 +290,24 @@ async def create_mesh(
     user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
 
     msg_id = await stream.send_msg(RedisPayload(project_id, "generate_mesh", {** req.model_dump()}))
+
+    return {"image_id": req.image_id, "project_id": project_id}
+
+@app.post("/mesh/{project_id}/texture", status_code=202)
+async def create_texture(
+    req: RequestCreateTexture,
+    project_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    user_dal: UserDAL = Depends(get_user_dal),
+    image_dal: ImageDAL = Depends(get_image_dal),
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+):
+    stream = RedisStream("requested-jobs")
+    await stream.setup_group(new_only=False)
+
+    user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
+
+    msg_id = await stream.send_msg(RedisPayload(project_id, "generate_texture", {** req.model_dump()}))
 
     return {"image_id": req.image_id, "project_id": project_id}
 

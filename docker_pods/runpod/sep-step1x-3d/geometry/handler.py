@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel
 import runpod
 from step1x3d_geometry.models.pipelines.pipeline import Step1X3DGeometryPipeline
@@ -11,7 +11,7 @@ set_float32_matmul_precision('high')
 
 class GenerateModelRequest(BaseModel):
     image_url: str
-    presigned_urls: List[str]
+    mesh_presigned_urls_mapping: Dict[str, str]
     n_meshes: int = 1
     
     # use these two for finer detail & smoother meshes
@@ -100,17 +100,20 @@ def upload_asset(file_loc, presigned_url, content_type):
 
 def generator_handler(event):
     request: GenerateModelRequest = GenerateModelRequest(**event['input'])
-    if len(request.presigned_urls) != request.n_meshes:
+    if len(request.mesh_presigned_urls_mapping.keys()) != request.n_meshes:
+        yield {
+            "message":"# of presigned urls must match the # of meshes generated"
+        }
         raise Exception("# of presigned urls must match the # of meshes generated")
 
     # As soon as a mesh is done, yield it
-    for i in range(request.n_meshes):
+    for mesh_id, presigned_url in request.mesh_presigned_urls_mapping.items():
         mesh = generate_meshes(request, 1)[0]
         
         # upload
         mesh_file_loc = f"mesh{random_string(16)}.glb"
         mesh.export(mesh_file_loc)
-        response = upload_asset(mesh_file_loc, request.presigned_urls[i], "model/gltf-binary")
+        response = upload_asset(mesh_file_loc, presigned_url, "model/gltf-binary")
         if response['status_code'] != 200:
             yield {
                 "message": "failed to upload mesh",
@@ -119,8 +122,9 @@ def generator_handler(event):
             continue
         
         yield {
-            "message":f"success. Mesh uploaded to {request.presigned_urls[i]}", 
-            "mesh_urls":[request.presigned_urls[i]],
+            "message":f"success. Mesh uploaded to {presigned_url}", 
+            "presigned_url":presigned_url,
+            "mesh_id":mesh_id,
             "status_code":200
         }
 

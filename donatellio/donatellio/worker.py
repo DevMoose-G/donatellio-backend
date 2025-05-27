@@ -1,6 +1,6 @@
 import asyncio
 import json
-from donatellio.workers.mesh import generate_mesh
+from donatellio.workers.mesh import generate_mesh, generate_texture
 from donatellio.redisstream import RedisPayload, RedisStream
 from donatellio.workers.image import edit_image, generate_image, get_elaborating_questions
 
@@ -29,8 +29,11 @@ async def mainloop():
                 breakpoint() # untested
                 # await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"questions": questions}))
             elif msg.json.function_name == "generate_mesh":
-                mesh_id = await generate_mesh(**params)
-                await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"mesh_id": mesh_id}))
+                mesh_ids = await generate_mesh(**params)
+                await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"mesh_ids": mesh_ids}))
+            elif msg.json.function_name == "generate_texture":
+                mesh_id = await generate_texture(**params)
+                await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"mesh_ids": [mesh_id]}))
             else:
                 raise RuntimeError(f"Unknown function: {msg.json.function_name}")
                 

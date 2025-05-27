@@ -1,3 +1,20 @@
 Improve cold start by storing model in persistent volume on RunPod and just using symlinks to use the model weights. No need to download weights every cold start
 TensorRT optimizations
 Consider keeping workers at 1 at all times (cost for a a40 runpod is 282.72 per month)
+
+look into good remeshing techs:
+Best Practices & Parameter Tuning
+Feature Analysis: Identify and protect high‐curvature areas by using vertex groups (Blender) or custom weight maps to prevent over‐collapse 
+.
+
+Multi‐pass Reduction: Instead of a single drastic decimation, apply several smaller passes (e.g., 10–20% reduction each) to better control error accumulation 
+.
+
+Error Thresholds: Use a maximum error tolerance (e.g., QEM’s error quadric threshold) rather than a strict face count to balance polygon budget with visual fidelity 
+.
+
+Post‐processing: After decimation, perform local smoothing or isotropic remeshing to eliminate artifacts and improve triangle quality 
+.
+
+Conclusion
+By selecting the appropriate simplification algorithm—Quadric Error Metrics for high quality, vertex clustering for speed, or progressive meshes for LOD control—and leveraging tools like MeshLab, Blender, CGAL, Open3D, or Instant Meshes, you can reduce a mesh from tens of thousands of faces down to 3k–5k faces while retaining critical shape and detail. Carefully tuning reduction parameters, protecting features, and combining decimation with remeshing are key to achieving the best visual results.

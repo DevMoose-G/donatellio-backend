@@ -3,9 +3,23 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+class RequestCreateTexture(BaseModel):
+    project_id: str
+    image_id: str
+    mesh_id: str
+    prompt: str
+    texture_quality: str
+    seed: int
+
 class RequestCreateMesh(BaseModel):
     project_id: str
     image_id: str
+    mesh_model: str
+    n_meshes: int
+    quality: str
+    seed: int
+    labels: List[str]
+    max_polygon_count: Optional[int]
 
 class RequestCreateImage(BaseModel):
     prompt: str
@@ -55,6 +69,7 @@ class WSImageEditsResponse(BaseModel):
 
 class WSMeshItem(BaseModel):
     id: str
+    image_id: str
     url: str
 
 class WSMeshResponse(BaseModel):

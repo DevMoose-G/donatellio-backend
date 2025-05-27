@@ -24,15 +24,12 @@ STATIC_DIR = f"{CURRENT_DIR}/../../static"
 # Configure OpenAI
 client = OpenAI(api_key=settings.openai_api_key,)
 
-async def generate_mesh(image_id, project_id) -> str:
-
-    # generate presigned url
-    mesh_id = str(uuid.uuid4())
-    storage_provider = StorageProvider()
-    presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
+async def generate_mesh(image_id, project_id, mesh_model: str, n_meshes: int, quality: str, seed: int, labels: List[str], max_polygon_count: int) -> List[str]:
 
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
-    await runpod_service.generate_mesh(project_id=project_id, image_id=image_id, mesh_id=mesh_id, presigned_url=presigned_url)
+    return await runpod_service.generate_untextured_mesh(project_id, image_id, mesh_model, n_meshes, quality, seed, labels, max_polygon_count)
     
-    return mesh_id
+async def generate_texture(image_id, project_id, mesh_id: str, prompt: str, texture_quality: str, seed: int):
+    runpod_service = RunpodProvider()
+    return await runpod_service.generate_texture_on_mesh(image_id=image_id, project_id=project_id, mesh_id=mesh_id, prompt=prompt, texture_quality=texture_quality, seed=seed)

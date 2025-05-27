@@ -1,6 +1,0 @@
-{
-    "input": {
-        "image_url":"https://resinheroes.com/wp-content/uploads/2017/10/IMG_1188.png",
-        "presigned_urls":["https://donatellio.s3.amazonaws.com/models/test2.glb?AWSAccessKeyId=AKIA2K6MDJHO3SY7V4FE&Signature=VoOZpKSmmGB5OHosWHtOtEzW84Y%3D&content-type=model%2Fgltf-binary&Expires=1747162711"]
-    }
-}

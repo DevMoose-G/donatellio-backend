@@ -44,6 +44,10 @@ class ProjectDAL:
     async def get_meshes(self, project_id: str) -> List[Mesh]:
         project = await self.get_project_by_id(project_id)
         return project.meshes
+    
+    async def get_textures(self, project_id: str) -> List[Mesh]:
+        project = await self.get_project_by_id(project_id)
+        return project.textures
 
     async def get_uploaded_meshes(self, project_id: str) -> List[Mesh]:
         project = await self.get_project_by_id(project_id)

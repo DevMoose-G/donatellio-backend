@@ -11,8 +11,8 @@ class MeshDAL:
     async def get_mesh_by_id(self, mesh_id):
         return await self.session.get(Mesh, mesh_id)
 
-    async def create_mesh(self, id: str, project_id: str, image_id: str, storage_key: str| None = None, seed: int | None = None, octree_resolution: str | None = None, num_inference_steps: int | None = None, face_count: int | None = None, texture: bool | None = None, guidance_scale: float | None = None):
-        mesh = Mesh(id=id, project_id=project_id, image_id=image_id, storage_key=storage_key, seed=seed, octree_resolution=octree_resolution, num_inference_steps=num_inference_steps, face_count=face_count, texture=texture, guidance_scale=guidance_scale)
+    async def create_mesh(self, id: str, **kwargs):
+        mesh = Mesh(id=id, **kwargs)
         self.session.add(mesh)
         await self.session.commit()
         await self.session.refresh(mesh)

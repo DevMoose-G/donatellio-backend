@@ -16,10 +16,10 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    owner = relationship("User", back_populates="projects")
+    owner = relationship("User", back_populates="projects", lazy="selectin")
     images = relationship("Image", back_populates="project", lazy="selectin")
     meshes = relationship("Mesh", back_populates="project", lazy="selectin")
-    user = relationship("User", back_populates="projects", lazy="selectin")
+    textures = relationship("Texture", back_populates="project", lazy="selectin")
 
     @property
     async def image_s3_keys(self):
