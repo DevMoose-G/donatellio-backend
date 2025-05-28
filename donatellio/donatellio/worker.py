@@ -24,10 +24,6 @@ async def mainloop():
             elif msg.json.function_name == "edit_image":
                 s3_key = await edit_image(**params)
                 await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))
-            elif msg.json.function_name == "get_elaborating_questions":
-                questions = get_elaborating_questions(**params)
-                breakpoint() # untested
-                # await completed_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"questions": questions}))
             elif msg.json.function_name == "generate_mesh":
                 mesh_ids = await generate_mesh(**params)
                 await completed_meshes_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"mesh_ids": mesh_ids}))

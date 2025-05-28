@@ -46,9 +46,15 @@ class RequestLoginUser(BaseModel):
     email: Optional[str] = None
 
 class RequestGetElaboratingQuestions(BaseModel):
-    project_id: str
     prompt: str
+    project_id: Optional[str] = None
     image_id: Optional[str] = None
+
+class RequestCheckElaboratingQuestions(BaseModel):
+    prompt: str
+    project_id: Optional[str] = None
+    image_id: Optional[str] = None
+    elaborating_questions: List[str]
 
 
 class ItemImagePromptChat(BaseModel):
@@ -80,10 +86,16 @@ class AssetDisplay(BaseModel):
     url: str
     user_name: str
 
+class ProjectDisplay(BaseModel):
+    project_id: str
+    url: str
+    user_name: str
+    current_state: str
+
 class GetAssetsResponse(BaseModel):
     assets: List[AssetDisplay]
     count: int
 
 class GetProjectsResponse(BaseModel):
-    projects: List[AssetDisplay]
+    projects: List[ProjectDisplay]
     count: int

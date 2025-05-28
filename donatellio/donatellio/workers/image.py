@@ -7,7 +7,7 @@ import requests
 from donatellio.consts import BASE_URL
 from donatellio.providers.runpod import RunpodProvider
 from donatellio.providers.storage import StorageProvider
-from donatellio.workers.prompts import ELABORATION_PROMPT, IMAGE_GEN_PROMPT
+from donatellio.workers.prompts import CHECK_ELABORATION_PROMPT, ELABORATION_PROMPT, IMAGE_GEN_PROMPT
 from donatellio.orm.dal.image import ImageDAL
 from donatellio.orm.main import AsyncSessionLocal, get_db
 from donatellio.orm.models.image import Image
@@ -108,8 +108,15 @@ async def edit_image(image_id, project_id, original_image_id, prompt, n, size, q
     return key
 
 def get_elaborating_questions(project_id: str, current_prompt: str, image_id: str=None) -> List[str]:
-    res = client.completions.create(model="gpt-4.1-mini", prompt=f"{ELABORATION_PROMPT}\n\n{current_prompt}", max_tokens=128)
-    questions_str = res.choices[0].text
+    res = client.responses.create(model="gpt-4.1-mini", instructions=ELABORATION_PROMPT, input=f"{current_prompt}", max_output_tokens=128)
+    questions_str = res.output_text
     questions = questions_str.split("\n")
     assert len(questions) > 1
+    return questions
+
+def check_elaborating_questions(current_prompt: str, elaborating_questions: List[str]) -> List[str]:
+    res = client.responses.create(model="gpt-4.1-mini", instructions=f"{CHECK_ELABORATION_PROMPT}\n{elaborating_questions}", input=f"{current_prompt}", max_output_tokens=128)
+    questions_str = res.output_text
+    questions = questions_str.split("\n")
+    
     return questions
