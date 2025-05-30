@@ -5,13 +5,14 @@ from typing import List, Optional
 import uuid
 
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 import requests
 
-from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, ProjectDisplay, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
+from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, ProjectDisplay, RequestCalculateMeshGenCost, RequestCalculateTextureGenCost, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, ResponseCalculateMeshGenCost, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
 from donatellio.workers.image import check_elaborating_questions, get_elaborating_questions
 from donatellio.providers.storage import StorageProvider
 from donatellio.orm.dal.mesh import MeshDAL, get_mesh_dal
@@ -120,34 +121,44 @@ async def create_image(
     await stream.setup_group(new_only=False)
 
     user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
+    response = await user_dal.charge_credit(user, 2, "user_action:generate_image")
+    if response.success == False:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Not enough credits"})
+    
     await project_dal.create_project(id=project_id, name="test", user_id=user.id)
 
     await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id)
 
     msg_id = await stream.send_msg(RedisPayload(project_id, "generate_image", {** req.model_dump(), "project_id": project_id, "image_id": image_id}))
 
-    return {"image_id": image_id, "project_id": project_id}
+    return JSONResponse(status_code=202, content={"success": True, "image_id": image_id, "project_id": project_id})
 
 @app.post("/image/{project_id}/edit", status_code=202)
 async def edit_image(
     req: RequestEditImage,
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
+    user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
 ):
     stream = RedisStream("requested-jobs")
     image_id = str(uuid.uuid4())
     await stream.setup_group(new_only=False)
+    
+    user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
+    response = await user_dal.charge_credit(user, 2, "user_action:edit_image")
+    if response.success == False:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Not enough credits"})
 
     project = await project_dal.get_project_by_id(req.project_id)
     if project is None:
-        raise HTTPException(400, detail="Invalid Project")
+        return JSONResponse(status_code=400, content={"success": False, "message": "Project doesn't exist"})
 
     msg_id = await stream.send_msg(RedisPayload(project_id, "edit_image", {**req.model_dump(), "project_id": req.project_id, "image_id": image_id}))
 
     await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id, original_image_id=req.original_image_id)
- 
-    return {"project_id": req.project_id, "image_id": image_id}
+    
+    return JSONResponse(status_code=202, content={"success": True, "project_id": req.project_id, "image_id": image_id})
 
 @app.get("/image/{project_id}/chats", status_code=200)
 async def get_image_chat_history(
@@ -166,6 +177,44 @@ async def get_model_info(
     # return response
     pass
 
+mesh_quality_multiplier = {
+    "low": 1,
+    "medium": 2,
+    "high": 3
+}
+
+texture_quality_multiplier = {
+    "normal": 2,
+    "precise": 4,
+    "stylized": 4
+}
+
+def calculate_mesh_gen_cost(n_meshes, quality, labels):
+    quality_multiplier = mesh_quality_multiplier[quality]
+    cost = (n_meshes * quality_multiplier) + len(labels)
+    return cost
+
+def calculate_texture_gen_cost(prompt, texture_quality):
+    quality_multiplier = texture_quality_multiplier[texture_quality]
+    cost = quality_multiplier
+    return cost
+
+@app.post("/mesh/{project_id}/mesh_cost", status_code=200)
+async def api_calculate_mesh_gen_cost(
+    req: RequestCalculateMeshGenCost,
+    project_id: str
+) -> ResponseCalculateMeshGenCost:
+    cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
+    return JSONResponse(status_code=200, content={"cost": cost})
+
+@app.post("/mesh/{project_id}/texture_cost", status_code=200)
+async def api_calculate_mesh_gen_cost(
+    req: RequestCalculateTextureGenCost,
+    project_id: str
+) -> ResponseCalculateMeshGenCost:
+    cost = calculate_texture_gen_cost(req.prompt, req.texture_quality)
+    return JSONResponse(status_code=200, content={"cost": cost})
+
 @app.post("/mesh/{project_id}/create", status_code=202)
 async def create_mesh(
     req: RequestCreateMesh,
@@ -179,6 +228,11 @@ async def create_mesh(
     await stream.setup_group(new_only=False)
 
     user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
+    
+    mesh_cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
+    response = await user_dal.charge_credit(user, mesh_cost, "user_action:generate_mesh")
+    if response.success == False:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Not enough credits"})
 
     msg_id = await stream.send_msg(RedisPayload(project_id, "generate_mesh", {** req.model_dump()}))
 
@@ -197,6 +251,11 @@ async def create_texture(
     await stream.setup_group(new_only=False)
 
     user = await user_dal.get_user_by(filter=(User.username == "MuseG")) # temp
+    
+    texture_cost = calculate_texture_gen_cost(req.prompt, req.texture_quality)
+    response = await user_dal.charge_credit(user, texture_cost, "user_action:generate_texture")
+    if response.success == False:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Not enough credits"})
 
     msg_id = await stream.send_msg(RedisPayload(project_id, "generate_texture", {** req.model_dump()}))
 

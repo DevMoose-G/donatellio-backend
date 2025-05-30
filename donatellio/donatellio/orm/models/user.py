@@ -13,4 +13,9 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     
+    subscription_tier = Column(String(32), nullable=False, default="free")
+    credit_balance = Column(Integer, nullable=False, default=0)
+    
     projects = relationship("Project", back_populates="owner")
+    transactions = relationship("CreditTransaction", back_populates="user")
+    

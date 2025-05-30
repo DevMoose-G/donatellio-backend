@@ -3,6 +3,22 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+class RequestCalculateMeshGenCost(BaseModel):
+    mesh_model: str
+    n_meshes: int
+    quality: str
+    seed: int
+    labels: List[str]
+    max_polygon_count: Optional[int]
+    
+class RequestCalculateTextureGenCost(BaseModel):
+    prompt: str
+    texture_quality: str
+    seed: int
+
+class ResponseCalculateMeshGenCost(BaseModel):
+    cost: int
+
 class RequestCreateTexture(BaseModel):
     project_id: str
     image_id: str
