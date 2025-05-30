@@ -17,6 +17,8 @@ class Image(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     multiview_image_dir = Column(String(1024), nullable=True)
+    
+    external_id = Column(String(128), nullable=True) # for now, just openai's image generation id (for multi-turn editing)
 
     # should keep track of openai parameters
 

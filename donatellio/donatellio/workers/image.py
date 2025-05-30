@@ -5,6 +5,7 @@ import uuid
 from openai import OpenAI
 import requests
 from donatellio.consts import BASE_URL
+from donatellio.redisstream import RedisPayload, RedisStream
 from donatellio.providers.runpod import RunpodProvider
 from donatellio.providers.storage import StorageProvider
 from donatellio.workers.prompts import CHECK_ELABORATION_PROMPT, ELABORATION_PROMPT, IMAGE_GEN_PROMPT
@@ -29,34 +30,51 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
     
     image_name = f"{image_id}.png"
 
-    prompt += f"\n{IMAGE_GEN_PROMPT}"
-
-    res = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        n=n,
-        size=size,
-        quality=quality,
-        background="transparent"
-    )
-
-    images = []
-    for img_data in res.data:
-        img_bytes = base64.b64decode(img_data.b64_json)
-        img = PIL.Image.open(BytesIO(img_bytes))
-        img.save(f"{STATIC_DIR}/{image_name}")
-        images.append(img)
+    prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
     
-    # img_url = f"{BASE_URL}/static/{image_name}"
-    storage_provider = StorageProvider()
-    key = storage_provider.upload_image(image_name, f"{STATIC_DIR}/{image_name}")
-    
-    async with AsyncSessionLocal() as session:
-        await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
-
+    # wake up geometry pipeline
     runpod_service = RunpodProvider()
     await runpod_service.wake_up_geometry()
+
+    stream = client.responses.create(
+        model="gpt-4.1",
+        input=prompt,
+        tools=[{
+            "type": "image_generation",
+            "background": "transparent",
+            "quality": quality,
+            "size": size,
+            "partial_images": 2
+        }],
+        stream=True
+    )
     
+    async with AsyncSessionLocal() as session:
+        image = await ImageDAL(session).get_image_by_id(image_id)
+    
+    completed_images_stream = RedisStream("completed-jobs", group_name="image")
+    
+    for event in stream:
+        if event.type == "response.image_generation_call.partial_image":
+            idx = event.partial_image_index
+            image_base64 = event.partial_image_b64
+            image_bytes = base64.b64decode(image_base64)
+            
+            img_filepath = f"{STATIC_DIR}/{image_id}_partial{idx}.png"
+            with open(img_filepath, "wb") as f:
+                f.write(image_bytes)
+            
+            storage_provider = StorageProvider()
+            key = storage_provider.upload_image(image_name, img_filepath)
+            
+            if image.storage_key == None:
+                async with AsyncSessionLocal() as session:
+                    await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
+            await completed_images_stream.send_msg(RedisPayload(project_id, "generate_image", {"image_id": image_id}))
+        if event.type == "response.output_item.done":
+            async with AsyncSessionLocal() as session:
+                await ImageDAL(session).update_image(id=image_id, external_id=event.item.id)
+
     return key
 
 async def edit_image(image_id, project_id, original_image_id, prompt, n, size, quality) -> str:
@@ -75,35 +93,59 @@ async def edit_image(image_id, project_id, original_image_id, prompt, n, size, q
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
-
-    prompt += f"\n{IMAGE_GEN_PROMPT}"
-
-    res = client.images.edit(
-        model="gpt-image-1",
-        image=[
-            ("image.png", buf, "image/png")
-        ],
-        prompt=prompt,
-        n=n,
-        size=size,
-        quality=quality,
-    )
-
-    images = []
-    for img_data in res.data:
-        img_bytes = base64.b64decode(img_data.b64_json)
-        img = PIL.Image.open(BytesIO(img_bytes))
-        img.save(f"{STATIC_DIR}/{image_name}")
-        images.append(img)
-    
-    storage_provider = StorageProvider()
-    key = storage_provider.upload_image(image_name, f"{STATIC_DIR}/{image_name}")
-
-    async with AsyncSessionLocal() as session:
-        await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key, original_image_id=original_image_id)
     
     runpod_service = RunpodProvider()
     await runpod_service.wake_up_geometry()
+
+    prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
+
+    stream = client.responses.create(
+        model="gpt-4.1",
+        input=[
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": prompt}]
+            },
+            {
+                "type": "image_generation_call",
+                "id": original_image.external_id
+            }
+        ],
+        tools=[{
+            "type": "image_generation",
+            "background": "transparent",
+            "quality": quality,
+            "size": size,
+            "partial_images": 2
+        }],
+        stream=True
+    )
+
+    async with AsyncSessionLocal() as session:
+        image = await ImageDAL(session).get_image_by_id(image_id)
+    
+    completed_images_stream = RedisStream("completed-jobs", group_name="image")
+    
+    for event in stream:
+        if event.type == "response.image_generation_call.partial_image":
+            idx = event.partial_image_index
+            image_base64 = event.partial_image_b64
+            image_bytes = base64.b64decode(image_base64)
+            
+            img_filepath = f"{STATIC_DIR}/{image_id}_partial{idx}.png"
+            with open(img_filepath, "wb") as f:
+                f.write(image_bytes)
+            
+            storage_provider = StorageProvider()
+            key = storage_provider.upload_image(image_name, img_filepath)
+            
+            if image.storage_key == None:
+                async with AsyncSessionLocal() as session:
+                    await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
+            await completed_images_stream.send_msg(RedisPayload(project_id, "edit_image", {"image_id": image_id}))
+        if event.type == "response.output_item.done":
+            async with AsyncSessionLocal() as session:
+                await ImageDAL(session).update_image(id=image_id, external_id=event.item.id)
     
     return key
 

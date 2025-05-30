@@ -107,6 +107,23 @@ async def get_users_assets(limit: int, project_dal: ProjectDAL = Depends(get_pro
         assets.append(AssetDisplay(project_id=project.id, url=url, user_name="MuseG"))
     return GetAssetsResponse(assets=assets, count=len(assets))
 
+class GetUserInfoResponse(BaseModel):
+    username: str
+    subscription_tier: str
+    credit_balance: int
+    n_projects: int
+
+@app.get("/user/info", status_code=200)
+async def get_user_info(
+    user_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    user_dal: UserDAL = Depends(get_user_dal),
+) -> GetUserInfoResponse:
+    user = await user_dal.get_user_by(filter=(User.id == user_id))
+    # TODO: should it be all projects or only projects with completed textures
+    projects = await project_dal.get_all_projects_by(filter=(Project.user_id == user_id))
+    return GetUserInfoResponse(username=user.username, subscription_tier=user.subscription_tier, credit_balance=user.credit_balance, n_projects=len(projects))
+
 @app.post("/image/create", status_code=202)
 async def create_image(
     req: RequestCreateImage,
@@ -167,15 +184,6 @@ async def get_image_chat_history(
 ):
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
-
-@app.get("/mesh/{project_id}/view", status_code=200)
-async def get_model_info(
-    project_id: str,
-    project_dal: ProjectDAL = Depends(get_project_dal)
-):
-    # response = await project_dal.get_image_prompt_chats(project_id)
-    # return response
-    pass
 
 mesh_quality_multiplier = {
     "low": 1,
