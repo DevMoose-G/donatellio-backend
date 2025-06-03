@@ -11,10 +11,12 @@ class CreditTransactionDAL:
         self.session = session
     
     async def get_credit_transactions_by_user_id(self, user_id: int) -> List[CreditTransaction]:
-        return await self.session.execute(select(CreditTransaction).where(CreditTransaction.user_id == user_id)).scalars().all()
+        transactions = await self.session.execute(select(CreditTransaction).where(CreditTransaction.user_id == user_id))
+        return transactions.scalars().all()
     
     async def get_all_credit_transactions(self) -> List[CreditTransaction]:
-        return await self.session.execute(select(CreditTransaction)).scalars().all()
+        transactions = await self.session.execute(select(CreditTransaction))
+        return transactions.scalars().all()
     
     async def create_credit_transaction(self, user_id: int, delta: int, reason: str) -> CreditTransaction:
         credit_transaction = CreditTransaction(user_id=user_id, delta=delta, reason=reason)
@@ -24,13 +26,6 @@ class CreditTransactionDAL:
         await self.session.commit()
         await self.session.refresh(credit_transaction)
         return credit_transaction
-    
-    async def update_credit_transaction(self, credit_transaction: CreditTransaction) -> CreditTransaction:
-        raise Exception("Not implemented")
-        # self.session.add(credit_transaction)
-        # await self.session.commit()
-        # await self.session.refresh(credit_transaction)
-        # return credit_transaction
     
     async def delete_credit_transaction(self, credit_transaction: CreditTransaction) -> None:
         self.session.delete(credit_transaction)

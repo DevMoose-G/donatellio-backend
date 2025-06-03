@@ -71,9 +71,9 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
                 async with AsyncSessionLocal() as session:
                     await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
             await completed_images_stream.send_msg(RedisPayload(project_id, "generate_image", {"image_id": image_id}))
-        if event.type == "response.output_item.done":
+        if event.type == "response.image_generation_call.completed":
             async with AsyncSessionLocal() as session:
-                await ImageDAL(session).update_image(id=image_id, external_id=event.item.id)
+                await ImageDAL(session).update_image(id=image_id, external_id=event.item_id)
 
     return key
 
@@ -143,9 +143,9 @@ async def edit_image(image_id, project_id, original_image_id, prompt, n, size, q
                 async with AsyncSessionLocal() as session:
                     await ImageDAL(session).update_image(id=image_id, project_id=project_id, storage_key=key)
             await completed_images_stream.send_msg(RedisPayload(project_id, "edit_image", {"image_id": image_id}))
-        if event.type == "response.output_item.done":
+        if event.type == "response.image_generation_call.completed":
             async with AsyncSessionLocal() as session:
-                await ImageDAL(session).update_image(id=image_id, external_id=event.item.id)
+                await ImageDAL(session).update_image(id=image_id, external_id=event.item_id)
     
     return key
 

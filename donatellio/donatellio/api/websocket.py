@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import requests
 
 from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
+from donatellio.api.auth import get_current_user, get_current_user_from_ws
 from donatellio.workers.image import check_elaborating_questions, get_elaborating_questions
 from donatellio.providers.storage import StorageProvider
 from donatellio.orm.dal.mesh import MeshDAL, get_mesh_dal
@@ -29,18 +30,30 @@ from dotenv import load_dotenv
 
 router = APIRouter()
 
-# is it good to have one socket per project and have the frontend filter if it is image or text?
 @router.websocket("/ws/projects/{project_id}/image")
-async def image_updates(websocket: WebSocket, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal), image_dal: ImageDAL = Depends(get_image_dal)):
+async def image_updates(
+    websocket: WebSocket, 
+    project_id: str, 
+    # current_user: User = Depends(get_current_user_from_ws)
+):
+    
+    # project = await project_dal.get_project_by((Project.id == project_id))
+    # if current_user.id != project.user_id:
+    #     raise HTTPException(status_code=401, detail="Not authenticated")
+    
     await websocket.accept()
     stream = RedisStream("completed-jobs", group_name="image")
     await stream.setup_group(new_only=False)
-    await asyncio.sleep(2)
     current_img_s3_keys = []
     while True:
-        images = await project_dal.get_images(project_id)
+        async with AsyncSessionLocal() as session:
+            project_dal = ProjectDAL(session)
+            images = await project_dal.get_images(project_id)
+            
         if images != []:
-            chats = await project_dal.get_image_prompt_chats(project_id)
+            async with AsyncSessionLocal() as session:
+                project_dal = ProjectDAL(session)
+                chats = await project_dal.get_image_prompt_chats(project_id)
 
             storage_provider = StorageProvider()
 
@@ -59,52 +72,67 @@ async def image_updates(websocket: WebSocket, project_id: str, project_dal: Proj
         if len(response.messages) == 0:
             await asyncio.sleep(2)
         else:
+            print("got a message")
             msg = response.messages[0]
             payload = json.loads(msg.json.payload)
             if msg.json.project_id == project_id:
-                if msg.json.function_name == "generate_image":
+                if msg.json.function_name == "generate_image" or msg.json.function_name == "edit_image":
                     storage_provider = StorageProvider()
                     image_id = payload["image_id"]
-                    image = await image_dal.get_image_by_id(image_id)
+                    
+                    async with AsyncSessionLocal() as session:
+                        image_dal = ImageDAL(session)
+                        image = await image_dal.get_image_by_id(image_id)
+                    if (image.storage_key == None):
+                        continue
                     image_url = storage_provider.generate_get_url(image.storage_key)
-                    await websocket.send_json(WSImageEditsResponse(images=[{"id":image_id, "url": image_url}]).model_dump(mode="json"))
+                    
+                    chats = await project_dal.get_image_prompt_chats(project_id)
+                    await websocket.send_json(WSImageEditsResponse(images=[WSImageItem(id=image_id, url=image_url)], chats=chats.chats).model_dump(mode="json"))
                     await stream.ack_msg(msg.id)
 
 @router.websocket("/ws/projects/{project_id}/mesh")
-async def mesh_updates(websocket: WebSocket, project_id: str, mesh_dal: MeshDAL = Depends(get_mesh_dal), project_dal: ProjectDAL = Depends(get_project_dal)):
+async def mesh_updates(websocket: WebSocket, project_id: str
+                    #    current_user: User = Depends(get_current_user_from_ws)
+    ):
+    # if current_user.id != project_dal.get_project(project_id).user_id:
+    #     raise HTTPException(status_code=401, detail="Not authenticated")
+    
     await websocket.accept()
     stream = RedisStream("completed-jobs", group_name="mesh")
     await stream.setup_group(new_only=False)
     try:
         current_texture_s3_keys = []
         current_mesh_s3_keys = []
+        added_meshes = set()
         while True:
-            # assert project_dal.get_project_by_id(project_id) != None
-            meshes = await project_dal.get_meshes(project_id)
-            textures = await project_dal.get_textures(project_id)
+            async with AsyncSessionLocal() as session:
+                project_dal = ProjectDAL(session)
+                meshes = await project_dal.get_meshes(project_id)
+                textures = await project_dal.get_textures(project_id)
             
             texture_items = []
+            mesh_items = []
             if textures != []:
                 storage_provider = StorageProvider()
                 for texture in textures:
                     if texture.storage_key not in current_texture_s3_keys and texture.storage_key != None:
                         texture_url = storage_provider.generate_get_url(texture.storage_key)
-                        texture_items.append(WSMeshItem(id=texture.id, url=texture_url, image_id=texture.image_id))
+                        texture_items.append(WSMeshItem(texture_id=texture.id, mesh_id=texture.mesh_id, url=texture_url, image_id=texture.image_id))
+                        added_meshes.add(texture.mesh_id)
                         current_texture_s3_keys.append(texture.storage_key)
 
-            if texture_items != []:
-                await websocket.send_json(WSMeshResponse(meshes=texture_items).model_dump(mode="json"))
-            elif meshes != [] and current_texture_s3_keys == []:
-                mesh_items = []
+            if meshes != []:
                 storage_provider = StorageProvider()
                 for mesh in meshes:
-                    if mesh.storage_key not in current_mesh_s3_keys and mesh.storage_key != None:
+                    if mesh.storage_key not in current_mesh_s3_keys and mesh.storage_key != None and mesh.id not in added_meshes:
                         mesh_url = storage_provider.generate_get_url(mesh.storage_key)
-                        mesh_items.append(WSMeshItem(id=mesh.id, url=mesh_url, image_id=mesh.image_id))
+                        mesh_items.append(WSMeshItem(mesh_id=mesh.id, url=mesh_url, image_id=mesh.image_id))
                         current_mesh_s3_keys.append(mesh.storage_key)
 
-                if mesh_items != []:
-                    await websocket.send_json(WSMeshResponse(meshes=mesh_items).model_dump(mode="json"))
+            all_meshes = texture_items + mesh_items
+            if all_meshes != []:
+                await websocket.send_json(WSMeshResponse(meshes=all_meshes).model_dump(mode="json"))
 
             response = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
             if len(response.messages) == 0:
@@ -117,11 +145,13 @@ async def mesh_updates(websocket: WebSocket, project_id: str, mesh_dal: MeshDAL 
                         storage_provider = StorageProvider()
                         mesh_ids = payload["mesh_ids"]
                         
-                        mesh_urls = []
-                        for mesh_id in mesh_ids:
-                            mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-                            mesh_urls.append(storage_provider.generate_get_url(mesh.storage_key))
-                        await websocket.send_json(WSMeshResponse(mesh_urls=mesh_urls).model_dump(mode="json"))
+                        mesh_items = []
+                        async with AsyncSessionLocal() as session:
+                            mesh_dal = MeshDAL(session)
+                            for mesh_id in mesh_ids:
+                                mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+                                mesh_items.append(WSMeshItem(mesh_id=mesh.id, url=mesh_url, image_id=mesh.image_id))
+                        await websocket.send_json(WSMeshResponse(meshes=mesh_items).model_dump(mode="json"))
                         await stream.ack_msg(msg.id)
             
             # break

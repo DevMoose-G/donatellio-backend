@@ -20,7 +20,7 @@ async def mainloop():
             params = json.loads(msg.json.payload)
             if msg.json.function_name == "generate_image":
                 s3_key = await generate_image(**params)
-                # await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))
+                await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))
             elif msg.json.function_name == "edit_image":
                 s3_key = await edit_image(**params)
                 await completed_images_stream.send_msg(RedisPayload(msg.json.project_id, msg.json.function_name, {"image_id": params['image_id']}))

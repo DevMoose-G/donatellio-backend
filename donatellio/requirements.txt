@@ -13,3 +13,5 @@ pillow
 fastapi[standard]
 requests
 openai
+python-jose
+redis

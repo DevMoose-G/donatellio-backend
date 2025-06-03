@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, DateTime
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
@@ -15,6 +15,13 @@ class User(Base):
     
     subscription_tier = Column(String(32), nullable=False, default="free")
     credit_balance = Column(Integer, nullable=False, default=0)
+    
+    notification_low_credits = Column(Boolean, nullable=False, default=True, server_default="True")
+    notification_monthly_credits = Column(Boolean, nullable=False, default=True, server_default="True")
+    notification_product_updates = Column(Boolean, nullable=False, default=True, server_default="True")
+    notification_promotions = Column(Boolean, nullable=False, default=True, server_default="True")
+    
+    light_mode = Column(Boolean, nullable=False, default=True, server_default="True")
     
     projects = relationship("Project", back_populates="owner")
     transactions = relationship("CreditTransaction", back_populates="user")

@@ -3,6 +3,16 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+class BaseResponse(BaseModel):
+    success: bool
+    error_msg: Optional[str] = None
+    
+class JWTToken(BaseResponse):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: datetime # access token expires in
+
 class RequestCalculateMeshGenCost(BaseModel):
     mesh_model: str
     n_meshes: int
@@ -90,9 +100,10 @@ class WSImageEditsResponse(BaseModel):
     chats: List[ItemImagePromptChat] = []
 
 class WSMeshItem(BaseModel):
-    id: str
+    mesh_id: str
     image_id: str
     url: str
+    texture_id: Optional[str] = None
 
 class WSMeshResponse(BaseModel):
     meshes: List[WSMeshItem]

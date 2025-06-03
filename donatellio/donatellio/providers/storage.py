@@ -1,5 +1,12 @@
 import boto3
 from botocore.exceptions import ClientError
+from urllib.parse import urlparse
+
+def extract_s3_key(presigned_url):
+    parsed_url = urlparse(presigned_url)
+    # Remove leading '/' from the path to get the object key
+    object_key = parsed_url.path.lstrip('/')
+    return object_key
 
 class StorageProvider:
 
