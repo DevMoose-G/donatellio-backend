@@ -1,16 +1,20 @@
 from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, DateTime
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
-
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from donatellio.orm.base import Base
 
 class Mesh(Base):
     __tablename__ = "meshes"
 
     id = Column(String(128), primary_key=True)
-    project_id = Column(String(128), ForeignKey("projects.id"), nullable=False)
+    project_id = Column(String(128), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     image_id = Column(String(128), ForeignKey("images.id"), nullable=False) # images?
     storage_key = Column(String(1024), nullable=True)
+    static_render_storage_key = Column(String(1024), nullable=True)
+    
+    format_storage_keys = Column(MutableDict.as_mutable(JSONB), nullable=True)
 
     status = Column(String(32), nullable=False, default="PENDING")
 
@@ -28,4 +32,5 @@ class Mesh(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    project = relationship("Project", back_populates="meshes")
+    project = relationship("Project", back_populates="meshes", passive_deletes=True)
+    textures = relationship("Texture", back_populates="mesh", passive_deletes=True)

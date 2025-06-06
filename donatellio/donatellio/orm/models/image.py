@@ -8,8 +8,8 @@ class Image(Base):
     __tablename__ = "images"
 
     id = Column(String(128), primary_key=True)
-    prompt = Column(String(1024), nullable=False)
-    project_id = Column(String(128), ForeignKey("projects.id"), nullable=False)
+    prompt = Column(String(4096), nullable=False)
+    project_id = Column(String(128), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     storage_key = Column(String(1024), nullable=True)
 
     original_image_id = Column(String(128), nullable=True)
@@ -22,4 +22,4 @@ class Image(Base):
 
     # should keep track of openai parameters
 
-    project = relationship("Project", back_populates="images")
+    project = relationship("Project", back_populates="images", passive_deletes=True)

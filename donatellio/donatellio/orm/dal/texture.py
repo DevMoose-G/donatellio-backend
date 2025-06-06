@@ -35,15 +35,19 @@ class TextureDAL:
         self.session.delete(texture)
         await self.session.commit()
         return
-
-    async def get_textures_by_project_id(self, project_id):
-        return await self.session.execute(select(Texture).where(Texture.project_id == project_id)).scalars().all()
-
-    async def get_textures_by_image_id(self, image_id):
-        return await self.session.execute(select(Texture).where(Texture.image_id == image_id)).scalars().all()
     
-    async def get_textures_by_mesh_id(self, mesh_id):
-        return await self.session.execute(select(Texture).where(Texture.mesh_id == mesh_id)).scalars().all()
+    async def get_textures_by(self, filter):
+        results = await self.session.execute(select(Texture).where(filter))
+        return results.scalars().all()
+
+    # async def get_textures_by_project_id(self, project_id):
+    #     return await self.session.execute(select(Texture).where(Texture.project_id == project_id)).scalars().all()
+
+    # async def get_textures_by_image_id(self, image_id):
+    #     return await self.session.execute(select(Texture).where(Texture.image_id == image_id)).scalars().all()
+    
+    # async def get_textures_by_mesh_id(self, mesh_id):
+    #     return await self.session.execute(select(Texture).where(Texture.mesh_id == mesh_id)).scalars().all()
 
 async def get_texture_dal(db: AsyncSession = Depends(get_db)):
     return TextureDAL(db)

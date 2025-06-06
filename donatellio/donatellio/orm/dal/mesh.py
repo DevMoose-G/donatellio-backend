@@ -34,12 +34,16 @@ class MeshDAL:
         self.session.delete(mesh)
         await self.session.commit()
         return
+    
+    async def get_meshes_by(self, filter):
+        results = await self.session.execute(select(Mesh).where(filter))
+        return results.scalars().all()
 
-    async def get_meshes_by_project_id(self, project_id):
-        return await self.session.execute(select(Mesh).where(Mesh.project_id == project_id)).scalars().all()
+    # async def get_meshes_by_project_id(self, project_id):
+    #     return await self.session.execute(select(Mesh).where(Mesh.project_id == project_id)).scalars().all()
 
-    async def get_meshes_by_image_id(self, image_id):
-        return await self.session.execute(select(Mesh).where(Mesh.image_id == image_id)).scalars().all()
+    # async def get_meshes_by_image_id(self, image_id):
+    #     return await self.session.execute(select(Mesh).where(Mesh.image_id == image_id)).scalars().all()
 
 async def get_mesh_dal(db: AsyncSession = Depends(get_db)):
     return MeshDAL(db)

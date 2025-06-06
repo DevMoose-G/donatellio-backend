@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -94,30 +94,50 @@ class ResponseImagePromptChat(BaseModel):
 class WSImageItem(BaseModel):
     id: str
     url: str
+    is_partial: bool = False
 
 class WSImageEditsResponse(BaseModel):
     images: List[WSImageItem]
     chats: List[ItemImagePromptChat] = []
 
+class MeshFormat(BaseModel):
+    obj_url: Optional[str] = None
+    fbx_url: Optional[str] = None
+    stl_url: Optional[str] = None
+    blend_url: Optional[str] = None
+
 class WSMeshItem(BaseModel):
     mesh_id: str
     image_id: str
-    url: str
+    url: Optional[str] 
+    other_formats: MeshFormat
     texture_id: Optional[str] = None
+    
+    textured_image_url: Optional[str] = None
+    mesh_image_url: Optional[str] = None
+    status: str
 
 class WSMeshResponse(BaseModel):
     meshes: List[WSMeshItem]
 
 class AssetDisplay(BaseModel):
     project_id: str
+    project_name: str
     url: str
     user_name: str
+    
+    textured_image_url: Optional[str] = None
+    mesh_image_url: Optional[str] = None
 
 class ProjectDisplay(BaseModel):
     project_id: str
+    project_name: str
     url: str
     user_name: str
     current_state: str
+    
+    textured_image_url: Optional[str] = None
+    mesh_image_url: Optional[str] = None
 
 class GetAssetsResponse(BaseModel):
     assets: List[AssetDisplay]

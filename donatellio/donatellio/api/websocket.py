@@ -11,7 +11,7 @@ from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 import requests
 
-from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
+from donatellio.api.types import AssetDisplay, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, MeshFormat, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
 from donatellio.api.auth import get_current_user, get_current_user_from_ws
 from donatellio.workers.image import check_elaborating_questions, get_elaborating_questions
 from donatellio.providers.storage import StorageProvider
@@ -79,6 +79,7 @@ async def image_updates(
                 if msg.json.function_name == "generate_image" or msg.json.function_name == "edit_image":
                     storage_provider = StorageProvider()
                     image_id = payload["image_id"]
+                    is_partial = payload["is_partial"]
                     
                     async with AsyncSessionLocal() as session:
                         image_dal = ImageDAL(session)
@@ -88,7 +89,7 @@ async def image_updates(
                     image_url = storage_provider.generate_get_url(image.storage_key)
                     
                     chats = await project_dal.get_image_prompt_chats(project_id)
-                    await websocket.send_json(WSImageEditsResponse(images=[WSImageItem(id=image_id, url=image_url)], chats=chats.chats).model_dump(mode="json"))
+                    await websocket.send_json(WSImageEditsResponse(images=[WSImageItem(id=image_id, url=image_url, is_partial=is_partial)], chats=chats.chats).model_dump(mode="json"))
                     await stream.ack_msg(msg.id)
 
 @router.websocket("/ws/projects/{project_id}/mesh")
@@ -118,7 +119,33 @@ async def mesh_updates(websocket: WebSocket, project_id: str
                 for texture in textures:
                     if texture.storage_key not in current_texture_s3_keys and texture.storage_key != None:
                         texture_url = storage_provider.generate_get_url(texture.storage_key)
-                        texture_items.append(WSMeshItem(texture_id=texture.id, mesh_id=texture.mesh_id, url=texture_url, image_id=texture.image_id))
+                        
+                        other_format_item = MeshFormat()
+                        other_formats = texture.format_storage_keys
+                        if other_formats != None:
+                            for format, key in other_formats.items():
+                                if key != None:
+                                    other_format_url = storage_provider.generate_get_url(key)
+                                    other_format_item.__setattr__(f"{format}_url", other_format_url)
+                        
+                        # get the image urls
+                        textured_image_url = storage_provider.generate_get_url(texture.static_render_storage_key) if texture.static_render_storage_key else None
+                        matched_mesh = None
+                        for mesh in meshes:
+                            if mesh.id == texture.mesh_id:
+                                matched_mesh = mesh
+                        mesh_image_url = storage_provider.generate_get_url(matched_mesh.static_render_storage_key) if matched_mesh.static_render_storage_key else None
+                        
+                        texture_items.append(WSMeshItem(
+                            texture_id=texture.id, 
+                            mesh_id=texture.mesh_id, 
+                            url=texture_url, 
+                            image_id=texture.image_id, 
+                            other_formats=other_format_item,
+                            status=texture.status,
+                            textured_image_url=textured_image_url,
+                            mesh_image_url=mesh_image_url
+                        ))
                         added_meshes.add(texture.mesh_id)
                         current_texture_s3_keys.append(texture.storage_key)
 
@@ -126,8 +153,27 @@ async def mesh_updates(websocket: WebSocket, project_id: str
                 storage_provider = StorageProvider()
                 for mesh in meshes:
                     if mesh.storage_key not in current_mesh_s3_keys and mesh.storage_key != None and mesh.id not in added_meshes:
-                        mesh_url = storage_provider.generate_get_url(mesh.storage_key)
-                        mesh_items.append(WSMeshItem(mesh_id=mesh.id, url=mesh_url, image_id=mesh.image_id))
+                        mesh_url = storage_provider.generate_get_url(mesh.storage_key) if mesh.storage_key != '' else None
+                        
+                        other_format_item = MeshFormat()
+                        other_formats = mesh.format_storage_keys
+                        if other_formats != None:
+                            for format, key in other_formats.items():
+                                if key != None:
+                                    other_format_url = storage_provider.generate_get_url(key)
+                                    other_format_item.__setattr__(f"{format}_url", other_format_url)
+                                    
+                        # get the image urls
+                        mesh_image_url = storage_provider.generate_get_url(mesh.static_render_storage_key) if mesh.static_render_storage_key else None
+                        
+                        mesh_items.append(WSMeshItem(
+                            mesh_id=mesh.id, 
+                            url=mesh_url, 
+                            image_id=mesh.image_id, 
+                            other_formats=other_format_item,
+                            status=mesh.status,
+                            mesh_image_url=mesh_image_url
+                        ))
                         current_mesh_s3_keys.append(mesh.storage_key)
 
             all_meshes = texture_items + mesh_items
@@ -150,7 +196,21 @@ async def mesh_updates(websocket: WebSocket, project_id: str
                             mesh_dal = MeshDAL(session)
                             for mesh_id in mesh_ids:
                                 mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-                                mesh_items.append(WSMeshItem(mesh_id=mesh.id, url=mesh_url, image_id=mesh.image_id))
+                                mesh_url = storage_provider.generate_get_url(mesh.storage_key)
+                                
+                                # TODO: move this to mesh_dal?
+                                other_format_item = MeshFormat()
+                                other_formats = mesh.format_storage_keys
+                                if other_formats != None:
+                                    for format, key in other_formats.items():
+                                        if key != None:
+                                            other_format_url = storage_provider.generate_get_url(key)
+                                            other_format_item.__setattr__(f"{format}_url", other_format_url)
+                                    
+                                # get the image urls
+                                mesh_image_url = storage_provider.generate_get_url(mesh.static_render_storage_key) if mesh.static_render_storage_key else None
+                                
+                                mesh_items.append(WSMeshItem(mesh_id=mesh.id, url=mesh_url, image_id=mesh.image_id, other_formats=other_format_item, status=mesh.status, mesh_image_url=mesh_image_url))
                         await websocket.send_json(WSMeshResponse(meshes=mesh_items).model_dump(mode="json"))
                         await stream.ack_msg(msg.id)
             

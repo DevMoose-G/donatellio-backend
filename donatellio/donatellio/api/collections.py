@@ -1,0 +1,119 @@
+import asyncio
+from datetime import datetime
+from hmac import HMAC
+import json
+from typing import List, Optional
+import uuid
+
+from fastapi import APIRouter, FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from rq import Queue
+from sqlalchemy.ext.asyncio import AsyncSession
+import requests
+
+from donatellio.api.types import AssetDisplay, BaseResponse, GetAssetsResponse, GetProjectsResponse, ItemImagePromptChat, ProjectDisplay, RequestCalculateMeshGenCost, RequestCalculateTextureGenCost, RequestCheckElaboratingQuestions, RequestCreateImage, RequestCreateMesh, RequestCreateTexture, RequestCreateUser, RequestEditImage, RequestGetElaboratingQuestions, RequestLoginUser, ResponseCalculateMeshGenCost, WSImageEditsResponse, WSImageItem, WSMeshItem, WSMeshResponse
+from donatellio.orm.dal.collection import CollectionDAL, get_collection_dal
+from donatellio.orm.dal.credit_transaction import CreditTransactionDAL, get_credit_transaction_dal
+from donatellio.workers.image import check_elaborating_questions, get_elaborating_questions
+from donatellio.providers.storage import StorageProvider, extract_s3_key
+from donatellio.orm.dal.mesh import MeshDAL, get_mesh_dal
+from donatellio.orm import ImageDAL, get_image_dal, ProjectDAL, get_project_dal, Project, UserDAL, get_user_dal
+from donatellio.utils.hashing import get_password_hash
+from donatellio.orm.models.user import User
+from donatellio.redisstream import RedisMessage, RedisPayload, RedisStream
+
+from donatellio.orm.main import AsyncSessionLocal, get_db
+
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+
+from dotenv import load_dotenv
+from donatellio.api.websocket import router as websocket_router
+from donatellio.api.auth import get_current_user, router as auth_router
+load_dotenv()    # reads .env from cwd
+
+router = APIRouter(prefix="/collections")
+
+class ItemCollection(BaseModel):
+    collection_id: str
+    name: str
+    parent_id: Optional[str]
+
+class CollectionResponse(BaseResponse):
+    collections: List[ItemCollection]
+
+@router.get("/", status_code=200)
+async def get_root_collections(collections_dal: CollectionDAL = Depends(get_collection_dal), current_user: User = Depends(get_current_user)) -> CollectionResponse:
+    roots = await collections_dal.get_top_level_collections(current_user.id)
+    collection_items = [ItemCollection(collection_id=collection.id, name=collection.name, parent_id=collection.parent_id) for collection in roots]
+    return CollectionResponse(success=True, collections=collection_items)
+
+
+@router.get("/{collection_id}/children", status_code=200)
+async def get_children_collections(collection_id: str, collections_dal: CollectionDAL = Depends(get_collection_dal), current_user: User = Depends(get_current_user)):
+    children = await collections_dal.get_children_collections(collection_id)
+    collection_items = [ItemCollection(collection_id=collection.id, name=collection.name, parent_id=collection.parent_id) for collection in children]
+    return CollectionResponse(success=True, collections=collection_items)
+
+
+@router.get("/{collection_id}/projects", status_code=200)
+async def get_projects_from_collection(collection_id: str, collections_dal: CollectionDAL = Depends(get_collection_dal), project_dal: ProjectDAL = Depends(get_project_dal), current_user: User = Depends(get_current_user)):
+    projects = await collections_dal.get_projects_from_collection(collection_id)
+    project_items = []
+    for project in projects:
+        proj_display = await project_dal.get_project_display(project)
+        if proj_display != None:
+            project_items.append(proj_display)
+    
+    # get child collections
+    children = await collections_dal.get_children_collections(collection_id)
+    for child in children:
+        child_projects = await collections_dal.get_projects_from_collection(child.id)
+        for project in child_projects:
+            proj_display = await project_dal.get_project_display(project)
+            if proj_display != None:
+                project_items.append(proj_display)
+    
+    return GetProjectsResponse(projects=project_items, count=len(project_items))
+
+@router.get("/{collection_id}/assets", status_code=200)
+async def get_assets_from_collection(collection_id: str, collections_dal: CollectionDAL = Depends(get_collection_dal), project_dal: ProjectDAL = Depends(get_project_dal), current_user: User = Depends(get_current_user)):
+    projects = await collections_dal.get_projects_from_collection(collection_id)
+    assets = []
+    for project in projects:
+        asset_display = await project_dal.get_asset_display(project)
+        if asset_display != None:
+            assets.append(asset_display)
+    
+    # get child collections
+    children = await collections_dal.get_children_collections(collection_id)
+    for child in children:
+        child_projects = await collections_dal.get_projects_from_collection(child.id)
+        for project in child_projects:
+            asset_display = await project_dal.get_asset_display(project)
+            if asset_display != None:
+                assets.append(asset_display)
+                
+    return GetAssetsResponse(assets=assets, count=len(assets))
+
+class CreateCollectionRequest(BaseModel):
+    name: str
+    parent_id: Optional[str] = None
+
+class CreateCollectionResponse(BaseResponse):
+    collection: ItemCollection
+
+@router.post("/create", status_code=200)
+async def create_collection(req: CreateCollectionRequest, collections_dal: CollectionDAL = Depends(get_collection_dal), current_user: User = Depends(get_current_user)):
+    collection = await collections_dal.create_collection(name=req.name, user_id=current_user.id, parent_id=req.parent_id)
+    return CreateCollectionResponse(success=True, collection=ItemCollection(collection_id=collection.id, name=collection.name, parent_id=collection.parent_id))
+
+@router.post("/{collection_id}/delete", status_code=200)
+async def delete_collection(collection_id: str, collections_dal: CollectionDAL = Depends(get_collection_dal), current_user: User = Depends(get_current_user)):
+    collection = await collections_dal.get_collection_by_id(collection_id)
+    if collection.user_id != current_user.id:
+        return BaseResponse(success=False, message="You don't have permission to delete this collection")
+    await collections_dal.delete_collection(collection_id)
+    return BaseResponse(success=True)

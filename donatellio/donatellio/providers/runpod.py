@@ -87,6 +87,12 @@ class RunpodProvider:
         labels: List[str], 
         max_polygon_count: int
     ):
+        async with AsyncSessionLocal() as session:
+            image = await ImageDAL(session).get_image_by_id(image_id)
+            project = await ProjectDAL(session).get_project_by_id(project_id)
+            assert image is not None
+            assert project is not None
+        
         await self.wake_up_texture()
         
         # generate presigned url
@@ -95,18 +101,22 @@ class RunpodProvider:
         mesh_mapping = {}
         for i in range(n_meshes):
             mesh_id = str(uuid.uuid4())
+            # create mesh in database w/ status='PENDING'
+            async with AsyncSessionLocal() as session:
+                await MeshDAL(session).create_mesh(
+                    id=mesh_id, 
+                    project_id=project.id, 
+                    image_id=image.id, 
+                    storage_key='', 
+                    status="PENDING", 
+                    gpu_provider_response=""
+                )
+            # generate the presigned url to send to runpod
             presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
             mesh_mapping[mesh_id] = presigned_url
         
         async with aiohttp.ClientSession() as runpod_session:
 
-            # create mesh in database w/ status='PENDING'
-            async with AsyncSessionLocal() as session:
-                image = await ImageDAL(session).get_image_by_id(image_id)
-                project = await ProjectDAL(session).get_project_by_id(project_id)
-                assert image is not None
-                assert project is not None
-            
             storage_provider = StorageProvider()
             image_url = storage_provider.generate_get_url(image.storage_key)
             
@@ -144,7 +154,7 @@ class RunpodProvider:
                 parsed_url = urlparse(presigned_url)
                 async with AsyncSessionLocal() as session:
 
-                    await MeshDAL(session).create_mesh(
+                    await MeshDAL(session).update_mesh(
                         id=mesh_id, 
                         project_id=project.id, 
                         image_id=image.id, 
@@ -163,23 +173,33 @@ class RunpodProvider:
         texture_quality: str, # normal, precise, or stylized
         seed: int,
     ):
+        texture_id = str(uuid.uuid4())
+        # create mesh in database w/ status='PENDING'
+        async with AsyncSessionLocal() as session:
+            image = await ImageDAL(session).get_image_by_id(image_id)
+            mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
+            project = await ProjectDAL(session).get_project_by_id(project_id)
+            assert image is not None
+            assert project is not None
+            assert mesh is not None
+            
+            await TextureDAL(session).create_texture(
+                id=texture_id, 
+                project_id=project.id,
+                image_id=image.id, 
+                mesh_id=mesh.id,
+                storage_key='', 
+                status="PENDING", 
+                gpu_provider_response=''
+            )
+                
         # generate presigned url
         storage_provider = StorageProvider()
         
-        texture_id = str(uuid.uuid4())
         presigned_url = storage_provider.generate_put_url_for_mesh(texture_id)
         
         async with aiohttp.ClientSession() as runpod_session:
-
-            # create mesh in database w/ status='PENDING'
-            async with AsyncSessionLocal() as session:
-                image = await ImageDAL(session).get_image_by_id(image_id)
-                mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
-                project = await ProjectDAL(session).get_project_by_id(project_id)
-                assert image is not None
-                assert project is not None
             
-            storage_provider = StorageProvider()
             image_url = storage_provider.generate_get_url(image.storage_key)
             mesh_url = storage_provider.generate_get_url(mesh.storage_key)
             
@@ -216,7 +236,7 @@ class RunpodProvider:
                 parsed_url = urlparse(presigned_url)
                 async with AsyncSessionLocal() as session:
 
-                    await TextureDAL(session).create_texture(
+                    await TextureDAL(session).update_texture(
                         id=texture_id, 
                         project_id=project.id,
                         image_id=image.id, 

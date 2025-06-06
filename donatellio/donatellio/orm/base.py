@@ -1,5 +1,6 @@
 # db/base.py
+from sqlalchemy import Boolean, Column
 from sqlalchemy.orm import DeclarativeBase
 
 class Base(DeclarativeBase):
-    pass
+    active = Column(Boolean, nullable=False, default=True, server_default="True")

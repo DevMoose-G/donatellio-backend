@@ -1,11 +1,12 @@
 import asyncio
 import json
-from donatellio.workers.mesh import generate_mesh, generate_texture
+from donatellio.workers.mesh import fill_static_render_images, generate_mesh, generate_texture, fill_other_formats
 from donatellio.redisstream import RedisPayload, RedisStream
 from donatellio.workers.image import edit_image, generate_image, get_elaborating_questions
 
 
 async def mainloop():
+    await fill_static_render_images()
     stream = RedisStream("requested-jobs")
     completed_images_stream = RedisStream("completed-jobs", group_name="image")
     completed_meshes_stream = RedisStream("completed-jobs", group_name="mesh")

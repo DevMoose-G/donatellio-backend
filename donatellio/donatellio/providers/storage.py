@@ -59,3 +59,17 @@ class StorageProvider:
             return key
         except ClientError as e:
             print(e)
+    
+    def upload_mesh(self, mesh_id, mesh_filename, mesh_path):
+        try:
+            key = f"meshes/{mesh_id}/{mesh_filename}"
+            self.s3_client.upload_file(mesh_path, self.bucket, key)
+            return key
+        except ClientError as e:
+            print(e)
+        
+    def download_file(self, storage_key, local_path):
+        try:
+            self.s3_client.download_file(self.bucket, storage_key, local_path)
+        except ClientError as e:
+            print(e)

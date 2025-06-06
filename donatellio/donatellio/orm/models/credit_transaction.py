@@ -7,7 +7,7 @@ from donatellio.orm.base import Base
 class CreditTransaction(Base):
     __tablename__ = "credit_transactions" 
     id = Column(String(128), primary_key=True)
-    user_id = Column(String(128), ForeignKey("users.id"), nullable=False)
+    user_id = Column(String(128), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     delta = Column(Integer, nullable=False)
     reason = Column(String(1024), nullable=False)
     
