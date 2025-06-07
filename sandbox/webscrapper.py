@@ -1,21 +1,23 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-import time
-import glob
-import os
-import shutil
 import json
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
+import os
 import random
+import shutil
+import time
+
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 data_dir = "C:\\Users\\Muse\\Documents\\Donatellio\\data\\poly_pizza"
 # downloads_dir = "C:\\Users\\Muse\\Downloads"
 metadata = json.load(open(f"{data_dir}\\metadata.json"))
 
+
 def sleep_randomly(max_time):
-    time.sleep(random.uniform(max_time/1.5, max_time*1.5))
+    time.sleep(random.uniform(max_time / 1.5, max_time * 1.5))
+
 
 def wait_for_download(timeout=30):
     seconds = 0
@@ -25,10 +27,11 @@ def wait_for_download(timeout=30):
         dl_wait = False
         files = os.listdir(data_dir)
         for fname in files:
-            if fname.endswith('.crdownload'):
+            if fname.endswith(".crdownload"):
                 dl_wait = True
         seconds += 1
     return
+
 
 def rename_latest_file(old_name, new_name):
     # Get the list of files in the download directory
@@ -40,18 +43,20 @@ def rename_latest_file(old_name, new_name):
     # latest_file = files[0]
 
     source = os.path.join(data_dir, old_name)
-    destination = os.path.join(data_dir, new_name)  # Replace with your desired filename and extension
+    destination = os.path.join(
+        data_dir, new_name
+    )  # Replace with your desired filename and extension
 
     # Rename the file
     shutil.move(source, destination)
 
 
-# 1) CONFIGURATION: 
+# 1) CONFIGURATION:
 # ----------------------------------------------------------------
 # Replace 'PARENT_PAGE_URL' with the URL you want to scrape.
-PARENT_PAGE_URL = "https://poly.pizza/explore?lic=1" # &sort=1
+PARENT_PAGE_URL = "https://poly.pizza/explore?lic=1"  # &sort=1
 
-# Update this selector to match your parent DIV. 
+# Update this selector to match your parent DIV.
 # e.g. if parent <div id="container">, use "#container".
 PARENT_DIV_SELECTOR = ".MuiGrid-root.MuiGrid-container.MuiGrid-spacing-xs-6"
 
@@ -77,7 +82,7 @@ def main():
         "download.default_directory": data_dir,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
+        "safebrowsing.enabled": True,
     }
     options.add_experimental_option("prefs", prefs)
     # options.add_argument("--headless=new")
@@ -88,16 +93,18 @@ def main():
         # 3) LOAD THE PARENT PAGE
         driver.get(PARENT_PAGE_URL)
         sleep_randomly(2)  # let the page load (adjust as needed)
-        
+
         ###############################################################################
         # scroll_to_bottom(driver)
-        
+
         # Initialize variables
         scroll_pause_time = 8  # Time to wait after each scroll (in seconds)
-        max_wait_time = 30     # Maximum time to wait with no new content (in seconds)
+        max_wait_time = 30  # Maximum time to wait with no new content (in seconds)
         last_height = driver.execute_script("return document.body.scrollHeight")
         start_time = time.time()
-        scrollable_root = driver.find_element(By.CSS_SELECTOR, ".ScrollbarsCustom-Content")
+        scrollable_root = driver.find_element(
+            By.CSS_SELECTOR, ".ScrollbarsCustom-Content"
+        )
         driver.execute_script("arguments[0].scrollIntoView(true);", scrollable_root)
         driver.execute_script("arguments[0].focus();", scrollable_root)
         while True:
@@ -108,7 +115,9 @@ def main():
             sleep_randomly(scroll_pause_time)
 
             # Calculate new scroll height and compare with last scroll height
-            new_height = driver.execute_script("return arguments[0].scrollHeight", scrollable_root)
+            new_height = driver.execute_script(
+                "return arguments[0].scrollHeight", scrollable_root
+            )
             print(f"Last height: {last_height}, New height: {new_height}")
 
             if new_height == last_height:
@@ -120,14 +129,18 @@ def main():
                 # Reset the timer if new content has loaded
                 start_time = time.time()
                 last_height = new_height
-                
+
         ###############################################################################
 
         # 4) LOCATE THE PARENT DIV
         parent_divs = driver.find_elements(By.CSS_SELECTOR, PARENT_DIV_SELECTOR)
 
         # 5) FIND ALL CHILD DIVS INSIDE IT
-        child_divs = [div for parent_div in parent_divs for div in parent_div.find_elements(By.CSS_SELECTOR, "div")]
+        child_divs = [
+            div
+            for parent_div in parent_divs
+            for div in parent_div.find_elements(By.CSS_SELECTOR, "div")
+        ]
         print(f"Found {len(child_divs)} child <div> elements.")
 
         all_links = []
@@ -141,39 +154,50 @@ def main():
             except NoSuchElementException:
                 # print(f"[{idx}] No <a> tag found in this div. Skipping.")
                 continue
-                
+
         all_links = list(set(all_links))
         print(f"Found {len(all_links)} unique links.")
         for idx, href in enumerate(all_links):
             # 7) NAVIGATE TO THAT LINK
             driver.get(href)
             sleep_randomly(4)  # wait for it to load—adjust if necessary
-            
-            name = driver.find_element(By.CSS_SELECTOR, FILENAME_PARENT_SELECTOR).find_element(By.TAG_NAME, "h1").text
-            author = driver.find_element(By.CSS_SELECTOR, AUTHOR_PARENT_SELECTOR).find_element(By.TAG_NAME, "h3").text
-            
+
+            name = (
+                driver.find_element(By.CSS_SELECTOR, FILENAME_PARENT_SELECTOR)
+                .find_element(By.TAG_NAME, "h1")
+                .text
+            )
+            author = (
+                driver.find_element(By.CSS_SELECTOR, AUTHOR_PARENT_SELECTOR)
+                .find_element(By.TAG_NAME, "h3")
+                .text
+            )
+
             tags = []
-            for tag in driver.find_element(By.CSS_SELECTOR, TAG_PARENT_SELECTOR).find_elements(By.TAG_NAME, "a"):
+            for tag in driver.find_element(
+                By.CSS_SELECTOR, TAG_PARENT_SELECTOR
+            ).find_elements(By.TAG_NAME, "a"):
                 tags.append(tag.text)
             filename = f"{author}_{name}.glb"
             if filename in metadata:
                 continue
-            metadata[filename] = {
-                "name": name,
-                "author": author,
-                "tags": tags
-            }
+            metadata[filename] = {"name": name, "author": author, "tags": tags}
 
             # 8) FIND AND CLICK THE DOWNLOAD BUTTON
             def try_download():
                 try:
-                    download_btn = driver.find_element(By.XPATH, "//*[text()='Download']")
+                    download_btn = driver.find_element(
+                        By.XPATH, "//*[text()='Download']"
+                    )
                     download_btn.click()
-                    download_glb = driver.find_element(By.XPATH, "//*[text()='Download GLB']")
+                    download_glb = driver.find_element(
+                        By.XPATH, "//*[text()='Download GLB']"
+                    )
                     download_glb.click()
                     print(f"→ Clicked download button on {href}")
                 except NoSuchElementException:
                     print(f"→ Download button not found on {href}")
+
             try_download()
 
             # Wait for the download to complete

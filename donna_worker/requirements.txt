@@ -1,0 +1,17 @@
+fastapi
+pydantic
+rq
+sqlalchemy
+pydantic-settings
+psycopg2
+asyncpg
+passlib
+alembic
+sqlalchemy_utils
+bcrypt
+pillow
+fastapi[standard]
+requests
+openai
+python-jose
+redis

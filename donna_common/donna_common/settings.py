@@ -1,0 +1,30 @@
+from dotenv import find_dotenv, load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+# walk up until you hit the first .env
+load_dotenv(find_dotenv())
+
+
+class Settings(BaseSettings):
+    redis_url: str = Field(..., env="REDIS_URL")
+
+    database_url: str = Field(..., env="DATABASE_URL")
+    database_sync_url: str = Field(..., env="DATABASE_SYNC_URL")  # for alembic upgrades
+
+    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
+
+    runpod_api_key: str = Field(..., env="RUNPOD_API_KEY")
+
+    static_dir: str = Field(..., env="STATIC_DIR")
+
+    default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+
+
+# Instantiate for import elsewhere
+settings = Settings()
