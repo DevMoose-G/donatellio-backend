@@ -24,7 +24,6 @@ async def image_updates(
     project_id: str,
     # current_user: User = Depends(get_current_user_from_ws)
 ):
-
     # project = await project_dal.get_project_by((Project.id == project_id))
     # if current_user.id != project.user_id:
     #     raise HTTPException(status_code=401, detail="Not authenticated")

@@ -66,7 +66,7 @@ async def create_image(
 
     await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id)
 
-    msg_id = await stream.send_msg(
+    await stream.send_msg(
         ImageAction(
             project_id=project_id,
             function_name="generate_image",
@@ -104,12 +104,7 @@ async def edit_image(
             content={"success": False, "message": "Project doesn't exist"},
         )
 
-    msg_id = await stream.send_msg(
-        # RedisPayload(
-        #     project_id,
-        #     "edit_image",
-        #     {**req.model_dump(), "project_id": req.project_id, "image_id": image_id},
-        # )
+    await stream.send_msg(
         ImageAction(
             project_id=project_id,
             function_name="edit_image",
@@ -191,7 +186,6 @@ async def gen_elaborating_questions(
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ):
-
     # stream = RedisStream("requested-jobs")
     # await stream.setup_group(new_only=False)
 

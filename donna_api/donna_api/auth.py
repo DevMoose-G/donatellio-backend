@@ -181,12 +181,11 @@ async def check_username(username: str, user_dal: UserDAL = Depends(get_user_dal
 
 @router.post("/register")
 async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user_dal)):
-
-    db_user = await user_dal.get_user_by(filter=((User.email == user.email)))
+    db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
         return BaseResponse(success=False, error_msg="Email already in use")
 
-    db_user = await user_dal.get_user_by(filter=((User.username == user.username)))
+    db_user = await user_dal.get_user_by(filter=(User.username == user.username))
     if db_user is not None:
         return BaseResponse(success=False, error_msg="Username already in use")
 
@@ -257,7 +256,7 @@ async def refresh(
 ):
     try:
         payload = decode_token(request.refresh_token, "refresh_token")
-    except JWTError as e:
+    except JWTError:
         return BaseResponse(success=False, error_msg="Invalid refresh token")
 
     db_user = await user_dal.get_user_by(filter=(User.id == payload["sub"]))

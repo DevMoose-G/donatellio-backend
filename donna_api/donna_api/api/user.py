@@ -47,7 +47,6 @@ async def get_users_assets(
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ) -> GetAssetsResponse:
-
     projects = [
         project
         for project in await project_dal.get_all_projects_by(

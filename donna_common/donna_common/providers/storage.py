@@ -12,7 +12,6 @@ def extract_s3_key(presigned_url):
 
 
 class StorageProvider:
-
     def __init__(self):
         self.s3_client = boto3.client("s3", region_name="us-east-1")
         self.bucket = "donatellio"

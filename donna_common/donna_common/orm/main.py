@@ -9,7 +9,9 @@ from donna_common.settings import settings
 DATABASE_URL = settings.database_url
 
 engine = create_async_engine(
-    DATABASE_URL, echo=False, future=True  # set to true for debugging
+    DATABASE_URL,
+    echo=False,
+    future=True,  # set to true for debugging
 )
 
 AsyncSessionLocal = sessionmaker(

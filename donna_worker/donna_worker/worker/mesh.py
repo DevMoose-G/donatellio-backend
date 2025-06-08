@@ -58,7 +58,6 @@ async def generate_mesh(
     labels: List[str],
     max_polygon_count: int,
 ) -> List[str]:
-
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
     mesh_ids = await runpod_service.generate_untextured_mesh(

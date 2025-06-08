@@ -86,8 +86,7 @@ async def create_mesh(
     if response.success == False:
         return BaseResponse(success=False, message="Not enough credits")
 
-    msg_id = await stream.send_msg(
-        # RedisPayload(project_id, "generate_mesh", {**req.model_dump()})
+    await stream.send_msg(
         MeshAction(
             project_id=project_id,
             function_name="generate_mesh",
@@ -118,7 +117,7 @@ async def create_texture(
     if response.success == False:
         return BaseResponse(success=False, message="Not enough credits")
 
-    msg_id = await stream.send_msg(
+    await stream.send_msg(
         MeshAction(
             project_id=project_id,
             function_name="generate_texture",

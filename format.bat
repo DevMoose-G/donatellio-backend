@@ -1,5 +1,6 @@
-autoflake --recursive --in-place --remove-all-unused-imports --remove-unused-variables .
+@REM Lint & sort imports
+ruff check --select F401,F841,I --fix .
 
-isort .
+@REM Format code
+ruff format
 
-black .

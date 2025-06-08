@@ -50,7 +50,7 @@ def generate_textured_mesh(untexture_mesh_path, input_image_path) -> str:
 
 def generate_mesh(input_image_path) -> str:
     # run pipeline and obtain the untextured mesh
-    generator = torch.Generator(device=geometry_pipeline.device).manual_seed(2025)
+    _ = torch.Generator(device=geometry_pipeline.device).manual_seed(2025)
     out = geometry_pipeline(
         input_image_path, guidance_scale=7.5, num_inference_steps=50
     )
@@ -118,7 +118,6 @@ def handler(event):
                 "message": f"failed on {len(errored_responses)} uploads. Here are the error responses: {errored_responses}"
             }
     else:
-
         mesh = generate_mesh("downloaded_image.png")
         mesh_file_loc = f"mesh{random_string(16)}.glb"
         mesh.export(mesh_file_loc)

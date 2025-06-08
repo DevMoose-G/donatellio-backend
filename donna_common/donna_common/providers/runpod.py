@@ -52,7 +52,6 @@ class RunpodProvider:
         self, project_id: str, image_id: str, mesh_id: str, presigned_url: str
     ):
         async with aiohttp.ClientSession() as runpod_session:
-
             # create mesh in database w/ status='PENDING'
             async with AsyncSessionLocal() as session:
                 image = await ImageDAL(session).get_image_by_id(image_id)
@@ -165,7 +164,6 @@ class RunpodProvider:
             mesh_mapping[mesh_id] = presigned_url
 
         async with aiohttp.ClientSession() as runpod_session:
-
             storage_provider = StorageProvider()
             image_url = storage_provider.generate_get_url(image.storage_key)
 
@@ -202,7 +200,6 @@ class RunpodProvider:
                 presigned_url = output["presigned_url"]
                 parsed_url = urlparse(presigned_url)
                 async with AsyncSessionLocal() as session:
-
                     await MeshDAL(session).update_mesh(
                         id=mesh_id,
                         project_id=project.id,
@@ -259,7 +256,6 @@ class RunpodProvider:
         presigned_url = storage_provider.generate_put_url_for_mesh(texture_id)
 
         async with aiohttp.ClientSession() as runpod_session:
-
             image_url = storage_provider.generate_get_url(image.storage_key)
             mesh_url = storage_provider.generate_get_url(mesh.storage_key)
 
@@ -300,7 +296,6 @@ class RunpodProvider:
                 presigned_url = output["presigned_url"]
                 parsed_url = urlparse(presigned_url)
                 async with AsyncSessionLocal() as session:
-
                     await TextureDAL(session).update_texture(
                         id=texture_id,
                         project_id=project.id,
