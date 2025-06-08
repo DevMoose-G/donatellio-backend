@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from donna_common.orm.base import Base
@@ -14,7 +15,6 @@ class Project(Base):
     user_id = Column(
         String(128), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    collection_id = Column(String(128), ForeignKey("collections.id"), nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),
@@ -43,7 +43,11 @@ class Project(Base):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    collections = relationship("Collection", back_populates="projects", lazy="selectin")
+
+    assoc_collections = relationship(
+        "ProjectCollection", back_populates="project", lazy="selectin"
+    )
+    collections = association_proxy("assoc_collections", "collection")
 
     @property
     async def image_s3_keys(self):

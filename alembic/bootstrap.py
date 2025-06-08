@@ -6,7 +6,7 @@ from alembic.config import Config
 from donna_common.settings import settings
 
 # grab the same URL you used in Alembic
-DATABASE_URL = settings.database_url
+DATABASE_URL = settings.database_sync_url
 
 # 1) ensure the database exists
 if not database_exists(DATABASE_URL):

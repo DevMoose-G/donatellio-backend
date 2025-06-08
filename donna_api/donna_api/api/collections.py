@@ -8,6 +8,10 @@ from donna_api.auth import get_current_user
 from donna_api.types import BaseResponse, GetAssetsResponse, GetProjectsResponse
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.project import ProjectDAL, get_project_dal
+from donna_common.orm.dal.project_collection import (
+    ProjectCollectionDAL,
+    get_project_collection_dal,
+)
 from donna_common.orm.models.user import User
 
 load_dotenv()  # reads .env from cwd
@@ -65,9 +69,10 @@ async def get_projects_from_collection(
     collection_id: str,
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_collection_dal: ProjectCollectionDAL = Depends(get_project_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
-    projects = await collections_dal.get_projects_from_collection(collection_id)
+    projects = await project_collection_dal.get_projects_from_collection(collection_id)
     project_items = []
     for project in projects:
         proj_display = await project_dal.get_project_display(project)
@@ -77,7 +82,9 @@ async def get_projects_from_collection(
     # get child collections
     children = await collections_dal.get_children_collections(collection_id)
     for child in children:
-        child_projects = await collections_dal.get_projects_from_collection(child.id)
+        child_projects = await project_collection_dal.get_projects_from_collection(
+            child.id
+        )
         for project in child_projects:
             proj_display = await project_dal.get_project_display(project)
             if proj_display != None:
@@ -91,9 +98,10 @@ async def get_assets_from_collection(
     collection_id: str,
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_collection_dal: ProjectCollectionDAL = Depends(get_project_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
-    projects = await collections_dal.get_projects_from_collection(collection_id)
+    projects = await project_collection_dal.get_projects_from_collection(collection_id)
     assets = []
     for project in projects:
         asset_display = await project_dal.get_asset_display(project)
@@ -103,7 +111,9 @@ async def get_assets_from_collection(
     # get child collections
     children = await collections_dal.get_children_collections(collection_id)
     for child in children:
-        child_projects = await collections_dal.get_projects_from_collection(child.id)
+        child_projects = await project_collection_dal.get_projects_from_collection(
+            child.id
+        )
         for project in child_projects:
             asset_display = await project_dal.get_asset_display(project)
             if asset_display != None:
@@ -152,4 +162,25 @@ async def delete_collection(
             success=False, message="You don't have permission to delete this collection"
         )
     await collections_dal.delete_collection(collection_id)
+    return BaseResponse(success=True)
+
+
+class RenameCollectionRequest(BaseModel):
+    name: str
+    collection_id: str
+
+
+@router.post("/{collection_id}/rename", status_code=200)
+async def rename_collection(
+    collection_id: str,
+    req: RenameCollectionRequest,
+    collections_dal: CollectionDAL = Depends(get_collection_dal),
+    current_user: User = Depends(get_current_user),
+):
+    collection = await collections_dal.get_collection_by_id(collection_id)
+    if collection.user_id != current_user.id:
+        return BaseResponse(
+            success=False, message="You don't have permission to rename this collection"
+        )
+    await collections_dal.rename_collection(collection_id, req.name)
     return BaseResponse(success=True)

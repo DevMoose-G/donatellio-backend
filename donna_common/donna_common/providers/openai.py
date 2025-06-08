@@ -12,7 +12,6 @@ from openai import OpenAI
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
-from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
@@ -35,7 +34,7 @@ class OpenAIProvider:
         self.client = OpenAI(
             api_key=settings.openai_api_key,
         )
-        self.runpod_provider = RunpodProvider()
+        # self.runpod_provider = RunpodProvider()
         self.storage_provider = StorageProvider()
         self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
 
@@ -64,13 +63,7 @@ class OpenAIProvider:
 
         image_name = f"{image_id}.png"
 
-        project_name = self.name_project(project_id)
-
         prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
-
-        # wake up geometry pipeline
-
-        await self.runpod_service.wake_up_geometry()
 
         stream = self.client.responses.create(
             model="gpt-4.1",
@@ -109,11 +102,6 @@ class OpenAIProvider:
                             id=image_id, project_id=project_id, storage_key=key
                         )
                     await completed_images_stream.send_msg(
-                        # RedisPayload(
-                        #     project_id,
-                        #     "generate_image",
-                        #     {"image_id": image_id, "is_partial": True},
-                        # )
                         ImageAction(
                             type="image",
                             function_name="generate_image",
@@ -127,11 +115,6 @@ class OpenAIProvider:
                         id=image_id, external_id=event.item_id
                     )
                     await completed_images_stream.send_msg(
-                        # RedisPayload(
-                        #     project_id,
-                        #     "generate_image",
-                        #     {"image_id": image_id, "is_partial": False},
-                        # )
                         ImageAction(
                             type="image",
                             function_name="generate_image",
@@ -143,11 +126,6 @@ class OpenAIProvider:
         except openai.APIError as e:
             raise e
             await completed_images_stream.send_msg(
-                # RedisPayload(
-                #     project_id,
-                #     "generate_image",
-                #     {"image_id": image_id, "is_partial": False},
-                # )
                 ImageAction(
                     type="image",
                     function_name="generate_image",
@@ -157,7 +135,6 @@ class OpenAIProvider:
                 )
             )
 
-        await project_name
         return key
 
     async def edit_image(
@@ -181,8 +158,6 @@ class OpenAIProvider:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         buf.seek(0)
-
-        await self.runpod_service.wake_up_geometry()
 
         prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
 
@@ -226,7 +201,6 @@ class OpenAIProvider:
                             id=image_id, project_id=project_id, storage_key=key
                         )
                 await completed_images_stream.send_msg(
-                    # RedisPayload(project_id, "edit_image", {"image_id": image_id})
                     ImageAction(
                         type="image",
                         function_name="edit_image",

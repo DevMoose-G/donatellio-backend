@@ -69,10 +69,8 @@ async def image_updates(
         else:
             print("got a message")
             for msg in messages:
-                # payload = json.loads(msg.json.payload)
                 action = msg.action
                 if action.project_id == project_id and action.type == "image":
-                    # if msg.json.function_name == "generate_image" or msg.json.function_name == "edit_image":
                     storage_provider = StorageProvider()
                     image_id = action.image_id
                     is_partial = action.is_partial

@@ -186,7 +186,8 @@ async def fill_static_render_images():
         storage_provider = StorageProvider()
 
         textures = await texture_dal.get_textures_by(
-            Texture.static_render_storage_key == None
+            filter=(Texture.static_render_storage_key == None)
+            & (Texture.storage_key != None)
         )
         for texture in textures:
             glb_path = f"{TEXTURE_DIR}/{texture.id}.glb"
@@ -206,7 +207,9 @@ async def fill_static_render_images():
                 texture.id, static_render_storage_key=png_storage_key
             )
 
-        meshes = await mesh_dal.get_meshes_by(Mesh.static_render_storage_key == None)
+        meshes = await mesh_dal.get_meshes_by(
+            filter=(Mesh.static_render_storage_key == None) & (Mesh.storage_key != None)
+        )
         for mesh in meshes:
             glb_path = f"{MESH_DIR}/{mesh.id}.glb"
             storage_provider.download_file(mesh.storage_key, glb_path)

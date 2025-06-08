@@ -31,35 +31,3 @@ Action = Union[ImageAction, MeshAction]
 class RedisMessage(BaseModel):
     id: str
     action: Action
-
-
-# @dataclass
-# class RedisPayload:
-#     project_id: str
-#     function_name: str
-#     type: str
-#     payload: Dict[str, Any]
-#     # params: list
-
-
-# @dataclass
-# class RedisMessage:
-#     id: str
-#     json: RedisPayload
-
-
-# @dataclass
-# class RedisReadResponse:
-#     stream_key: str
-#     messages: List[RedisMessage]
-
-
-# @dataclass
-# class ImagePayload(RedisPayload):
-#     image_id: str
-#     is_partial: bool
-
-
-# @dataclass
-# class MeshPayload(RedisPayload):
-#     mesh_ids: List[str]

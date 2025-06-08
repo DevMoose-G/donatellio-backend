@@ -63,6 +63,10 @@ class RedisStream:
         messages = []
         for _, msgs in entries:
             for _id, fields in msgs:
+                try:
+                    fields["data"]
+                except KeyError:
+                    raise Exception(str(fields))
                 action = TypeAdapter(Action).validate_json(fields["data"])
                 messages.append(RedisMessage(id=_id, action=action))
                 # msgs.append(RedisMessage(msg[0], RedisPayload(**msg[1])))

@@ -106,12 +106,6 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
                             id=image_id, project_id=project_id, storage_key=key
                         )
                 await completed_images_stream.send_msg(
-                    # ImagePayload(
-                    #     project_id,
-                    #     "generate_image",
-                    #     image_id=image_id,
-                    #     is_partial=True,
-                    # )
                     ImageAction(
                         project_id=project_id,
                         function_name="generate_image",
@@ -133,11 +127,6 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
                         id=image_id, external_id=event.item_id
                     )
                 await completed_images_stream.send_msg(
-                    # RedisPayload(
-                    #     project_id,
-                    #     "generate_image",
-                    #     {"image_id": image_id, "is_partial": False},
-                    # )
                     ImageAction(
                         project_id=project_id,
                         function_name="generate_image",
@@ -156,12 +145,6 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
     except openai.APIError as e:
         print(e)
         await completed_images_stream.send_msg(
-            # ImagePayload(
-            #     project_id,
-            #     "generate_image",
-            #     image_id=image_id,
-            #     is_partial=False,
-            # )
             ImageAction(
                 project_id=project_id,
                 function_name="generate_image",
@@ -177,11 +160,6 @@ async def generate_image(image_id, project_id, prompt, n, size, quality) -> str:
                 },
                 successful=False,
             )
-            # RedisPayload(
-            #     project_id,
-            #     "generate_image",
-            #     {"image_id": image_id, "is_partial": False},
-            # )
         )
 
     await project_name

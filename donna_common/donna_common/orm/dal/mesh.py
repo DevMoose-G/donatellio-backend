@@ -25,6 +25,8 @@ class MeshDAL:
         if mesh is None:
             raise RuntimeError("Mesh not found")
         for key, value in kwargs.items():
+            if key == "octree_resolution" and type(value) != str:
+                raise RuntimeError("Octree resolution must be a string")
             if hasattr(mesh, key) and value is not None:
                 setattr(mesh, key, value)
         self.session.add(mesh)

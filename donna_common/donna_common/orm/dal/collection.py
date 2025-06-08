@@ -7,10 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from donna_common.orm.main import get_db
 from donna_common.orm.models.collection import Collection
-from donna_common.orm.models.project import Project
 
 # from donna_common.orm.models.project_collection import ProjectCollections
-from donna_common.orm.models.project_collection import project_collections
 
 
 class CollectionDAL:
@@ -28,15 +26,6 @@ class CollectionDAL:
     async def get_children_collections(self, collection_id) -> List[Collection]:
         result = await self.session.execute(
             select(Collection).where(Collection.parent_id == collection_id)
-        )
-        return result.scalars().all()
-
-    async def get_projects_from_collection(self, collection_id) -> List[Project]:
-        result = await self.session.execute(
-            select(Project)
-            .join(project_collections, Project.id == project_collections.c.project_id)
-            .where(project_collections.c.collection_id == collection_id)
-            # select(Project).join(ProjectCollections, Project.id == ProjectCollections.project_id).where(ProjectCollections.collection_id == collection_id)
         )
         return result.scalars().all()
 

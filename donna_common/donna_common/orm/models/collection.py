@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from donna_common.orm.base import Base
-from donna_common.orm.models.project_collection import project_collections
 
 
 class Collection(Base):
@@ -46,12 +46,9 @@ class Collection(Base):
     public = Column(Boolean, nullable=False, default=False, server_default="False")
 
     owner = relationship("User", back_populates="collections", lazy="selectin")
-    projects = relationship("Project", back_populates="collections", lazy="selectin")
 
-    # Many-to-many: which projects belong to this collection
-    projects = relationship(
-        "Project",
-        secondary=project_collections,
-        back_populates="collections",
-        lazy="selectin",  # check if this takes a long time to load
+    assoc_projects = relationship(
+        "ProjectCollection", back_populates="collection", lazy="selectin"
     )
+    # Many-to-many: which projects belong to this collection
+    projects = association_proxy("assoc_projects", "project")

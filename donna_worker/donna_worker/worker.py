@@ -3,10 +3,10 @@ import asyncio
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import get_master_dal
 from donna_common.providers.openai import OpenAIProvider
+from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
-from donna_common.redis.types import BaseAction, ImageAction, MeshAction
-from donna_worker.worker.image import edit_image, generate_image
+from donna_common.redis.types import ImageAction, MeshAction
 from donna_worker.worker.mesh import (
     fill_static_render_images,
     generate_mesh,
@@ -19,6 +19,7 @@ class DonnaWorker:
         self.session = AsyncSessionLocal()
 
         self.openai_provider = OpenAIProvider()
+        self.runpod_service = RunpodProvider()
 
         self.stream = RedisStream("requested-jobs")
         self.completed_images_stream = RedisStream("completed-jobs", group_name="image")
@@ -34,7 +35,13 @@ class DonnaWorker:
     @on_action("image")
     async def handle_image(self, action: ImageAction):
         if action.function_name == "generate_image":
-            await generate_image(**action.params)
+            # wake up geometry pipeline
+
+            project_name = self.openai_provider.name_project(action.project_id)
+            await self.runpod_service.wake_up_geometry()
+            await self.openai_provider.generate_image(**action.params)
+            await project_name
+
             await self.completed_images_stream.send_msg(
                 ImageAction(
                     project_id=action.project_id,
@@ -45,7 +52,8 @@ class DonnaWorker:
                 )
             )
         elif action.function_name == "edit_image":
-            await edit_image(**action.params)
+            await self.runpod_service.wake_up_geometry()
+            await self.openai_provider.edit_image(**action.params)
             await self.completed_images_stream.send_msg(
                 ImageAction(
                     project_id=action.project_id,

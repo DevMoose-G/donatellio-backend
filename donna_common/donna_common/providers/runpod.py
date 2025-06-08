@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 import runpod
+from pydantic import BaseModel
 from runpod import AsyncioEndpoint, AsyncioJob
 
 from donna_common.orm.dal.image import ImageDAL
@@ -14,6 +15,27 @@ from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
+
+
+class JobsStatus(BaseModel):
+    completed: int
+    failed: int
+    inProgress: int
+    inQueue: int
+    retried: int
+
+
+class WorkersStatus(BaseModel):
+    idle: int
+    initializing: int
+    ready: int
+    running: int
+    throttled: int
+
+
+class EndpointHealth(BaseModel):
+    jobs: JobsStatus
+    workers: WorkersStatus
 
 
 class RunpodProvider:
@@ -83,10 +105,24 @@ class RunpodProvider:
             await endpoint.run(input_payload)
 
     async def wake_up_geometry(self):
+        health = await self.health(self.geometry_endpoint_id)
+        # don't send request if there are jobs in queue
+        if health.jobs.inQueue > 0:
+            return
         await self.__wake_up(self.geometry_endpoint_id)
 
     async def wake_up_texture(self):
+        health = await self.health(self.texture_endpoint_id)
+        # don't send request if there are jobs in queue
+        if health.jobs.inQueue > 0:
+            return
         await self.__wake_up(self.texture_endpoint_id)
+
+    async def health(self, endpoint_id: str) -> EndpointHealth:
+        async with aiohttp.ClientSession() as runpod_session:
+            endpoint = AsyncioEndpoint(endpoint_id, runpod_session)
+            health_dict = await endpoint.health()
+            return EndpointHealth(**health_dict)
 
     # TODO: test if streaming works
     async def generate_untextured_mesh(
@@ -120,7 +156,7 @@ class RunpodProvider:
                     id=mesh_id,
                     project_id=project.id,
                     image_id=image.id,
-                    storage_key="",
+                    storage_key=None,
                     status="PENDING",
                     gpu_provider_response="",
                 )
@@ -174,6 +210,17 @@ class RunpodProvider:
                         storage_key=parsed_url.path[1:],
                         status="COMPLETED",
                         gpu_provider_response=str(output),
+                        seed=seed,
+                        octree_resolution=str(
+                            quality_dict.get("octree_resolution", 256)
+                        ),
+                        num_inference_steps=quality_dict.get("n_inference_steps", 30),
+                        face_count=max_polygon_count,
+                        label=",".join(labels) if len(labels) > 0 else None,
+                        # TODO: have to add these to frontend
+                        guidance_scale=5.5,
+                        mc_level=0.0,
+                        caption=None,
                     )
         return list(mesh_mapping.keys())
 
@@ -201,7 +248,7 @@ class RunpodProvider:
                 project_id=project.id,
                 image_id=image.id,
                 mesh_id=mesh.id,
-                storage_key="",
+                storage_key=None,
                 status="PENDING",
                 gpu_provider_response="",
             )
@@ -262,5 +309,12 @@ class RunpodProvider:
                         storage_key=parsed_url.path[1:],
                         status="COMPLETED",
                         gpu_provider_response=str(output),
+                        n_inference_steps=quality_dict["n_inference_steps"],
+                        guidance_scale=quality_dict["guidance_scale"],
+                        seed=seed,
+                        lora_scale=quality_dict.get("lora_scale", 1.0),
+                        reference_conditioning_scale=quality_dict.get(
+                            "reference_conditioning_scale", 1.0
+                        ),
                     )
         return texture_id

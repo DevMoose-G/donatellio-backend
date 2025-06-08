@@ -30,7 +30,10 @@ class Mesh(Base):
     num_inference_steps = Column(
         Integer, nullable=False, default=30
     )  # more steps = smoother, detailed shapes
+
     face_count = Column(Integer, nullable=True, default=40000)  # 5k-100k faces
+    # need to separate face_count from user_set_face_count
+
     guidance_scale = Column(
         Float, nullable=False, default=5.5
     )  # 1-15, higher=listen to image more
