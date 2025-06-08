@@ -22,7 +22,7 @@ STATIC_DIR = settings.static_dir
 MESH_DIR = f"{STATIC_DIR}/meshes"
 TEXTURE_DIR = f"{STATIC_DIR}/textures"
 
-BLENDER_EXE = f"C:/Program Files/Blender Foundation/Blender 4.3/blender.exe"
+BLENDER_EXE = settings.blender_exe_path
 
 # Configure OpenAI
 client = OpenAI(

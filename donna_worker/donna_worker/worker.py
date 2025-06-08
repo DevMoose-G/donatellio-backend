@@ -36,12 +36,6 @@ class DonnaWorker:
         if action.function_name == "generate_image":
             await generate_image(**action.params)
             await self.completed_images_stream.send_msg(
-                # ImagePayload(
-                #     action.project_id,
-                #     action.function_name,
-                #     image_id=action.image_id,
-                #     is_partial=False,
-                # )
                 ImageAction(
                     project_id=action.project_id,
                     function_name=action.function_name,
@@ -60,12 +54,6 @@ class DonnaWorker:
                     image_id=action.image_id,
                     is_partial=False,
                 )
-                # ImagePayload(
-                #     action.project_id,
-                #     action.function_name,
-                #     image_id=action.image_id,
-                #     is_partial=False,
-                # )
             )
 
     @on_action("mesh")
@@ -73,7 +61,6 @@ class DonnaWorker:
         if action.function_name == "generate_mesh":
             mesh_ids = await generate_mesh(**action.params)
             await self.completed_meshes_stream.send_msg(
-                # MeshPayload(action.project_id, action.function_name, mesh_ids=mesh_ids)
                 MeshAction(
                     type="mesh",
                     params=action.params,
@@ -85,7 +72,6 @@ class DonnaWorker:
         elif action.function_name == "generate_texture":
             mesh_id = await generate_texture(**action.params)
             await self.completed_meshes_stream.send_msg(
-                # MeshPayload(action.project_id, action.function_name, mesh_ids=[mesh_id])
                 MeshAction(
                     type="mesh",
                     project_id=action.project_id,
@@ -94,29 +80,6 @@ class DonnaWorker:
                     mesh_ids=[mesh_id],
                 )
             )
-
-    async def process_msg(self, msg: BaseAction):
-
-        # elif msg.json.function_name == "generate_mesh":
-        #     mesh_ids = await generate_mesh(**params)
-        #     await self.completed_meshes_stream.send_msg(
-        #         MeshPayload(
-        #             msg.json.project_id, msg.json.function_name, mesh_ids=mesh_ids
-        #         )
-        #     )
-        # elif msg.json.function_name == "generate_texture":
-        #     mesh_id = await generate_texture(**params)
-        #     await self.completed_meshes_stream.send_msg(
-        #         MeshPayload(
-        #             msg.json.project_id, msg.json.function_name, mesh_ids=[mesh_id]
-        #         )
-        #     )
-        # else:
-        #     raise RuntimeError(f"Unknown function: {msg.json.function_name}")
-
-        await self.stream.ack_msg(msg.id)
-
-        print(f"Processed message with ID: {msg.id}")
 
     async def mainloop(self):
         await fill_static_render_images()
@@ -136,7 +99,6 @@ class DonnaWorker:
                     raise RuntimeError(f"Unknown action type: {msg.action.type}")
                 await handler(self, msg.action)
                 await self.stream.ack_msg(msg.id)
-                # await self.process_msg(msg)
 
 
 async def mainloop():

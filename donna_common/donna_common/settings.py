@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     runpod_api_key: str = Field(..., env="RUNPOD_API_KEY")
 
     static_dir: str = Field(..., env="STATIC_DIR")
+    blender_exe_path: str = Field(..., env="BLENDER_EXE_PATH")
 
     default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
 
