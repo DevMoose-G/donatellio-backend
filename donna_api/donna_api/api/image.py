@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
 from donna_api.types import (
-    BaseResponse,
     RequestCheckElaboratingQuestions,
     RequestCreateImage,
     RequestEditImage,
@@ -35,7 +34,7 @@ load_dotenv()  # reads .env from cwd
 router = APIRouter(prefix="/image")
 
 
-class ResponseImage(BaseResponse):
+class ResponseImage(BaseModel):
     image_id: str
     project_id: str
 
@@ -58,7 +57,10 @@ async def create_image(
         current_user, 2, "user_action:generate_image"
     )
     if response.success == False:
-        return BaseResponse(success=False, message="Not enough credits")
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Not enough credits"},
+        )
 
     await project_dal.create_project(
         id=project_id, name="test", user_id=current_user.id
@@ -95,13 +97,15 @@ async def edit_image(
 
     response = await user_dal.charge_credit(current_user, 2, "user_action:edit_image")
     if response.success == False:
-        return BaseResponse(success=False, message="Not enough credits")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Not enough credits"}
+        )
 
     project = await project_dal.get_project_by_id(req.project_id)
     if project is None:
         return JSONResponse(
             status_code=400,
-            content={"success": False, "message": "Project doesn't exist"},
+            content={"error_msg": "Project doesn't exist"},
         )
 
     await stream.send_msg(
@@ -136,7 +140,7 @@ async def get_image_chat_history(
     if project is None:
         return JSONResponse(
             status_code=400,
-            content={"success": False, "message": "Project doesn't exist"},
+            content={"success": False, "error_msg": "Project doesn't exist"},
         )
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
@@ -177,7 +181,7 @@ async def upload_image(
     image = await image_dal.create_image(
         id=request.image_id, prompt="", project_id=project.id, storage_key=storage_key
     )
-    return ResponseImage(image_id=image.id, project_id=project.id, success=True)
+    return ResponseImage(image_id=image.id, project_id=project.id)
 
 
 @router.post("/elaborate", status_code=200)

@@ -120,7 +120,11 @@ class RunpodProvider:
     async def health(self, endpoint_id: str) -> EndpointHealth:
         async with aiohttp.ClientSession() as runpod_session:
             endpoint = AsyncioEndpoint(endpoint_id, runpod_session)
-            health_dict = await endpoint.health()
+            url = f"{runpod.endpoint_url_base}/{endpoint_id}/health"
+
+            async with runpod_session.get(url, headers=endpoint.headers) as resp:
+                health_dict = await resp.json()
+
             return EndpointHealth(**health_dict)
 
     # TODO: test if streaming works

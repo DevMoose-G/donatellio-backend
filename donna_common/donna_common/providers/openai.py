@@ -34,7 +34,6 @@ class OpenAIProvider:
         self.client = OpenAI(
             api_key=settings.openai_api_key,
         )
-        # self.runpod_provider = RunpodProvider()
         self.storage_provider = StorageProvider()
         self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
 
@@ -108,6 +107,14 @@ class OpenAIProvider:
                             project_id=project_id,
                             image_id=image_id,
                             is_partial=True,
+                            params={
+                                "image_id": image_id,
+                                "project_id": project_id,
+                                "prompt": prompt,
+                                "n": n,
+                                "size": size,
+                                "quality": quality,
+                            },
                         )
                     )
                 if event.type == "response.image_generation_call.completed":
@@ -121,6 +128,14 @@ class OpenAIProvider:
                             project_id=project_id,
                             image_id=image_id,
                             is_partial=False,
+                            params={
+                                "image_id": image_id,
+                                "project_id": project_id,
+                                "prompt": prompt,
+                                "n": n,
+                                "size": size,
+                                "quality": quality,
+                            },
                         )
                     )
         except openai.APIError as e:
@@ -132,6 +147,14 @@ class OpenAIProvider:
                     project_id=project_id,
                     image_id=image_id,
                     is_partial=False,
+                    params={
+                        "image_id": image_id,
+                        "project_id": project_id,
+                        "prompt": prompt,
+                        "n": n,
+                        "size": size,
+                        "quality": quality,
+                    },
                 )
             )
 
@@ -207,6 +230,15 @@ class OpenAIProvider:
                         project_id=project_id,
                         image_id=image_id,
                         is_partial=True,
+                        params={
+                            "image_id": image_id,
+                            "project_id": project_id,
+                            "original_image_id": original_image_id,
+                            "prompt": prompt,
+                            "n": n,
+                            "size": size,
+                            "quality": quality,
+                        },
                     )
                 )
             if event.type == "response.image_generation_call.completed":
@@ -214,6 +246,25 @@ class OpenAIProvider:
                     await ImageDAL(session).update_image(
                         id=image_id, external_id=event.item_id
                     )
+
+                await completed_images_stream.send_msg(
+                    ImageAction(
+                        type="image",
+                        function_name="edit_image",
+                        project_id=project_id,
+                        image_id=image_id,
+                        is_partial=False,
+                        params={
+                            "image_id": image_id,
+                            "project_id": project_id,
+                            "original_image_id": original_image_id,
+                            "prompt": prompt,
+                            "n": n,
+                            "size": size,
+                            "quality": quality,
+                        },
+                    )
+                )
 
         return key
 

@@ -2,10 +2,10 @@ from typing import List
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.types import BaseResponse
 from donna_common.orm import ProjectDAL, get_project_dal
 from donna_common.orm.dal.project_collection import (
     ProjectCollectionDAL,
@@ -26,8 +26,9 @@ async def delete_project(
 ):
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
-        return BaseResponse(
-            success=False, message="You don't have permission to delete this project"
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to delete this project"},
         )
     await project_dal.hard_delete_project(project.id)
     return {"success": True}
@@ -49,8 +50,9 @@ async def move_project_to_collection(
 ):
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
-        return BaseResponse(
-            success=False, message="You don't have permission to move this project"
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to move this project"},
         )
 
     for coll in req.collections_to_remove:

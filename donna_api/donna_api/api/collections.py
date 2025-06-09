@@ -2,10 +2,11 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.types import BaseResponse, GetAssetsResponse, GetProjectsResponse
+from donna_api.types import GetAssetsResponse, GetProjectsResponse
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.project import ProjectDAL, get_project_dal
 from donna_common.orm.dal.project_collection import (
@@ -25,7 +26,7 @@ class ItemCollection(BaseModel):
     parent_id: Optional[str]
 
 
-class CollectionResponse(BaseResponse):
+class CollectionResponse(BaseModel):
     collections: List[ItemCollection]
 
 
@@ -43,7 +44,7 @@ async def get_root_collections(
         )
         for collection in roots
     ]
-    return CollectionResponse(success=True, collections=collection_items)
+    return CollectionResponse(collections=collection_items)
 
 
 @router.get("/{collection_id}/children", status_code=200)
@@ -51,7 +52,7 @@ async def get_children_collections(
     collection_id: str,
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionResponse:
     children = await collections_dal.get_children_collections(collection_id)
     collection_items = [
         ItemCollection(
@@ -61,7 +62,7 @@ async def get_children_collections(
         )
         for collection in children
     ]
-    return CollectionResponse(success=True, collections=collection_items)
+    return CollectionResponse(collections=collection_items)
 
 
 @router.get("/{collection_id}/projects", status_code=200)
@@ -127,7 +128,7 @@ class CreateCollectionRequest(BaseModel):
     parent_id: Optional[str] = None
 
 
-class CreateCollectionResponse(BaseResponse):
+class CreateCollectionResponse(BaseModel):
     collection: ItemCollection
 
 
@@ -141,7 +142,6 @@ async def create_collection(
         name=req.name, user_id=current_user.id, parent_id=req.parent_id
     )
     return CreateCollectionResponse(
-        success=True,
         collection=ItemCollection(
             collection_id=collection.id,
             name=collection.name,
@@ -158,11 +158,14 @@ async def delete_collection(
 ):
     collection = await collections_dal.get_collection_by_id(collection_id)
     if collection.user_id != current_user.id:
-        return BaseResponse(
-            success=False, message="You don't have permission to delete this collection"
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error_msg": "You don't have permission to delete this collection"
+            },
         )
     await collections_dal.delete_collection(collection_id)
-    return BaseResponse(success=True)
+    return JSONResponse(status_code=200)
 
 
 class RenameCollectionRequest(BaseModel):
@@ -179,8 +182,11 @@ async def rename_collection(
 ):
     collection = await collections_dal.get_collection_by_id(collection_id)
     if collection.user_id != current_user.id:
-        return BaseResponse(
-            success=False, message="You don't have permission to rename this collection"
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error_msg": "You don't have permission to rename this collection"
+            },
         )
     await collections_dal.rename_collection(collection_id, req.name)
-    return BaseResponse(success=True)
+    return JSONResponse(status_code=200)

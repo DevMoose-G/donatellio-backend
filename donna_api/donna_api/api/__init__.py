@@ -1,5 +1,8 @@
+from typing import List, Optional
+
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from donna_api.api.collections import router as collections_router
 from donna_api.api.image import router as image_router
@@ -42,3 +45,76 @@ async def get_market_assets(
         if asset_display != None:  # skip unfinished projects
             assets.append(asset_display)
     return GetAssetsResponse(assets=assets, count=len(assets))
+
+
+class PricingTier(BaseModel):
+    name: str
+    monthly_price: Optional[float]
+    annual_price: Optional[float]
+    description: str
+    n_monthly_credits: Optional[int]
+    features: List[str]
+    additional_credits_price: Optional[float] = None
+
+
+class PricingResponse(BaseModel):
+    free: PricingTier
+    pro: PricingTier
+    studio: PricingTier
+    enterprise: PricingTier
+
+
+@router.get("/pricing", status_code=200)
+async def get_pricing():
+    return PricingResponse(
+        free=PricingTier(
+            name="Free",
+            monthly_price=0,
+            annual_price=0,
+            description="Explore core features at no cost",
+            n_monthly_credits=10,
+            features=["Generate 3D models from text", "Decent queue priority"],
+        ),
+        pro=PricingTier(
+            name="Pro",
+            monthly_price=24,
+            annual_price=240,
+            description="Polished assets with advanced controls to match your style",
+            n_monthly_credits=200,
+            features=[
+                "Everything in Free",
+                "Download community models",
+                "Access to all public style collections",
+                "1 custom style collection",
+                "Good queue priority",
+            ],
+            additional_credits_price=0.20,
+        ),
+        studio=PricingTier(
+            name="Studio",
+            monthly_price=99,
+            annual_price=1080,
+            description="High-volume pipeline with plugins and team collaboration tools",
+            n_monthly_credits=1000,
+            features=[
+                "Everything in Pro",
+                "Download community models",
+                "10 custom style collections",
+                "Better queue priority",
+                "Customized style collections",
+            ],
+            additional_credits_price=0.15,
+        ),
+        enterprise=PricingTier(
+            name="Enterprise",
+            monthly_price=None,
+            annual_price=None,
+            description="Unlimited access to our full suite of tools",
+            n_monthly_credits=None,
+            features=[
+                "Everything in Studio",
+                "Unlimited style collections",
+                "Best queue priority",
+            ],
+        ),
+    )

@@ -147,11 +147,15 @@ async def get_user_info(
     projects = await project_dal.get_all_projects_by(
         filter=(Project.user_id == current_user.id)
     )
+    finished_projs = []
+    for project in projects:
+        if project.textures != []:
+            finished_projs.append(project)
     return GetUserInfoResponse(
         username=current_user.username,
         subscription_tier=current_user.subscription_tier,
         credit_balance=current_user.credit_balance,
-        n_projects=len(projects),
+        n_projects=len(finished_projs),
     )
 
 
@@ -162,7 +166,6 @@ class ItemCreditTransaction(BaseModel):
 
 
 class ResponseCreditTransactions(BaseModel):
-    success: bool
     transactions: List[ItemCreditTransaction]
 
 
@@ -176,7 +179,6 @@ async def get_user_transactions(
     )
 
     return ResponseCreditTransactions(
-        success=True,
         transactions=[
             ItemCreditTransaction(
                 description=transaction.reason,

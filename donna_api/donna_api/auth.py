@@ -4,11 +4,12 @@ from typing import Any
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from donna_api.types import BaseResponse, JWTToken, RequestCreateUser, RequestLoginUser
+from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
 from donna_common.utils.hashing import get_password_hash, verify_password
@@ -175,19 +176,25 @@ def create_refresh_token(data: dict) -> str:
 async def check_username(username: str, user_dal: UserDAL = Depends(get_user_dal)):
     db_user = await user_dal.get_user_by(filter=(User.username == username))
     if db_user is not None:
-        return BaseResponse(success=False, error_msg="Username already in use")
-    return BaseResponse(success=True)
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Username already in use"}
+        )
+    return JSONResponse(status_code=200)
 
 
 @router.post("/register")
 async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user_dal)):
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
-        return BaseResponse(success=False, error_msg="Email already in use")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Email already in use"}
+        )
 
     db_user = await user_dal.get_user_by(filter=(User.username == user.username))
     if db_user is not None:
-        return BaseResponse(success=False, error_msg="Username already in use")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Username already in use"}
+        )
 
     hashed_pw = get_password_hash(user.password)
     new_user = User(
@@ -211,19 +218,15 @@ async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user
         token_type="bearer",
         expires_in=expires_in,
         refresh_token=refresh_token,
-        success=True,
     )
 
 
-@router.post("/login", response_model=JWTToken)
+@router.post("/login")
 async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_dal)):
     if request.username is None and request.email is None:
-        return JWTToken(
-            success=False,
-            error_msg="Username or email is required",
-            access_token=None,
-            token_type=None,
-            expires_in=None,
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Username or email is required"}
         )
 
     db_user = await authenticate_user(
@@ -242,7 +245,6 @@ async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_
         token_type="bearer",
         refresh_token=refresh_token,
         expires_in=expires_in,
-        success=True,
     )
 
 
@@ -257,11 +259,15 @@ async def refresh(
     try:
         payload = decode_token(request.refresh_token, "refresh_token")
     except JWTError:
-        return BaseResponse(success=False, error_msg="Invalid refresh token")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Invalid refresh token"}
+        )
 
     db_user = await user_dal.get_user_by(filter=(User.id == payload["sub"]))
     if db_user is None:
-        return BaseResponse(success=False, error_msg="User does not exist")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "User does not exist"}
+        )
 
     expires_in = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -272,15 +278,14 @@ async def refresh(
         refresh_token=request.refresh_token,
         token_type="bearer",
         expires_in=expires_in,
-        success=True,
     )
 
 
-@router.post("/logout", response_model=BaseResponse)
+@router.post("/logout")
 async def logout(
     request: RequestRefreshToken,
     #  , current_user: User = Depends(get_current_user)
 ):
     payload = decode_token(request.refresh_token, "refresh_token")
     blacklist_jwt(payload["jti"])
-    return BaseResponse(success=True)
+    return JSONResponse(status_code=200)

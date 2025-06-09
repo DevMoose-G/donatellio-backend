@@ -4,12 +4,13 @@ from fastapi.responses import JSONResponse
 
 from donna_api.auth import get_current_user
 from donna_api.types import (
-    BaseResponse,
     RequestCalculateMeshGenCost,
     RequestCalculateTextureGenCost,
     RequestCreateMesh,
     RequestCreateTexture,
-    ResponseCalculateMeshGenCost,
+    ResponseGenerateMeshInfo,
+    ResponseGenerateTextureInfo,
+    step1x_labels,
 )
 from donna_common.orm import (
     ImageDAL,
@@ -45,24 +46,24 @@ def calculate_texture_gen_cost(prompt, texture_quality):
     return cost
 
 
-@router.post("/{project_id}/mesh_cost", status_code=200)
+@router.post("/{project_id}/info", status_code=200)
 async def api_calculate_mesh_gen_cost(
     req: RequestCalculateMeshGenCost,
     project_id: str,
     current_user: User = Depends(get_current_user),
-) -> ResponseCalculateMeshGenCost:
+) -> ResponseGenerateMeshInfo:
     cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
-    return JSONResponse(status_code=200, content={"cost": cost})
+    return ResponseGenerateMeshInfo(cost=cost, labels=step1x_labels)
 
 
-@router.post("/{project_id}/texture_cost", status_code=200)
+@router.post("/{project_id}/info", status_code=200)
 async def api_calculate_mesh_gen_cost(
     req: RequestCalculateTextureGenCost,
     project_id: str,
     current_user: User = Depends(get_current_user),
-) -> ResponseCalculateMeshGenCost:
+) -> ResponseGenerateTextureInfo:
     cost = calculate_texture_gen_cost(req.prompt, req.texture_quality)
-    return JSONResponse(status_code=200, content={"cost": cost})
+    return ResponseGenerateTextureInfo(cost=cost)
 
 
 @router.post("/{project_id}/create", status_code=202)
@@ -84,7 +85,9 @@ async def create_mesh(
         current_user, mesh_cost, "user_action:generate_mesh"
     )
     if response.success == False:
-        return BaseResponse(success=False, message="Not enough credits")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Not enough credits"}
+        )
 
     await stream.send_msg(
         MeshAction(
@@ -115,7 +118,9 @@ async def create_texture(
         current_user, texture_cost, "user_action:generate_texture"
     )
     if response.success == False:
-        return BaseResponse(success=False, message="Not enough credits")
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Not enough credits"}
+        )
 
     await stream.send_msg(
         MeshAction(

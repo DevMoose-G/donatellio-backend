@@ -1,15 +1,10 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
 
-class BaseResponse(BaseModel):
-    success: bool
-    error_msg: Optional[str] = None
-
-
-class JWTToken(BaseResponse):
+class JWTToken(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
@@ -31,7 +26,21 @@ class RequestCalculateTextureGenCost(BaseModel):
     seed: int
 
 
-class ResponseCalculateMeshGenCost(BaseModel):
+step1x_labels = {
+    "symmetry": [
+        "symmetric",  # have to convert this to 'x'
+        "asymmetric",  # have to convert this to 'asymmetry' when inputted to model
+    ],
+    "edge_type": ["sharp", "normal", "smooth"],
+}
+
+
+class ResponseGenerateMeshInfo(BaseModel):
+    cost: int
+    labels: Dict[str, List[str]]
+
+
+class ResponseGenerateTextureInfo(BaseModel):
     cost: int
 
 
