@@ -189,16 +189,14 @@ class RunpodProvider:
             }
             input_payload.update(quality_dict)
             input_payload = {k: v for k, v in input_payload.items() if v is not None}
-            
+
             async with AsyncSessionLocal() as session:
                 await MeshDAL(session).update_mesh(
                     id=mesh_id,
                     project_id=project.id,
                     image_id=image.id,
                     seed=seed,
-                    octree_resolution=str(
-                        quality_dict["octree_resolution"]
-                    ),
+                    octree_resolution=str(quality_dict["octree_resolution"]),
                     num_inference_steps=quality_dict["n_inference_steps"],
                     face_count=max_polygon_count,
                     label=",".join(labels) if len(labels) > 0 else None,

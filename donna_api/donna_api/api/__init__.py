@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from donna_api.api.collections import router as collections_router
 from donna_api.api.image import router as image_router
 from donna_api.api.mesh import router as mesh_router
-from donna_api.api.user import router as user_router
 from donna_api.api.project import router as project_router
+from donna_api.api.user import router as user_router
 from donna_api.auth import get_current_user
 from donna_api.types import GetAssetsResponse
 from donna_common.orm import Project, ProjectDAL, get_project_dal

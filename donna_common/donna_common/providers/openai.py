@@ -12,10 +12,6 @@ from openai import OpenAI
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
-from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
-from donna_common.redis.types import ImageAction
-from donna_common.settings import settings
 from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
@@ -23,6 +19,10 @@ from donna_common.prompts import (
     NAME_PROJECT_BASED_ON_IMAGE,
     NAME_PROJECT_BASED_ON_PROMPT,
 )
+from donna_common.providers.storage import StorageProvider
+from donna_common.redis.redisstream import RedisStream
+from donna_common.redis.types import ImageAction
+from donna_common.settings import settings
 
 CURRENT_DIR = os.path.dirname(__file__)
 
@@ -42,34 +42,28 @@ class OpenAIProvider:
         project = await self.dal.project_dal.get_project_by_id(project_id)
         prompt = project.images[0].prompt
 
-        user_input = {
-            "role": "user",
-            "content": []
-        }
+        user_input = {"role": "user", "content": []}
 
         image_get_url = None
         if prompt is not None and len(prompt.strip()) > 0:
-            user_input["content"].append({
-                "type": "input_text",
-                "text": prompt
-            })
+            user_input["content"].append({"type": "input_text", "text": prompt})
         else:
             # send the image
             image_get_url = self.storage_provider.generate_get_url(
                 project.images[0].storage_key
             )
-            user_input["content"].append({
-                "type": "input_image",
-                "image_url": image_get_url
-            })
-            user_input['content'].append({
-                "type": "input_text",
-                "text": "here is the image."
-            })
+            user_input["content"].append(
+                {"type": "input_image", "image_url": image_get_url}
+            )
+            user_input["content"].append(
+                {"type": "input_text", "text": "here is the image."}
+            )
 
         res = self.client.responses.create(
             model="gpt-4.1-mini",
-            instructions=NAME_PROJECT_BASED_ON_PROMPT if image_get_url is None else NAME_PROJECT_BASED_ON_IMAGE,
+            instructions=NAME_PROJECT_BASED_ON_PROMPT
+            if image_get_url is None
+            else NAME_PROJECT_BASED_ON_IMAGE,
             input=[user_input],
             max_output_tokens=128,
         )

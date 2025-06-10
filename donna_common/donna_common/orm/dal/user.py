@@ -63,7 +63,11 @@ class UserDAL:
 
         if user.credit_balance < amount:
             return JSONResponse(
-                status_code=400, content={"error_msg": "Not enough credits", "balance": user.credit_balance}
+                status_code=400,
+                content={
+                    "error_msg": "Not enough credits",
+                    "balance": user.credit_balance,
+                },
             )
 
         updated_user = await self.update_user(

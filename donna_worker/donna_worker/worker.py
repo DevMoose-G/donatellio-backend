@@ -60,7 +60,7 @@ class DonnaWorker:
                 breakpoint()
                 async with AsyncSessionLocal() as session:
                     await ImageDAL(session).update_image(
-                        id=action.params['image_id'], error=str(e)
+                        id=action.params["image_id"], error=str(e)
                     )
             await self.completed_images_stream.send_msg(
                 ImageAction(

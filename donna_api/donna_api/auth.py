@@ -225,8 +225,7 @@ async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user
 async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_dal)):
     if request.username is None and request.email is None:
         return JSONResponse(
-            status_code=400,
-            content={"error_msg": "Username or email is required"}
+            status_code=400, content={"error_msg": "Username or email is required"}
         )
 
     db_user = await authenticate_user(

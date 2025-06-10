@@ -72,11 +72,11 @@ async def image_updates(
                 if action.project_id == project_id and action.type == "image":
                     storage_provider = StorageProvider()
                     image_id = action.image_id
-                    
+
                     async with AsyncSessionLocal() as session:
                         image_dal = ImageDAL(session)
                         image = await image_dal.get_image_by_id(image_id)
-                    
+
                     image_url = None
                     is_partial = False
                     if image and image.storage_key != None:

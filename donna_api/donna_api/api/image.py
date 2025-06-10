@@ -26,7 +26,6 @@ from donna_common.providers.storage import StorageProvider, extract_s3_key
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
 
-
 load_dotenv()  # reads .env from cwd
 
 router = APIRouter(prefix="/image")
@@ -143,8 +142,10 @@ async def get_image_chat_history(
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
 
+
 class RequestGeneratePresignedUrl(BaseModel):
     content_type: str = "image/png"
+
 
 @router.post("/presign", status_code=202)
 async def generate_presigned_url_for_image(
@@ -156,7 +157,9 @@ async def generate_presigned_url_for_image(
 ):
     storage_provider = StorageProvider()
     image_id = str(uuid.uuid4())
-    presigned_url = storage_provider.generate_put_url_for_image(image_id, req.content_type)
+    presigned_url = storage_provider.generate_put_url_for_image(
+        image_id, req.content_type
+    )
     return JSONResponse(
         status_code=202, content={"presigned_url": presigned_url, "image_id": image_id}
     )
