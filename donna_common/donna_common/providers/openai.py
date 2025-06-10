@@ -20,6 +20,7 @@ from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
     IMAGE_GEN_PROMPT,
+    NAME_PROJECT_BASED_ON_IMAGE,
     NAME_PROJECT_BASED_ON_PROMPT,
 )
 
@@ -40,10 +41,36 @@ class OpenAIProvider:
     async def name_project(self, project_id):
         project = await self.dal.project_dal.get_project_by_id(project_id)
         prompt = project.images[0].prompt
+
+        user_input = {
+            "role": "user",
+            "content": []
+        }
+
+        image_get_url = None
+        if prompt is not None and len(prompt.strip()) > 0:
+            user_input["content"].append({
+                "type": "input_text",
+                "text": prompt
+            })
+        else:
+            # send the image
+            image_get_url = self.storage_provider.generate_get_url(
+                project.images[0].storage_key
+            )
+            user_input["content"].append({
+                "type": "input_image",
+                "image_url": image_get_url
+            })
+            user_input['content'].append({
+                "type": "input_text",
+                "text": "here is the image."
+            })
+
         res = self.client.responses.create(
             model="gpt-4.1-mini",
-            instructions=NAME_PROJECT_BASED_ON_PROMPT,
-            input=f"{prompt}",
+            instructions=NAME_PROJECT_BASED_ON_PROMPT if image_get_url is None else NAME_PROJECT_BASED_ON_IMAGE,
+            input=[user_input],
             max_output_tokens=128,
         )
         project_name = res.output_text

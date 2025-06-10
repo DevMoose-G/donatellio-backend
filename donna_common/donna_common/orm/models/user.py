@@ -27,6 +27,8 @@ class User(Base):
     subscription_tier = Column(String(32), nullable=False, default="free")
     credit_balance = Column(Integer, nullable=False, default=0)
 
+    profile_image_storage_key = Column(String(1024), nullable=True)
+
     notification_low_credits = Column(
         Boolean, nullable=False, default=True, server_default="True"
     )

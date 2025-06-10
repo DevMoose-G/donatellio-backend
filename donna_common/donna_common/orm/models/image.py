@@ -35,6 +35,8 @@ class Image(Base):
         String(128), nullable=True
     )  # for now, just openai's image generation id (for multi-turn editing)
 
+    error = Column(String(2048), nullable=True)
+
     # should keep track of openai parameters
 
     project = relationship("Project", back_populates="images", passive_deletes=True)

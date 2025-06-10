@@ -21,13 +21,11 @@ from donna_common.orm import (
     get_user_dal,
 )
 from donna_common.orm.models.user import User
+from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider, extract_s3_key
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
-from donna_worker.worker.image import (
-    check_elaborating_questions,
-    get_elaborating_questions,
-)
+
 
 load_dotenv()  # reads .env from cwd
 
@@ -145,9 +143,12 @@ async def get_image_chat_history(
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
 
+class RequestGeneratePresignedUrl(BaseModel):
+    content_type: str = "image/png"
 
-@router.get("/presign", status_code=202)
-async def get_presigned_url_for_image(
+@router.post("/presign", status_code=202)
+async def generate_presigned_url_for_image(
+    req: RequestGeneratePresignedUrl,
     project_dal: ProjectDAL = Depends(get_project_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
@@ -155,7 +156,7 @@ async def get_presigned_url_for_image(
 ):
     storage_provider = StorageProvider()
     image_id = str(uuid.uuid4())
-    presigned_url = storage_provider.generate_put_url_for_image(image_id)
+    presigned_url = storage_provider.generate_put_url_for_image(image_id, req.content_type)
     return JSONResponse(
         status_code=202, content={"presigned_url": presigned_url, "image_id": image_id}
     )
@@ -178,9 +179,15 @@ async def upload_image(
         id=project_id, name="", user_id=current_user.id
     )
     storage_key = extract_s3_key(request.presigned_url)
+
     image = await image_dal.create_image(
         id=request.image_id, prompt="", project_id=project.id, storage_key=storage_key
     )
+
+    # name project
+    openai_provider = OpenAIProvider()
+    await openai_provider.name_project(project_id)
+
     return ResponseImage(image_id=image.id, project_id=project.id)
 
 
@@ -198,7 +205,8 @@ async def gen_elaborating_questions(
     #     raise HTTPException(400, detail="Invalid Project")
 
     # TODO: cache this in redis to reduce openai calls
-    questions = get_elaborating_questions(
+    openai_provider = OpenAIProvider()
+    questions = openai_provider.get_elaborating_questions(
         project_id=req.project_id, current_prompt=req.prompt, image_id=req.image_id
     )
 
@@ -215,7 +223,8 @@ async def post_check_elaborating_questions(
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ):
-    questions = check_elaborating_questions(
+    openai_provider = OpenAIProvider()
+    questions = openai_provider.check_elaborating_questions(
         current_prompt=req.prompt, elaborating_questions=req.elaborating_questions
     )
 
@@ -225,5 +234,5 @@ async def post_check_elaborating_questions(
         and len(req.prompt) < 512
         and current_user.subscription_tier != "free"
     ):
-        questions = get_elaborating_questions(None, req.prompt, None)
+        questions = openai_provider.get_elaborating_questions(None, req.prompt, None)
     return {"questions": questions}

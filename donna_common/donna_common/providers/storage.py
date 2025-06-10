@@ -42,13 +42,13 @@ class StorageProvider:
             3600,  # 1 hr
         )
 
-    def generate_put_url_for_image(self, image_name):
+    def generate_put_url_for_image(self, image_name, content_type="image/png"):
         return self.__generate_presigned_url(
             "put_object",
             {
                 "Bucket": self.bucket,
                 "Key": f"images/{image_name}.png",
-                "ContentType": "image/png",
+                "ContentType": content_type,
             },
             3600,  # 1 hr
         )

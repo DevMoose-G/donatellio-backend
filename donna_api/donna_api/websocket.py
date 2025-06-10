@@ -294,7 +294,7 @@ async def mesh_updates(
                                     mode="json"
                                 )
                             )
-                            await stream.ack_msg(action.id)
+                            await stream.ack_msg(msg.id)
 
             # break
     except WebSocketDisconnect:
