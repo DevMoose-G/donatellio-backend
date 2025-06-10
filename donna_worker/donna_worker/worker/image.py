@@ -17,7 +17,7 @@ from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
-from donna_worker.worker.prompts import (
+from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
     IMAGE_GEN_PROMPT,
@@ -235,9 +235,6 @@ async def edit_image(
                         id=image_id, project_id=project_id, storage_key=key
                     )
             await completed_images_stream.send_msg(
-                # ImagePayload(
-                #     project_id, "edit_image", image_id=image_id, is_partial=True
-                # )
                 ImageAction(
                     project_id=project_id,
                     function_name="edit_image",
@@ -260,9 +257,6 @@ async def edit_image(
                     id=image_id, external_id=event.item_id
                 )
             await completed_images_stream.send_msg(
-                # ImagePayload(
-                #     project_id, "edit_image", image_id=image_id, is_partial=False
-                # )
                 ImageAction(
                     project_id=project_id,
                     function_name="edit_image",

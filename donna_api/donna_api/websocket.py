@@ -72,14 +72,16 @@ async def image_updates(
                 if action.project_id == project_id and action.type == "image":
                     storage_provider = StorageProvider()
                     image_id = action.image_id
-                    is_partial = action.is_partial
-
+                    
                     async with AsyncSessionLocal() as session:
                         image_dal = ImageDAL(session)
                         image = await image_dal.get_image_by_id(image_id)
-                    if image.storage_key == None:
-                        continue
-                    image_url = storage_provider.generate_get_url(image.storage_key)
+                    
+                    image_url = None
+                    is_partial = False
+                    if image and image.storage_key != None:
+                        is_partial = action.is_partial
+                        image_url = storage_provider.generate_get_url(image.storage_key)
 
                     chats = await project_dal.get_image_prompt_chats(project_id)
                     await websocket.send_json(

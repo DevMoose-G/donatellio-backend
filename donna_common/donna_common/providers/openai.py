@@ -16,7 +16,7 @@ from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
-from donna_worker.worker.prompts import (
+from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
     IMAGE_GEN_PROMPT,

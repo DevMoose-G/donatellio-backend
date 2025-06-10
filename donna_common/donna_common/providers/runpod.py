@@ -172,11 +172,11 @@ class RunpodProvider:
             image_url = storage_provider.generate_get_url(image.storage_key)
 
             quality_dict = {}
-            if quality == "LOW":
+            if quality == "low":
                 quality_dict = {"n_inference_steps": 30, "octree_resolution": 256}
-            elif quality == "MEDIUM":
+            elif quality == "medium":
                 quality_dict = {"n_inference_steps": 50, "octree_resolution": 384}
-            elif quality == "HIGH":
+            elif quality == "high":
                 quality_dict = {"n_inference_steps": 70, "octree_resolution": 512}
 
             input_payload = {
@@ -189,6 +189,24 @@ class RunpodProvider:
             }
             input_payload.update(quality_dict)
             input_payload = {k: v for k, v in input_payload.items() if v is not None}
+            
+            async with AsyncSessionLocal() as session:
+                await MeshDAL(session).update_mesh(
+                    id=mesh_id,
+                    project_id=project.id,
+                    image_id=image.id,
+                    seed=seed,
+                    octree_resolution=str(
+                        quality_dict["octree_resolution"]
+                    ),
+                    num_inference_steps=quality_dict["n_inference_steps"],
+                    face_count=max_polygon_count,
+                    label=",".join(labels) if len(labels) > 0 else None,
+                    # TODO: have to add these to frontend
+                    guidance_scale=5.5,
+                    mc_level=0.0,
+                    caption=None,
+                )
 
             endpoint = AsyncioEndpoint(self.geometry_endpoint_id, runpod_session)
             job: AsyncioJob = await endpoint.run(input_payload)
@@ -206,22 +224,9 @@ class RunpodProvider:
                 async with AsyncSessionLocal() as session:
                     await MeshDAL(session).update_mesh(
                         id=mesh_id,
-                        project_id=project.id,
-                        image_id=image.id,
                         storage_key=parsed_url.path[1:],
                         status="COMPLETED",
                         gpu_provider_response=str(output),
-                        seed=seed,
-                        octree_resolution=str(
-                            quality_dict.get("octree_resolution", 256)
-                        ),
-                        num_inference_steps=quality_dict.get("n_inference_steps", 30),
-                        face_count=max_polygon_count,
-                        label=",".join(labels) if len(labels) > 0 else None,
-                        # TODO: have to add these to frontend
-                        guidance_scale=5.5,
-                        mc_level=0.0,
-                        caption=None,
                     )
         return list(mesh_mapping.keys())
 

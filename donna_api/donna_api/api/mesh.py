@@ -46,7 +46,7 @@ def calculate_texture_gen_cost(prompt, texture_quality):
     return cost
 
 
-@router.post("/{project_id}/info", status_code=200)
+@router.post("/{project_id}/mesh_info", status_code=200)
 async def api_calculate_mesh_gen_cost(
     req: RequestCalculateMeshGenCost,
     project_id: str,
@@ -56,8 +56,8 @@ async def api_calculate_mesh_gen_cost(
     return ResponseGenerateMeshInfo(cost=cost, labels=step1x_labels)
 
 
-@router.post("/{project_id}/info", status_code=200)
-async def api_calculate_mesh_gen_cost(
+@router.post("/{project_id}/texture_info", status_code=200)
+async def api_calculate_texture_gen_cost(
     req: RequestCalculateTextureGenCost,
     project_id: str,
     current_user: User = Depends(get_current_user),
