@@ -184,7 +184,7 @@ async def upload_image(
     storage_key = extract_s3_key(request.presigned_url)
 
     image = await image_dal.create_image(
-        id=request.image_id, prompt="", project_id=project.id, storage_key=storage_key
+        id=request.image_id, prompt="Image uploaded", project_id=project.id, storage_key=storage_key
     )
 
     # name project

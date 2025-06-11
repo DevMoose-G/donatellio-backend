@@ -25,6 +25,14 @@ class RequestCalculateTextureGenCost(BaseModel):
     texture_quality: str
     seed: int
 
+class ItemCollection(BaseModel):
+    collection_id: str
+    name: str
+    parent_id: Optional[str]
+
+
+class CollectionResponse(BaseModel):
+    collections: List[ItemCollection]
 
 step1x_labels = {
     "symmetry": [

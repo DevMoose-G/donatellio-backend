@@ -36,7 +36,7 @@ class ProjectCollectionDAL:
         project_collection = await self.get_project_collection_bridge(
             project_id, collection_id
         )
-        self.session.delete(project_collection)
+        await self.session.delete(project_collection)
         await self.session.commit()
         return
 
@@ -51,6 +51,14 @@ class ProjectCollectionDAL:
         for project_collection in pc_bridges:
             projects.append(project_collection.project)
         return projects
+
+    async def get_project_collection_bridges_by_project(self, project_id) -> List[ProjectCollection]:
+        result = await self.session.execute(
+            select(ProjectCollection).where(
+                ProjectCollection.project_id == project_id
+            )
+        )
+        return result.scalars().all()
 
 
 async def get_project_collection_dal(
