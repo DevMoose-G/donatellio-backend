@@ -179,7 +179,7 @@ async def check_username(username: str, user_dal: UserDAL = Depends(get_user_dal
         return JSONResponse(
             status_code=400, content={"error_msg": "Username already in use"}
         )
-    return JSONResponse(status_code=200)
+    return JSONResponse(status_code=200, content={"success": True})
 
 
 @router.post("/register")
@@ -287,4 +287,4 @@ async def logout(
 ):
     payload = decode_token(request.refresh_token, "refresh_token")
     blacklist_jwt(payload["jti"])
-    return JSONResponse(status_code=200)
+    return JSONResponse(status_code=200, content={"success": True})

@@ -37,6 +37,10 @@ class Image(Base):
 
     error = Column(String(2048), nullable=True)
 
+    thumbnail_image_storage_key = Column(String(1024), nullable=True)
+
     # should keep track of openai parameters
 
     project = relationship("Project", back_populates="images", passive_deletes=True)
+    meshes = relationship("Mesh", back_populates="image", lazy="selectin", cascade="all, delete-orphan")
+    textures = relationship("Texture", back_populates="image", lazy="selectin", cascade="all, delete-orphan")

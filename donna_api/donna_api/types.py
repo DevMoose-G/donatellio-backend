@@ -116,7 +116,9 @@ class RequestCheckElaboratingQuestions(BaseModel):
 class ItemImagePromptChat(BaseModel):
     prompt: str
     created_at: datetime
+    thumbnail_url: Optional[str] = None
     original_image_id: Optional[str] = None
+    error: Optional[str] = None
 
 
 class ResponseImagePromptChat(BaseModel):

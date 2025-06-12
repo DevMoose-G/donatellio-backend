@@ -1,6 +1,8 @@
+from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
 from donna_api.types import (
@@ -45,8 +47,13 @@ def calculate_texture_gen_cost(prompt, texture_quality):
     cost = quality_multiplier
     return cost
 
+class GetMeshInfo(BaseModel):
+    name: str
+    created_at: datetime
+    editable: bool
 
-@router.post("/{project_id}/mesh_info", status_code=200)
+
+@router.post("/{project_id}/preview/mesh_cost", status_code=200)
 async def api_calculate_mesh_gen_cost(
     req: RequestCalculateMeshGenCost,
     project_id: str,
@@ -56,7 +63,7 @@ async def api_calculate_mesh_gen_cost(
     return ResponseGenerateMeshInfo(cost=cost, labels=step1x_labels)
 
 
-@router.post("/{project_id}/texture_info", status_code=200)
+@router.post("/{project_id}/preview/texture_cost", status_code=200)
 async def api_calculate_texture_gen_cost(
     req: RequestCalculateTextureGenCost,
     project_id: str,

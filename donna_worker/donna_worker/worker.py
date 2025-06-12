@@ -1,5 +1,7 @@
 import asyncio
 
+import openai
+
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import get_master_dal
@@ -56,6 +58,11 @@ class DonnaWorker:
             await self.runpod_service.wake_up_geometry()
             try:
                 await self.openai_provider.edit_image(**action.params)
+            except openai.APIError as e:
+                async with AsyncSessionLocal() as session:
+                    await ImageDAL(session).update_image(
+                        id=action.params["image_id"], error=str(e)
+                    )
             except Exception as e:
                 breakpoint()
                 async with AsyncSessionLocal() as session:

@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import List
+from enum import Enum
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
@@ -79,6 +80,12 @@ class CollectionPath(BaseModel):
     name: str
     path: List[ItemCollection]
 
+class ProjectProgress(Enum):
+    NOT_STARTED = 0
+    IMAGE_GENERATED = 1
+    IMAGE_COMPLETED = 2
+    MESH_GENERATED = 3
+    TEXTURE_GENERATED = 4
 
 class GetProjectInfoResponse(BaseModel):
     project_id: str
@@ -87,7 +94,11 @@ class GetProjectInfoResponse(BaseModel):
     created_at: datetime
     is_public: bool
     user_info: UserInfo
+
+
+    editable: bool
     collection_paths: List[CollectionPath]
+    current_progress: Optional[ProjectProgress] = None
 
 
 @router.get("/{project_id}/info", status_code=200)
@@ -97,17 +108,12 @@ async def get_project_info(
     collection_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
-    project = await project_dal.get_project_by_id(project_id)
-    if current_user.id != project.user_id:
-        return JSONResponse(
-            status_code=400,
-            content={"error_msg": "You don't have permission to move this project"},
-        )
+    project = await project_dal.get_project_by_id(project_id)        
 
     storage_provider = StorageProvider()
     profile_storage_key = project.owner.profile_image_storage_key
     if profile_storage_key is None:
-        # temporary
+        # temporary (use the user profile img url)
         profile_img_url = "https://static.vecteezy.com/system/resources/previews/056/260/989/non_2x/neon-glowing-cube-with-floating-shapes-abstract-3d-render-free-png.png"
     else:
         profile_img_url = await storage_provider.generate_get_url(
@@ -123,17 +129,25 @@ async def get_project_info(
     else:
         preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
 
-    # can't do this b/c utc zones
-    # created_at = project.created_at.strftime("%B %d, %Y at %I:%M%p")
     coll_paths = []
-    for collection in project.collections:
-        path = []
-        parent_id = collection.id
-        while parent_id is not None:
-            parent = await collection_dal.get_collection_by_id(parent_id)
-            path.insert(0, ItemCollection(name=parent.name, collection_id=parent.id, parent_id=parent.parent_id))
-            parent_id = parent.parent_id
-        coll_paths.append(CollectionPath(collection_id=collection.id, name=collection.name, path=path))
+    proj_progress = None
+    if current_user.id == project.user_id:
+        for collection in project.collections:
+            path = []
+            parent_id = collection.id
+            while parent_id is not None:
+                parent = await collection_dal.get_collection_by_id(parent_id)
+                path.insert(0, ItemCollection(name=parent.name, collection_id=parent.id, parent_id=parent.parent_id))
+                parent_id = parent.parent_id
+            coll_paths.append(CollectionPath(collection_id=collection.id, name=collection.name, path=path))
+    
+        proj_progress = ProjectProgress.NOT_STARTED
+        if project.images != []:
+            proj_progress = ProjectProgress.IMAGE_GENERATED
+        if project.meshes != []:
+            proj_progress = ProjectProgress.MESH_GENERATED
+        if project.textures != []:
+            proj_progress = ProjectProgress.TEXTURE_GENERATED
 
     return GetProjectInfoResponse(
         project_id=project.id,
@@ -147,6 +161,8 @@ async def get_project_info(
             profile_image_url=profile_img_url,
         ),
         collection_paths=coll_paths,
+        current_progress=proj_progress,
+        editable=current_user.id == project.user_id
     )
 
 
@@ -163,4 +179,24 @@ async def edit_project(
             content={"error_msg": "You don't have permission to move this project"},
         )
 
+    return
+
+class RenameProjectRequest(BaseModel):
+    name: str
+
+@router.post("/{project_id}/rename", status_code=200)
+async def rename_project(
+    project_id: str,
+    req: RenameProjectRequest,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user),
+):
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to move this project"},
+        )
+
+    await project_dal.update_project(id=project_id, name=req.name)
     return

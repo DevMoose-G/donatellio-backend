@@ -15,7 +15,7 @@ class Mesh(Base):
     project_id = Column(
         String(128), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
-    image_id = Column(String(128), ForeignKey("images.id"), nullable=False)  # images?
+    image_id = Column(String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=False)  # images?
     storage_key = Column(String(1024), nullable=True)
     static_render_storage_key = Column(String(1024), nullable=True)
 
@@ -58,4 +58,6 @@ class Mesh(Base):
     )
 
     project = relationship("Project", back_populates="meshes", passive_deletes=True)
-    textures = relationship("Texture", back_populates="mesh", passive_deletes=True)
+    image = relationship("Image", back_populates="meshes", passive_deletes=True)
+
+    textures = relationship("Texture", back_populates="mesh", lazy="selectin", cascade="all, delete-orphan")

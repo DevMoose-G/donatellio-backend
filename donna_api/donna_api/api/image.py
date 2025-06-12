@@ -35,7 +35,6 @@ class ResponseImage(BaseModel):
     image_id: str
     project_id: str
 
-
 @router.post("/create", status_code=202)
 async def create_image(
     req: RequestCreateImage,
@@ -73,11 +72,7 @@ async def create_image(
         )
     )
 
-    return JSONResponse(
-        status_code=202,
-        content={"success": True, "image_id": image_id, "project_id": project_id},
-    )
-
+    return ResponseImage(image_id=image_id, project_id=project_id)
 
 @router.post("/{project_id}/edit", status_code=202)
 async def edit_image(
@@ -120,10 +115,7 @@ async def edit_image(
         original_image_id=req.original_image_id,
     )
 
-    return JSONResponse(
-        status_code=202,
-        content={"success": True, "project_id": req.project_id, "image_id": image_id},
-    )
+    return ResponseImage(image_id=image_id, project_id=project_id)
 
 
 @router.get("/{project_id}/chats", status_code=200)

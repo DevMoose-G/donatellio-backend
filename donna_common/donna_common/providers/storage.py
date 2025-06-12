@@ -81,3 +81,4 @@ class StorageProvider:
             self.s3_client.download_file(self.bucket, storage_key, local_path)
         except ClientError as e:
             print(e)
+            raise e

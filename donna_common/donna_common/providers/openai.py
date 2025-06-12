@@ -74,6 +74,16 @@ class OpenAIProvider:
         )
 
         return project_name
+    
+    async def save_thumbnail(self, image_id):
+        image = await self.dal.image_dal.get_image_by_id(image_id)
+        url = self.storage_provider.generate_get_url(image.storage_key)
+        pillow_image = PIL.Image.open(requests.get(url, stream=True).raw)
+        pillow_image.thumbnail((256, 256))
+        pillow_image.save(f"{STATIC_DIR}/{image_id}_thumbnail.png", "PNG")
+        image_filename = f"{image_id}_thumbnail.png"
+        self.storage_provider.upload_image(image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png")
+        await self.dal.image_dal.update_image(id=image_id, thumbnail_image_storage_key=f"images/{image_filename}")
 
     async def generate_image(
         self, image_id, project_id, prompt, n, size, quality
@@ -160,6 +170,10 @@ class OpenAIProvider:
                         )
                     )
         except openai.APIError as e:
+            # set project to be inactive
+            await self.dal.project_dal.update_project(
+                id=project_id, active=False
+            )
             raise e
             await completed_images_stream.send_msg(
                 ImageAction(
@@ -178,6 +192,8 @@ class OpenAIProvider:
                     },
                 )
             )
+        
+        await self.save_thumbnail(image_id)
 
         return key
 
@@ -190,7 +206,9 @@ class OpenAIProvider:
         image_name = f"{image_id}.png"
 
         original_image = await self.dal.image_dal.get_image_by_id(original_image_id)
-        assert original_image is not None
+        while original_image.error != None and original_image.original_image_id is not None:
+            original_image = await self.dal.image_dal.get_image_by_id(original_image.original_image_id)
+        assert original_image is not None # TODO: better error
 
         # TODO: get directly with aws sdk python
         og_image_url = self.storage_provider.generate_get_url(
@@ -204,6 +222,8 @@ class OpenAIProvider:
         buf.seek(0)
 
         prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
+
+        # TODO: if not external_id, send the actual image
 
         stream = self.client.responses.create(
             model="gpt-4.1",
@@ -286,6 +306,8 @@ class OpenAIProvider:
                         },
                     )
                 )
+
+        await self.save_thumbnail(image_id)
 
         return key
 

@@ -34,11 +34,22 @@ class ProjectDAL:
         project = await self.get_project_by_id(project_id)
         image_prompts = []
         for image in project.images:
+            thumbnail_url = None
+            if image.thumbnail_image_storage_key != None:
+                thumbnail_url = StorageProvider().generate_get_url(
+                    image.thumbnail_image_storage_key
+                )
+
+            displayed_error = None
+            if image.error:
+                displayed_error = "Error while generating image. Try again."
             image_prompts.append(
                 ItemImagePromptChat(
                     prompt=image.prompt,
+                    thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
                     original_image_id=image.original_image_id,
+                    error=displayed_error,
                 )
             )
 
