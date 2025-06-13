@@ -83,7 +83,14 @@ async def create_mesh(
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     current_user: User = Depends(get_current_user),
 ):
-    # TODO: should i have a check here if the user is the owner of the project
+    
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to create a mesh in this project"},
+        )
+    
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
@@ -117,6 +124,13 @@ async def create_texture(
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     current_user: User = Depends(get_current_user),
 ):
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to create a texture in this project"},
+        )
+    
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 

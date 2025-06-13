@@ -1,6 +1,8 @@
+import re
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette_csrf import CSRFMiddleware
 
 from donna_api.api import router as api_router
 from donna_api.auth import router as auth_router
@@ -19,9 +21,18 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # CRA’s default
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+# app.add_middleware(
+#     CSRFMiddleware,
+#     secret="CSRF_SECRET_KEY_CHANGE_ME",  # Change this to a secure random key
+#     cookie_secure=True,
+#     cookie_samesite="strict",
+#     required_urls=[re.compile(r"^/refresh$")],
+# )
 
 # Serve all files under ./static at the /static URL path
 # app.mount("/static", StaticFiles(directory="static"), name="static")

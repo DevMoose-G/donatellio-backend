@@ -43,6 +43,9 @@ async def get_collection_by_id(
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
 ) -> CollectionResponse:
+    
+    # TODO: check if user has access to this collection
+    
     collection = await collections_dal.get_collection_by_id(collection_id)
     collection_items = [
         ItemCollection(
@@ -60,6 +63,7 @@ async def get_children_collections(
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
 ) -> CollectionResponse:
+    # TODO: check if user has access to this collection
     children = await collections_dal.get_children_collections(collection_id)
     collection_items = [
         ItemCollection(
@@ -80,6 +84,7 @@ async def get_projects_from_collection(
     project_collection_dal: ProjectCollectionDAL = Depends(get_project_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
+    # TODO: check if user has access to this collection and all the projects in it
     projects = await project_collection_dal.get_projects_from_collection(collection_id)
     project_items = []
     for project in projects:
@@ -109,6 +114,7 @@ async def get_assets_from_collection(
     project_collection_dal: ProjectCollectionDAL = Depends(get_project_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
+    # TODO: check if user has access to this collection and all the assets in it
     projects = await project_collection_dal.get_projects_from_collection(collection_id)
     assets = []
     for project in projects:

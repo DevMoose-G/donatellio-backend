@@ -75,15 +75,14 @@ class OpenAIProvider:
 
         return project_name
     
-    async def save_thumbnail(self, image_id):
-        image = await self.dal.image_dal.get_image_by_id(image_id)
-        url = self.storage_provider.generate_get_url(image.storage_key)
+    async def save_thumbnail(self, image_id, image_storage_key):
+        url = self.storage_provider.generate_get_url(image_storage_key)
         pillow_image = PIL.Image.open(requests.get(url, stream=True).raw)
         pillow_image.thumbnail((256, 256))
         pillow_image.save(f"{STATIC_DIR}/{image_id}_thumbnail.png", "PNG")
         image_filename = f"{image_id}_thumbnail.png"
-        self.storage_provider.upload_image(image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png")
-        await self.dal.image_dal.update_image(id=image_id, thumbnail_image_storage_key=f"images/{image_filename}")
+        key = self.storage_provider.upload_image(image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png")
+        await self.dal.image_dal.update_image(id=image_id, thumbnail_image_storage_key=key)
 
     async def generate_image(
         self, image_id, project_id, prompt, n, size, quality
@@ -211,6 +210,8 @@ class OpenAIProvider:
         assert original_image is not None # TODO: better error
 
         # TODO: get directly with aws sdk python
+        if original_image.storage_key == None:
+            breakpoint() # TODO
         og_image_url = self.storage_provider.generate_get_url(
             original_image.storage_key
         )
@@ -306,8 +307,7 @@ class OpenAIProvider:
                         },
                     )
                 )
-
-        await self.save_thumbnail(image_id)
+        await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
 

@@ -3,13 +3,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
+from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
 from donna_common.utils.hashing import get_password_hash, verify_password
@@ -23,7 +24,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # this should be an environment variable. should this be regenerated on restart?
 SECRET_KEY = "a-very-long-random-string-that-you-keep-secret"  # should be high-entropy (at least 256 bits). change this
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # e.g. tokens valid for 1 hour
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # e.g. tokens valid for 15 mins
 REFRESH_TOKEN_EXPIRE_DAYS = 5
 
 router = APIRouter()
@@ -49,7 +50,6 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
     try:
         # 1. Decode token; this can raise JWTError if invalid/expired
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -62,8 +62,8 @@ async def get_current_user(
     user = await user_dal.get_user_by(filter=(User.id == user_id))
     if user is None:
         raise credentials_exception
-    # if user.disabled:
-    #     raise HTTPException(status_code=400, detail="Inactive user")
+    if user.active == False:
+        raise HTTPException(status_code=400, detail="Inactive user")
     return user
 
 
@@ -183,7 +183,7 @@ async def check_username(username: str, user_dal: UserDAL = Depends(get_user_dal
 
 
 @router.post("/register")
-async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user_dal)):
+async def register(user: RequestCreateUser, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
         return JSONResponse(
@@ -212,17 +212,26 @@ async def register(user: RequestCreateUser, user_dal: UserDAL = Depends(get_user
 
     jti = str(uuid.uuid4())
     refresh_token = create_refresh_token(data={"sub": new_user.id, "jti": jti})
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,  # Set to True if using HTTPS
+        samesite="Lax",  # Adjust based on your needs
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
+        # path="/refresh"
+    )
 
     return JWTToken(
         access_token=access_token,
         token_type="bearer",
         expires_in=expires_in,
-        refresh_token=refresh_token,
+        # refresh_token=refresh_token,
     )
 
 
 @router.post("/login")
-async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_dal)):
+async def login(request: RequestLoginUser, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
     if request.username is None and request.email is None:
         return JSONResponse(
             status_code=400, content={"error_msg": "Username or email is required"}
@@ -239,24 +248,35 @@ async def login(request: RequestLoginUser, user_dal: UserDAL = Depends(get_user_
     jti = str(uuid.uuid4())
     refresh_token = create_refresh_token(data={"sub": db_user.id, "jti": jti})
 
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,# not settings.debug, 
+        samesite="None",  # TODO: can't use "Lax" since we need cross-site cookies for the frontend
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
+        path="/"
+    )
     return JWTToken(
         access_token=access_token,
         token_type="bearer",
-        refresh_token=refresh_token,
+        # refresh_token=refresh_token,
         expires_in=expires_in,
-    )
+    ).model_dump()
 
 
-class RequestRefreshToken(BaseModel):
-    refresh_token: str
+# class RequestRefreshToken(BaseModel):
+#     refresh_token: str
 
 
 @router.post("/refresh")
 async def refresh(
-    request: RequestRefreshToken, user_dal: UserDAL = Depends(get_user_dal)
+    request: Request, user_dal: UserDAL = Depends(get_user_dal)
 ):
+    refresh_token = request.cookies.get("refresh_token")
+    # breakpoint()
     try:
-        payload = decode_token(request.refresh_token, "refresh_token")
+        payload = decode_token(refresh_token, "refresh_token")
     except JWTError:
         return JSONResponse(
             status_code=400, content={"error_msg": "Invalid refresh token"}
@@ -274,17 +294,18 @@ async def refresh(
     access_token = create_access_token(data={"sub": db_user.id})
     return JWTToken(
         access_token=access_token,
-        refresh_token=request.refresh_token,
+        # refresh_token=request.refresh_token,
         token_type="bearer",
         expires_in=expires_in,
-    )
+    ).model_dump()
 
 
 @router.post("/logout")
 async def logout(
-    request: RequestRefreshToken,
-    #  , current_user: User = Depends(get_current_user)
+    request: Request,
+    current_user: User = Depends(get_current_user)
 ):
-    payload = decode_token(request.refresh_token, "refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
+    payload = decode_token(refresh_token, "refresh_token")
     blacklist_jwt(payload["jti"])
     return JSONResponse(status_code=200, content={"success": True})

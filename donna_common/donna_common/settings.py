@@ -7,6 +7,8 @@ load_dotenv(find_dotenv())
 
 
 class Settings(BaseSettings):
+    debug: bool = Field(False, env="DEBUG")
+    
     redis_url: str = Field(..., env="REDIS_URL")
 
     database_url: str = Field(..., env="DATABASE_URL")

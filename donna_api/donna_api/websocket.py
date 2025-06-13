@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from donna_api.auth import get_current_user_from_ws
 from donna_api.types import (
     MeshFormat,
     WSImageEditsResponse,

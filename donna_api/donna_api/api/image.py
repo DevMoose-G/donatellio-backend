@@ -83,6 +83,13 @@ async def edit_image(
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ):
+    project = await project_dal.get_project_by_id(req.project_id)
+    if project.user_id != current_user.id:
+        return JSONResponse(
+            status_code=403,
+            content={"error_msg": "You don't have permission to edit this project"},
+        )
+    
     stream = RedisStream("requested-jobs")
     image_id = str(uuid.uuid4())
     await stream.setup_group(new_only=False)
@@ -93,7 +100,6 @@ async def edit_image(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
 
-    project = await project_dal.get_project_by_id(req.project_id)
     if project is None:
         return JSONResponse(
             status_code=400,
@@ -124,13 +130,21 @@ async def get_image_chat_history(
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ):
-    # TODO: should i have a check here if the user is the owner of the project
+    
     project = await project_dal.get_project_by_id(project_id)
+    
     if project is None:
         return JSONResponse(
             status_code=400,
             content={"success": False, "error_msg": "Project doesn't exist"},
         )
+    
+    if project.user_id != current_user.id:
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "error_msg": "You don't have permission to view this project"},
+        )
+        
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
 

@@ -215,17 +215,27 @@ class RunpodProvider:
                 status = await job.status()
                 print(f"Current job status: {status}")
                 await asyncio.sleep(3)
-            async for output in job.stream():
-                mesh_id = output["mesh_id"]
-                presigned_url = output["presigned_url"]
-                parsed_url = urlparse(presigned_url)
+            try:
+                async for output in job.stream():
+                    mesh_id = output["mesh_id"]
+                    presigned_url = output["presigned_url"]
+                    parsed_url = urlparse(presigned_url)
+                    async with AsyncSessionLocal() as session:
+                        await MeshDAL(session).update_mesh(
+                            id=mesh_id,
+                            storage_key=parsed_url.path[1:],
+                            status="COMPLETED",
+                            gpu_provider_response=str(output),
+                        )
+            except:
+                breakpoint()
                 async with AsyncSessionLocal() as session:
-                    await MeshDAL(session).update_mesh(
-                        id=mesh_id,
-                        storage_key=parsed_url.path[1:],
-                        status="COMPLETED",
-                        gpu_provider_response=str(output),
-                    )
+                    for mesh_id in mesh_mapping.keys():
+                        await MeshDAL(session).update_mesh(
+                            id=mesh_id,
+                            status="FAILED",
+                            gpu_provider_response="Error during mesh generation",
+                        )
         return list(mesh_mapping.keys())
 
     async def generate_texture_on_mesh(

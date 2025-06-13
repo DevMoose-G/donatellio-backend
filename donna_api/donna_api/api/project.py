@@ -90,7 +90,8 @@ class ProjectProgress(Enum):
 class GetProjectInfoResponse(BaseModel):
     project_id: str
     name: str
-    preview_url: str
+    preview_url: Optional[str] = None
+    textured_url: Optional[str] = None
     created_at: datetime
     is_public: bool
     user_info: UserInfo
@@ -108,7 +109,12 @@ async def get_project_info(
     collection_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
 ):
-    project = await project_dal.get_project_by_id(project_id)        
+    project = await project_dal.get_project_by_id(project_id)
+    if project.user_id != current_user.id and not project.public:
+        return JSONResponse(
+            status_code=403,
+            content={"error_msg": "You don't have permission to view this project"},
+        )
 
     storage_provider = StorageProvider()
     profile_storage_key = project.owner.profile_image_storage_key
@@ -122,15 +128,24 @@ async def get_project_info(
     
     preview_url = None
     if project.textures != []:
-        preview_url = storage_provider.generate_get_url(project.textures[-1].static_render_storage_key)
+        if (project.textures[-1].static_render_storage_key is None):
+            # TODO: send request to generate static render
+            pass
+        else:
+            preview_url = storage_provider.generate_get_url(project.textures[-1].static_render_storage_key)
 
     elif project.meshes != []:
-        preview_url = storage_provider.generate_get_url(project.meshes[-1].static_render_storage_key)
+        if (project.meshes[-1].static_render_storage_key is None):
+            # TODO: send request to generate static render
+            pass
+        else:
+            preview_url = storage_provider.generate_get_url(project.meshes[-1].static_render_storage_key)
     else:
         preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
 
     coll_paths = []
     proj_progress = None
+    textured_url = None
     if current_user.id == project.user_id:
         for collection in project.collections:
             path = []
@@ -148,7 +163,10 @@ async def get_project_info(
             proj_progress = ProjectProgress.MESH_GENERATED
         if project.textures != []:
             proj_progress = ProjectProgress.TEXTURE_GENERATED
-
+    else:
+        mesh_key = project.meshes[-1].storage_key if project.meshes else None
+        if mesh_key:
+            textured_url = storage_provider.generate_get_url(mesh_key)
     return GetProjectInfoResponse(
         project_id=project.id,
         name=project.name,
@@ -162,7 +180,8 @@ async def get_project_info(
         ),
         collection_paths=coll_paths,
         current_progress=proj_progress,
-        editable=current_user.id == project.user_id
+        editable=current_user.id == project.user_id,
+        textured_url=textured_url,
     )
 
 
@@ -176,9 +195,9 @@ async def edit_project(
     if current_user.id != project.user_id:
         return JSONResponse(
             status_code=400,
-            content={"error_msg": "You don't have permission to move this project"},
+            content={"error_msg": "You don't have permission to edit this project"},
         )
-
+    # TODO: implement
     return
 
 class RenameProjectRequest(BaseModel):

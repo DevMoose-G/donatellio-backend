@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class JWTToken(BaseModel):
     access_token: str
-    refresh_token: str
+    # refresh_token: str
     token_type: str
     expires_in: datetime  # access token expires in
 
@@ -127,7 +127,7 @@ class ResponseImagePromptChat(BaseModel):
 
 class WSImageItem(BaseModel):
     id: str
-    url: str
+    url: Optional[str] = None
     is_partial: bool = False
 
 

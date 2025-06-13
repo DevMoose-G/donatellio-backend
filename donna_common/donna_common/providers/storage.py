@@ -53,7 +53,7 @@ class StorageProvider:
             3600,  # 1 hr
         )
 
-    def generate_get_url(self, storage_key) -> str:
+    def generate_get_url(self, storage_key: str) -> str:
         return self.__generate_presigned_url(
             "get_object",
             {"Bucket": self.bucket, "Key": storage_key},
