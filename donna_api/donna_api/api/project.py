@@ -203,6 +203,10 @@ async def edit_project(
 class RenameProjectRequest(BaseModel):
     name: str
 
+class ResponseRenameProject(BaseModel):
+    project_id: str
+    name: str
+
 @router.post("/{project_id}/rename", status_code=200)
 async def rename_project(
     project_id: str,
@@ -217,5 +221,8 @@ async def rename_project(
             content={"error_msg": "You don't have permission to move this project"},
         )
 
-    await project_dal.update_project(id=project_id, name=req.name)
-    return
+    project = await project_dal.update_project(id=project_id, name=req.name)
+    return ResponseRenameProject(
+        project_id=project.id,
+        name=project.name,
+    )

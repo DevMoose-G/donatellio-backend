@@ -54,7 +54,7 @@ def rename_latest_file(old_name, new_name):
 # 1) CONFIGURATION:
 # ----------------------------------------------------------------
 # Replace 'PARENT_PAGE_URL' with the URL you want to scrape.
-PARENT_PAGE_URL = "https://poly.pizza/explore?lic=1"  # &sort=1
+PARENT_PAGE_URL = "https://poly.pizza/explore/People-and-Characters?lic=1"
 
 # Update this selector to match your parent DIV.
 # e.g. if parent <div id="container">, use "#container".

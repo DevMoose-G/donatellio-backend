@@ -67,52 +67,25 @@ async def get_current_user(
     return user
 
 
-async def get_current_user_from_ws(
-    websocket: WebSocket, user_dal: UserDAL = Depends(get_user_dal)
-):
-    """
-    Dependency to extract and verify JWT from WebSocket headers.
-    """
-
-    # Extract the Sec-WebSocket-Protocol header
-    header_value = websocket.headers.get("sec-websocket-protocol")
-    if not header_value:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Sec-WebSocket-Protocol",
-        )
-    # header_value might look like "access-token, eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-    parts = [p.strip() for p in header_value.split(",")]
-    if parts[0] != "access-token" or len(parts) < 2:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid subprotocol format",
-        )
-    token = parts[1]
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise JWTError("Missing 'sub' in token")
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token"
-        )
-
+async def authenticate_jwt(
+    token: str, user_dal: UserDAL = Depends(get_user_dal)
+) -> str:
     credentials_exception = HTTPException(
         status_code=401,  # Unauthorized
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-    user = await user_dal.get_user_by(filter=(User.id == user_id))
-    if user is None:
+    try:
+        # 1. Decode token; this can raise JWTError if invalid/expired
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
         raise credentials_exception
-    # if user.disabled:
-    #     raise HTTPException(status_code=400, detail="Inactive user")
-    await websocket.accept(subprotocol=header_value)
-    return user
+
+    
+    return user_id
 
 
 async def authenticate_user(

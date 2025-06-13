@@ -17,3 +17,4 @@ python-jose
 redis
 runpod
 boto3
+replicate

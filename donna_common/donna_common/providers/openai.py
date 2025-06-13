@@ -192,7 +192,7 @@ class OpenAIProvider:
                 )
             )
         
-        await self.save_thumbnail(image_id)
+        await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
 

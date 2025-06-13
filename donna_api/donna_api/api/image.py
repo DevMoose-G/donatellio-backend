@@ -123,6 +123,32 @@ async def edit_image(
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
+class RequestImageCost(BaseModel):
+    image_model: str
+    quality: str
+    
+@router.post("/cost", status_code=200)
+async def get_image_cost(
+    req: RequestImageCost,
+    current_user: User = Depends(get_current_user),
+):
+    if req.image_model == "gpt4o":
+        if req.quality == "high":
+            cost = 3
+        elif req.quality == "medium":
+            cost = 2
+        elif req.quality == "low":
+            cost = 1
+    elif req.image_model == "fluxkontext":
+        if req.quality == "high":
+            cost = 2
+        elif req.quality == "medium":
+            cost = 1
+        elif req.quality == "low":
+            cost = 1
+    elif req.image_model == "imagen4":
+        cost = 1
+    return {"cost": cost}
 
 @router.get("/{project_id}/chats", status_code=200)
 async def get_image_chat_history(

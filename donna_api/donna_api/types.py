@@ -15,7 +15,7 @@ class RequestCalculateMeshGenCost(BaseModel):
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: int
+    seed: Optional[int]
     labels: List[str]
     max_polygon_count: Optional[int]
 
@@ -67,16 +67,16 @@ class RequestCreateMesh(BaseModel):
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: int
+    seed: Optional[int]
     labels: List[str]
     max_polygon_count: Optional[int]
-
 
 class RequestCreateImage(BaseModel):
     prompt: str
     n: int
     size: str
     quality: str
+    image_model: str
 
 
 class RequestEditImage(BaseModel):
@@ -86,6 +86,7 @@ class RequestEditImage(BaseModel):
     n: int
     size: str
     quality: str
+    image_model: str
 
 
 class RequestCreateUser(BaseModel):

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 from typing import List
 from urllib.parse import urlparse
@@ -149,6 +150,39 @@ class RunpodProvider:
 
         # generate presigned url
         storage_provider = StorageProvider()
+        
+        image_url = storage_provider.generate_get_url(image.storage_key)
+        
+        # set mesh params
+        quality_dict = {}
+        if quality == "low":
+            quality_dict = {"n_inference_steps": 30, "octree_resolution": 256}
+        elif quality == "medium":
+            quality_dict = {"n_inference_steps": 50, "octree_resolution": 384}
+        elif quality == "high":
+            quality_dict = {"n_inference_steps": 70, "octree_resolution": 512}
+
+        input_payload = {
+            "image_url": image_url,
+            "n_meshes": n_meshes,
+            "seed": seed,
+            "labels": labels,
+            "max_facenum": max_polygon_count,
+        }
+        input_payload.update(quality_dict)
+        
+        dict_labels = {}
+        if 'symmetric' in labels:
+            dict_labels['symmetry'] = "x"
+        elif 'asymmetric' in labels:
+            dict_labels['symmetry'] = "asymmetry"
+        if 'sharp' in labels:
+            dict_labels['edge_type'] = "sharp"
+        elif 'normal' in labels:
+            dict_labels['edge_type'] = "normal"
+        elif 'smooth' in labels:
+            dict_labels['edge_type'] = "smooth"
+        input_payload["label"] = json.dumps(dict_labels)
 
         mesh_mapping = {}
         for i in range(n_meshes):
@@ -162,49 +196,27 @@ class RunpodProvider:
                     storage_key=None,
                     status="PENDING",
                     gpu_provider_response="",
-                )
-            # generate the presigned url to send to runpod
-            presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
-            mesh_mapping[mesh_id] = presigned_url
-
-        async with aiohttp.ClientSession() as runpod_session:
-            storage_provider = StorageProvider()
-            image_url = storage_provider.generate_get_url(image.storage_key)
-
-            quality_dict = {}
-            if quality == "low":
-                quality_dict = {"n_inference_steps": 30, "octree_resolution": 256}
-            elif quality == "medium":
-                quality_dict = {"n_inference_steps": 50, "octree_resolution": 384}
-            elif quality == "high":
-                quality_dict = {"n_inference_steps": 70, "octree_resolution": 512}
-
-            input_payload = {
-                "image_url": image_url,
-                "mesh_presigned_urls_mapping": mesh_mapping,
-                "n_meshes": n_meshes,
-                "seed": seed,
-                "labels": labels,
-                "max_facenum": max_polygon_count,
-            }
-            input_payload.update(quality_dict)
-            input_payload = {k: v for k, v in input_payload.items() if v is not None}
-
-            async with AsyncSessionLocal() as session:
-                await MeshDAL(session).update_mesh(
-                    id=mesh_id,
-                    project_id=project.id,
-                    image_id=image.id,
+                    
                     seed=seed,
-                    octree_resolution=str(quality_dict["octree_resolution"]),
-                    num_inference_steps=quality_dict["n_inference_steps"],
+                    octree_resolution=str(input_payload["octree_resolution"]),
+                    num_inference_steps=input_payload["n_inference_steps"],
                     face_count=max_polygon_count,
-                    label=",".join(labels) if len(labels) > 0 else None,
+                    # label=",".join(labels) if len(labels) > 0 else None,
+                    label=json.dumps(dict_labels),
                     # TODO: have to add these to frontend
                     guidance_scale=5.5,
                     mc_level=0.0,
                     caption=None,
                 )
+            # generate the presigned url to send to runpod
+            presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
+            mesh_mapping[mesh_id] = presigned_url
+        
+        input_payload["mesh_presigned_urls_mapping"] = mesh_mapping
+
+        async with aiohttp.ClientSession() as runpod_session:
+
+            input_payload = {k: v for k, v in input_payload.items() if v is not None}
 
             endpoint = AsyncioEndpoint(self.geometry_endpoint_id, runpod_session)
             job: AsyncioJob = await endpoint.run(input_payload)

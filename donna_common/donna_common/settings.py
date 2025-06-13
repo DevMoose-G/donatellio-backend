@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     blender_exe_path: str = Field(..., env="BLENDER_EXE_PATH")
 
     default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
+    
+    replicate_api_key: str = Field(..., env="REPLICATE_API_KEY")
 
     class Config:
         env_file = ".env"

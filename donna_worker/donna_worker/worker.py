@@ -6,6 +6,7 @@ from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import get_master_dal
 from donna_common.providers.openai import OpenAIProvider
+from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
@@ -23,6 +24,7 @@ class DonnaWorker:
 
         self.openai_provider = OpenAIProvider()
         self.runpod_service = RunpodProvider()
+        self.replicate_provider = ReplicateProvider()
 
         self.stream = RedisStream("requested-jobs")
         self.completed_images_stream = RedisStream("completed-jobs", group_name="image")
@@ -42,7 +44,14 @@ class DonnaWorker:
 
             project_name = self.openai_provider.name_project(action.project_id)
             await self.runpod_service.wake_up_geometry()
-            await self.openai_provider.generate_image(**action.params)
+            
+            image_model = action.params.get("image_model")
+            if image_model == "gpt4o":
+                await self.openai_provider.generate_image(**action.params)
+            else:
+                raise Exception("HAVEN'T IMPLEMENTED THIS YET")
+                await self.replicate_provider.generate_image(model=image_model, quality=action.params["quality"], prompt=action.params["prompt"])
+            
             await project_name
 
             await self.completed_images_stream.send_msg(

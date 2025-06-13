@@ -1,8 +1,8 @@
 import asyncio
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
-from donna_api.auth import get_current_user_from_ws
+from donna_api.auth import authenticate_jwt
 from donna_api.types import (
     MeshFormat,
     WSImageEditsResponse,
@@ -12,104 +12,133 @@ from donna_api.types import (
 )
 from donna_common.orm import ImageDAL, ProjectDAL
 from donna_common.orm.dal.mesh import MeshDAL
+from donna_common.orm.dal.project import get_project_dal
+from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.main import AsyncSessionLocal
+from donna_common.orm.models.project import Project
+from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 
 router = APIRouter()
 
+async def authenticate_ws(websocket: WebSocket, user_dal: UserDAL) -> User:
+    await websocket.accept(subprotocol="access_token")
+    # now wait for the auth message
+    auth = await websocket.receive_json()
+    token = auth.get("token")
+    
+    user_id = await authenticate_jwt(token)
+    user = await user_dal.get_user_by(filter=(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    if user.active == False:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return user
 
 @router.websocket("/ws/projects/{project_id}/image")
 async def image_updates(
     websocket: WebSocket,
     project_id: str,
-    # current_user: User = Depends(get_current_user_from_ws)
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    user_dal: UserDAL = Depends(get_user_dal),
 ):
-    # project = await project_dal.get_project_by((Project.id == project_id))
-    # if current_user.id != project.user_id:
-    #     raise HTTPException(status_code=401, detail="Not authenticated")
-
-    await websocket.accept()
-    stream = RedisStream("completed-jobs", group_name="image")
-    await stream.setup_group(new_only=False)
-    current_img_s3_keys = []
-    while True:
-        async with AsyncSessionLocal() as session:
-            project_dal = ProjectDAL(session)
-            images = await project_dal.get_images(project_id)
-
-        if images != []:
+    try:
+        current_user = await authenticate_ws(websocket, user_dal)
+        
+        project = await project_dal.get_project_by((Project.id == project_id))
+        if current_user.id != project.user_id:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        stream = RedisStream("completed-jobs", group_name="image")
+        await stream.setup_group(new_only=False)
+        current_img_s3_keys = []
+        while True:
             async with AsyncSessionLocal() as session:
                 project_dal = ProjectDAL(session)
-                chats = await project_dal.get_image_prompt_chats(project_id)
+                images = await project_dal.get_images(project_id)
 
-            storage_provider = StorageProvider()
-
-            # TODO: loop through images (instead of just the s3 keys)
-            image_items = []
-            for image in images:
-                if (
-                    image.storage_key not in current_img_s3_keys
-                    and image.storage_key != None
-                ):
-                    img_url = storage_provider.generate_get_url(image.storage_key)
-                    image_items.append(WSImageItem(id=image.id, url=img_url))
-                    current_img_s3_keys.append(image.storage_key)
-
-            if image_items != []:
-                await websocket.send_json(
-                    WSImageEditsResponse(
-                        images=image_items, chats=chats.chats
-                    ).model_dump(mode="json")
-                )
-
-        messages = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
-        if len(messages) == 0:
-            await asyncio.sleep(2)
-        else:
-            print("got a message")
-            for msg in messages:
-                action = msg.action
-                if action.project_id == project_id and action.type == "image":
-                    storage_provider = StorageProvider()
-                    image_id = action.image_id
-
-                    async with AsyncSessionLocal() as session:
-                        image_dal = ImageDAL(session)
-                        image = await image_dal.get_image_by_id(image_id)
-
-                    image_url = None
-                    is_partial = False
-                    if image and image.storage_key != None:
-                        is_partial = action.is_partial
-                        image_url = storage_provider.generate_get_url(image.storage_key)
-
+            if images != []:
+                async with AsyncSessionLocal() as session:
+                    project_dal = ProjectDAL(session)
                     chats = await project_dal.get_image_prompt_chats(project_id)
+
+                storage_provider = StorageProvider()
+
+                # TODO: loop through images (instead of just the s3 keys)
+                image_items = []
+                for image in images:
+                    if (
+                        image.storage_key not in current_img_s3_keys
+                        and image.storage_key != None
+                    ):
+                        img_url = storage_provider.generate_get_url(image.storage_key)
+                        image_items.append(WSImageItem(id=image.id, url=img_url))
+                        current_img_s3_keys.append(image.storage_key)
+
+                if image_items != []:
                     await websocket.send_json(
                         WSImageEditsResponse(
-                            images=[
-                                WSImageItem(
-                                    id=image_id, url=image_url, is_partial=is_partial
-                                )
-                            ],
-                            chats=chats.chats,
+                            images=image_items, chats=chats.chats
                         ).model_dump(mode="json")
                     )
-                    await stream.ack_msg(msg.id)
+
+            messages = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
+            if len(messages) == 0:
+                await asyncio.sleep(2)
+            else:
+                print("got a message")
+                for msg in messages:
+                    action = msg.action
+                    if action.project_id == project_id and action.type == "image":
+                        storage_provider = StorageProvider()
+                        image_id = action.image_id
+
+                        async with AsyncSessionLocal() as session:
+                            image_dal = ImageDAL(session)
+                            image = await image_dal.get_image_by_id(image_id)
+
+                        image_url = None
+                        is_partial = False
+                        if image and image.storage_key != None:
+                            is_partial = action.is_partial
+                            image_url = storage_provider.generate_get_url(image.storage_key)
+
+                        chats = await project_dal.get_image_prompt_chats(project_id)
+                        await websocket.send_json(
+                            WSImageEditsResponse(
+                                images=[
+                                    WSImageItem(
+                                        id=image_id, url=image_url, is_partial=is_partial
+                                    )
+                                ],
+                                chats=chats.chats,
+                            ).model_dump(mode="json")
+                        )
+                        await stream.ack_msg(msg.id)
+    except WebSocketDisconnect:
+        # TODO: disconnect all sqlalchemy sessions
+        print("Client disconnected, WebSocket closed")
+        
+    await websocket.close()
 
 
 @router.websocket("/ws/projects/{project_id}/mesh")
 async def mesh_updates(
     websocket: WebSocket,
     project_id: str,
-    #    current_user: User = Depends(get_current_user_from_ws)
+    user_dal: UserDAL = Depends(get_user_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
 ):
-    # if current_user.id != project_dal.get_project(project_id).user_id:
-    #     raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    current_user = await authenticate_ws(websocket, user_dal)
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
-    await websocket.accept()
     stream = RedisStream("completed-jobs", group_name="mesh")
     await stream.setup_group(new_only=False)
+    
     try:
         current_texture_s3_keys = []
         current_mesh_s3_keys = []

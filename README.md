@@ -1,3 +1,5 @@
+ Stop-Process -Name "python"
+
 ## Setup
 do pip install -r requirements.txt
 create a static folder in the 1st donatellio folder (so donatellio/static)
