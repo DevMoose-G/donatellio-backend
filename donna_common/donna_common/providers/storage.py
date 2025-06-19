@@ -16,7 +16,9 @@ class StorageProvider:
         self.s3_client = boto3.client("s3", region_name="us-east-1")
         self.bucket = "donatellio"
 
-    def __generate_presigned_url(self, client_method, method_parameters, expires_in) -> str:
+    def __generate_presigned_url(
+        self, client_method, method_parameters, expires_in
+    ) -> str:
         """
         Generate a presigned Amazon S3 URL that can be used to perform an action.
 

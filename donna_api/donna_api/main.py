@@ -1,8 +1,6 @@
-import re
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette_csrf import CSRFMiddleware
 
 from donna_api.api import router as api_router
 from donna_api.auth import router as auth_router

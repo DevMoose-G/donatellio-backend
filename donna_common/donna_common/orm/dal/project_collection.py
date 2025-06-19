@@ -52,11 +52,11 @@ class ProjectCollectionDAL:
             projects.append(project_collection.project)
         return projects
 
-    async def get_project_collection_bridges_by_project(self, project_id) -> List[ProjectCollection]:
+    async def get_project_collection_bridges_by_project(
+        self, project_id
+    ) -> List[ProjectCollection]:
         result = await self.session.execute(
-            select(ProjectCollection).where(
-                ProjectCollection.project_id == project_id
-            )
+            select(ProjectCollection).where(ProjectCollection.project_id == project_id)
         )
         return result.scalars().all()
 

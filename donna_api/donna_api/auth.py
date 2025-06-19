@@ -1,17 +1,21 @@
-from random import randint
 import uuid
 from datetime import datetime, timedelta, timezone
+from random import randint
 from typing import Any
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+)
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel
 
 from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
-from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
 from donna_common.utils.hashing import get_password_hash, verify_password
@@ -86,7 +90,6 @@ async def authenticate_jwt(
     except JWTError:
         raise credentials_exception
 
-    
     return user_id
 
 
@@ -158,7 +161,11 @@ async def check_username(username: str, user_dal: UserDAL = Depends(get_user_dal
 
 
 @router.post("/register")
-async def register(user: RequestCreateUser, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+async def register(
+    user: RequestCreateUser,
+    response: Response,
+    user_dal: UserDAL = Depends(get_user_dal),
+):
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
         return JSONResponse(
@@ -172,14 +179,14 @@ async def register(user: RequestCreateUser, response: Response, user_dal: UserDA
         )
 
     hashed_pw = get_password_hash(user.password)
-    
-    profile_img_storage_key = f"images/profile_images/{randint(0, len(ICON_STORAGE_KEYS)-1)}_{randint(0, len(PALETTES)-1)}.png"
+
+    profile_img_storage_key = f"images/profile_images/{randint(0, len(ICON_STORAGE_KEYS) - 1)}_{randint(0, len(PALETTES) - 1)}.png"
     new_user = User(
         id=str(uuid.uuid4()),
         email=user.email,
         password=hashed_pw,
         username=user.username,
-        profile_image_storage_key=profile_img_storage_key
+        profile_image_storage_key=profile_img_storage_key,
     )
     new_user = await user_dal.create_user(new_user)
 
@@ -195,10 +202,10 @@ async def register(user: RequestCreateUser, response: Response, user_dal: UserDA
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,# not settings.debug, 
+        secure=True,  # not settings.debug,
         samesite="None",  # TODO: can't use "Lax" since we need cross-site cookies for the frontend
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
-        path="/"
+        path="/",
     )
     return JWTToken(
         access_token=access_token,
@@ -208,7 +215,11 @@ async def register(user: RequestCreateUser, response: Response, user_dal: UserDA
 
 
 @router.post("/login")
-async def login(request: RequestLoginUser, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+async def login(
+    request: RequestLoginUser,
+    response: Response,
+    user_dal: UserDAL = Depends(get_user_dal),
+):
     if request.username is None and request.email is None:
         return JSONResponse(
             status_code=400, content={"error_msg": "Username or email is required"}
@@ -229,10 +240,10 @@ async def login(request: RequestLoginUser, response: Response, user_dal: UserDAL
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,# not settings.debug, 
+        secure=True,  # not settings.debug,
         samesite="None",  # TODO: can't use "Lax" since we need cross-site cookies for the frontend
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
-        path="/"
+        path="/",
     )
     return JWTToken(
         access_token=access_token,
@@ -247,9 +258,7 @@ async def login(request: RequestLoginUser, response: Response, user_dal: UserDAL
 
 
 @router.post("/refresh")
-async def refresh(
-    request: Request, user_dal: UserDAL = Depends(get_user_dal)
-):
+async def refresh(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
     refresh_token = request.cookies.get("refresh_token")
     # breakpoint()
     try:
@@ -278,10 +287,7 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(
-    request: Request,
-    current_user: User = Depends(get_current_user)
-):
+async def logout(request: Request, current_user: User = Depends(get_current_user)):
     refresh_token = request.cookies.get("refresh_token")
     try:
         payload = decode_token(refresh_token, "refresh_token")

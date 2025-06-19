@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.types import CollectionResponse, ItemCollection
+from donna_api.types import ItemCollection
 from donna_common.orm import ProjectDAL, get_project_dal
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.project_collection import (
@@ -80,12 +80,14 @@ class CollectionPath(BaseModel):
     name: str
     path: List[ItemCollection]
 
+
 class ProjectProgress(Enum):
     NOT_STARTED = 0
     IMAGE_GENERATED = 1
     IMAGE_COMPLETED = 2
     MESH_GENERATED = 3
     TEXTURE_GENERATED = 4
+
 
 class GetProjectInfoResponse(BaseModel):
     project_id: str
@@ -95,7 +97,6 @@ class GetProjectInfoResponse(BaseModel):
     created_at: datetime
     is_public: bool
     user_info: UserInfo
-
 
     editable: bool
     collection_paths: List[CollectionPath]
@@ -122,24 +123,26 @@ async def get_project_info(
         # temporary (use the user profile img url)
         profile_img_url = "https://static.vecteezy.com/system/resources/previews/056/260/989/non_2x/neon-glowing-cube-with-floating-shapes-abstract-3d-render-free-png.png"
     else:
-        profile_img_url = storage_provider.generate_get_url(
-            profile_storage_key
-        )
-    
+        profile_img_url = storage_provider.generate_get_url(profile_storage_key)
+
     preview_url = None
     if project.textures != []:
-        if (project.textures[-1].static_render_storage_key is None):
+        if project.textures[-1].static_render_storage_key is None:
             # TODO: send request to generate static render
             pass
         else:
-            preview_url = storage_provider.generate_get_url(project.textures[-1].static_render_storage_key)
+            preview_url = storage_provider.generate_get_url(
+                project.textures[-1].static_render_storage_key
+            )
 
     elif project.meshes != []:
-        if (project.meshes[-1].static_render_storage_key is None):
+        if project.meshes[-1].static_render_storage_key is None:
             # TODO: send request to generate static render
             pass
         else:
-            preview_url = storage_provider.generate_get_url(project.meshes[-1].static_render_storage_key)
+            preview_url = storage_provider.generate_get_url(
+                project.meshes[-1].static_render_storage_key
+            )
     else:
         preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
 
@@ -152,10 +155,21 @@ async def get_project_info(
             parent_id = collection.id
             while parent_id is not None:
                 parent = await collection_dal.get_collection_by_id(parent_id)
-                path.insert(0, ItemCollection(name=parent.name, collection_id=parent.id, parent_id=parent.parent_id))
+                path.insert(
+                    0,
+                    ItemCollection(
+                        name=parent.name,
+                        collection_id=parent.id,
+                        parent_id=parent.parent_id,
+                    ),
+                )
                 parent_id = parent.parent_id
-            coll_paths.append(CollectionPath(collection_id=collection.id, name=collection.name, path=path))
-    
+            coll_paths.append(
+                CollectionPath(
+                    collection_id=collection.id, name=collection.name, path=path
+                )
+            )
+
         proj_progress = ProjectProgress.NOT_STARTED
         if project.images != []:
             proj_progress = ProjectProgress.IMAGE_GENERATED
@@ -200,12 +214,15 @@ async def edit_project(
     # TODO: implement
     return
 
+
 class RenameProjectRequest(BaseModel):
     name: str
+
 
 class ResponseRenameProject(BaseModel):
     project_id: str
     name: str
+
 
 @router.post("/{project_id}/rename", status_code=200)
 async def rename_project(

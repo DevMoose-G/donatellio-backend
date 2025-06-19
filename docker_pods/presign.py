@@ -49,11 +49,13 @@ def main():
     content_mapping = {
         "png": "image/png",
         "glb": "model/gltf-binary",
-        "pt": "application/octet-stream"
+        "pt": "application/octet-stream",
     }
     content_type = content_mapping.get(args.type, None)
     if content_type is None:
-        raise ValueError(f"Unsupported file type: {args.type}. Supported types are: {', '.join(content_mapping.keys())}")
+        raise ValueError(
+            f"Unsupported file type: {args.type}. Supported types are: {', '.join(content_mapping.keys())}"
+        )
     urls = []
     if content_type == "image/png":
         if args.client_method == "put_object":

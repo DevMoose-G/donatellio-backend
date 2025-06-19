@@ -37,7 +37,9 @@ async def get_market_assets(
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=((Project.user_id != current_user.id) & (Project.public)), limit=limit, offset=offset
+            filter=((Project.user_id != current_user.id) & (Project.public)),
+            limit=limit,
+            offset=offset,
         )
         if project.meshes != []
     ]

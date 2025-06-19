@@ -1,6 +1,5 @@
 import asyncio
 import json
-import uuid
 from typing import List
 from urllib.parse import urlparse
 
@@ -135,11 +134,11 @@ class RunpodProvider:
         mc_level: float,
         octree_resolution: int,
         max_facenum: int,
-        do_shade_smooth: bool=True
+        do_shade_smooth: bool = True,
     ):
         # TODO: regen mesh from latents
         pass
-    
+
     # TODO: test if streaming works
     async def generate_untextured_mesh(
         self,
@@ -163,9 +162,9 @@ class RunpodProvider:
 
         # generate presigned url
         storage_provider = StorageProvider()
-        
+
         image_url = storage_provider.generate_get_url(image.storage_key)
-        
+
         # set mesh params
         quality_dict = {}
         if quality == "low":
@@ -184,18 +183,18 @@ class RunpodProvider:
             "max_facenum": max_polygon_count,
         }
         input_payload.update(quality_dict)
-        
+
         dict_labels = {}
-        if 'symmetric' in labels:
-            dict_labels['symmetry'] = "x"
-        elif 'asymmetric' in labels:
-            dict_labels['symmetry'] = "asymmetry"
-        if 'sharp' in labels:
-            dict_labels['edge_type'] = "sharp"
-        elif 'normal' in labels:
-            dict_labels['edge_type'] = "normal"
-        elif 'smooth' in labels:
-            dict_labels['edge_type'] = "smooth"
+        if "symmetric" in labels:
+            dict_labels["symmetry"] = "x"
+        elif "asymmetric" in labels:
+            dict_labels["symmetry"] = "asymmetry"
+        if "sharp" in labels:
+            dict_labels["edge_type"] = "sharp"
+        elif "normal" in labels:
+            dict_labels["edge_type"] = "normal"
+        elif "smooth" in labels:
+            dict_labels["edge_type"] = "smooth"
         input_payload["label"] = json.dumps(dict_labels)
 
         mesh_mapping = {}
@@ -204,7 +203,6 @@ class RunpodProvider:
             async with AsyncSessionLocal() as session:
                 await MeshDAL(session).update_mesh(
                     id=mesh_id,
-                    
                     seed=seed,
                     octree_resolution=str(input_payload["octree_resolution"]),
                     num_inference_steps=input_payload["n_inference_steps"],
@@ -219,11 +217,10 @@ class RunpodProvider:
             # generate the presigned url to send to runpod
             presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
             mesh_mapping[mesh_id] = presigned_url
-        
+
         input_payload["mesh_presigned_urls_mapping"] = mesh_mapping
 
         async with aiohttp.ClientSession() as runpod_session:
-
             input_payload = {k: v for k, v in input_payload.items() if v is not None}
 
             endpoint = AsyncioEndpoint(self.geometry_endpoint_id, runpod_session)

@@ -62,6 +62,7 @@ def export_to_stl(output_path: str):
             axis_up="Z",
         )
 
+
 def reparent_to_root(output_path: str):
     # Clear existing scene (optional, but handy)
     bpy.ops.object.select_all(action="SELECT")
@@ -70,8 +71,8 @@ def reparent_to_root(output_path: str):
     # Find the parent and its child
     #    Assumes exactly one top‐level object that has one mesh child
     all_objs = bpy.context.scene.collection.objects
-    parent = next(o for o in all_objs if o.children)      # first object with children
-    child  = parent.children[0]
+    parent = next(o for o in all_objs if o.children)  # first object with children
+    child = parent.children[0]
 
     # Deselect everything, then select only the child
     bpy.ops.object.select_all(action="DESELECT")
@@ -79,10 +80,7 @@ def reparent_to_root(output_path: str):
     bpy.context.view_layer.objects.active = child
 
     # Export only the selected object
-    bpy.ops.export_scene.gltf(
-        filepath=output_path,
-        export_selected_objects=True
-    )
+    bpy.ops.export_scene.gltf(filepath=output_path, export_selected_objects=True)
 
 
 def main():
@@ -109,7 +107,7 @@ def main():
 
     # 1. Import the GLB
     import_glb(glb_path)
-    
+
     glb_path = os.path.join(out_dir, "export.glb")
     reparent_to_root(glb_path)
 

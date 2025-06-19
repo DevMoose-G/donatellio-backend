@@ -55,14 +55,9 @@ class MeshDAL:
         if other_formats != None:
             for format, key in other_formats.items():
                 if key != None:
-                    other_format_url = (
-                        storage_provider.generate_get_url(key)
-                    )
-                    other_format_item.__setattr__(
-                        f"{format}_url", other_format_url
-                    )
+                    other_format_url = storage_provider.generate_get_url(key)
+                    other_format_item.__setattr__(f"{format}_url", other_format_url)
         return other_format_item
-
 
 
 async def get_mesh_dal(db: AsyncSession = Depends(get_db)):

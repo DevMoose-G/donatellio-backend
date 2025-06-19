@@ -42,5 +42,9 @@ class Image(Base):
     # should keep track of openai parameters
 
     project = relationship("Project", back_populates="images", passive_deletes=True)
-    meshes = relationship("Mesh", back_populates="image", lazy="selectin", cascade="all, delete-orphan")
-    textures = relationship("Texture", back_populates="image", lazy="selectin", cascade="all, delete-orphan")
+    meshes = relationship(
+        "Mesh", back_populates="image", lazy="selectin", cascade="all, delete-orphan"
+    )
+    textures = relationship(
+        "Texture", back_populates="image", lazy="selectin", cascade="all, delete-orphan"
+    )

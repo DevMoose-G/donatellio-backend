@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import uuid4
+
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -49,6 +50,7 @@ def calculate_texture_gen_cost(prompt, texture_quality):
     cost = quality_multiplier
     return cost
 
+
 class GetMeshInfo(BaseModel):
     name: str
     created_at: datetime
@@ -85,21 +87,22 @@ async def create_mesh(
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     current_user: User = Depends(get_current_user),
 ):
-    
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
         return JSONResponse(
             status_code=400,
-            content={"error_msg": "You don't have permission to create a mesh in this project"},
+            content={
+                "error_msg": "You don't have permission to create a mesh in this project"
+            },
         )
-    
+
     image = await image_dal.get_image_by_id(req.image_id)
     if not image:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Image not found"},
         )
-    
+
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
@@ -111,12 +114,12 @@ async def create_mesh(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
-        
+
     mesh_ids = []
     for _ in range(req.n_meshes):
         mesh_id = str(uuid4())
         mesh_ids.append(mesh_id)
-        
+
         await mesh_dal.create_mesh(
             id=mesh_id,
             project_id=project.id,
@@ -154,9 +157,11 @@ async def create_texture(
     if current_user.id != project.user_id:
         return JSONResponse(
             status_code=400,
-            content={"error_msg": "You don't have permission to create a texture in this project"},
+            content={
+                "error_msg": "You don't have permission to create a texture in this project"
+            },
         )
-    
+
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
@@ -168,21 +173,21 @@ async def create_texture(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
-    
+
     image = await image_dal.get_image_by_id(req.image_id)
     if not image:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Image not found"},
         )
-    
+
     mesh = await mesh_dal.get_mesh_by_id(req.mesh_id)
     if not mesh:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Mesh not found"},
         )
-    
+
     texture_id = str(uuid4())
     await texture_dal.create_texture(
         id=texture_id,

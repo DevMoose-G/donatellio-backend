@@ -8,7 +8,7 @@ load_dotenv(find_dotenv())
 
 class Settings(BaseSettings):
     debug: bool = Field(False, env="DEBUG")
-    
+
     redis_url: str = Field(..., env="REDIS_URL")
 
     database_url: str = Field(..., env="DATABASE_URL")
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     blender_exe_path: str = Field(..., env="BLENDER_EXE_PATH")
 
     default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
-    
+
     replicate_api_token: str = Field(..., env="REPLICATE_API_TOKEN")
 
     class Config:

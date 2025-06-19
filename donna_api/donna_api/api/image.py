@@ -35,6 +35,7 @@ class ResponseImage(BaseModel):
     image_id: str
     project_id: str
 
+
 @router.post("/create", status_code=202)
 async def create_image(
     req: RequestCreateImage,
@@ -74,6 +75,7 @@ async def create_image(
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
+
 @router.post("/{project_id}/edit", status_code=202)
 async def edit_image(
     req: RequestEditImage,
@@ -89,7 +91,7 @@ async def edit_image(
             status_code=403,
             content={"error_msg": "You don't have permission to edit this project"},
         )
-    
+
     stream = RedisStream("requested-jobs")
     image_id = str(uuid.uuid4())
     await stream.setup_group(new_only=False)
@@ -123,10 +125,12 @@ async def edit_image(
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
+
 class RequestImageCost(BaseModel):
     image_model: str
     quality: str
-    
+
+
 @router.post("/cost", status_code=200)
 async def get_image_cost(
     req: RequestImageCost,
@@ -150,27 +154,30 @@ async def get_image_cost(
         cost = 1
     return {"cost": cost}
 
+
 @router.get("/{project_id}/chats", status_code=200)
 async def get_image_chat_history(
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ):
-    
     project = await project_dal.get_project_by_id(project_id)
-    
+
     if project is None:
         return JSONResponse(
             status_code=400,
             content={"success": False, "error_msg": "Project doesn't exist"},
         )
-    
+
     if project.user_id != current_user.id:
         return JSONResponse(
             status_code=403,
-            content={"success": False, "error_msg": "You don't have permission to view this project"},
+            content={
+                "success": False,
+                "error_msg": "You don't have permission to view this project",
+            },
         )
-        
+
     response = await project_dal.get_image_prompt_chats(project_id)
     return response
 
@@ -216,7 +223,10 @@ async def upload_image(
     storage_key = extract_s3_key(request.presigned_url)
 
     image = await image_dal.create_image(
-        id=request.image_id, prompt="Image uploaded", project_id=project.id, storage_key=storage_key
+        id=request.image_id,
+        prompt="Image uploaded",
+        project_id=project.id,
+        storage_key=storage_key,
     )
 
     # name project

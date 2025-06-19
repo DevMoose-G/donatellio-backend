@@ -12,11 +12,9 @@ from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
 from donna_common.redis.types import ImageAction, MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import (
-    fill_static_render_images,
     generate_mesh,
     generate_texture,
 )
-from donna_common.utils.profile_image import generate_profile_image_urls
 
 
 class DonnaWorker:
@@ -46,13 +44,17 @@ class DonnaWorker:
 
             project_name = self.openai_provider.name_project(action.project_id)
             await self.runpod_service.wake_up_geometry()
-            
-            
+
             if image_model == "gpt4o":
                 await self.openai_provider.generate_image(**action.params)
             else:
-                await self.replicate_provider.generate_image(image_id=action.params['image_id'], model=image_model, quality=action.params["quality"], prompt=action.params["prompt"])
-            
+                await self.replicate_provider.generate_image(
+                    image_id=action.params["image_id"],
+                    model=image_model,
+                    quality=action.params["quality"],
+                    prompt=action.params["prompt"],
+                )
+
             await project_name
 
             await self.completed_images_stream.send_msg(
@@ -81,8 +83,10 @@ class DonnaWorker:
                             id=action.params["image_id"], error=str(e)
                         )
             else:
-                await self.replicate_provider.edit_image(model=image_model, **action.params)
-            
+                await self.replicate_provider.edit_image(
+                    model=image_model, **action.params
+                )
+
             await self.completed_images_stream.send_msg(
                 ImageAction(
                     project_id=action.project_id,
@@ -92,7 +96,6 @@ class DonnaWorker:
                     is_partial=False,
                 )
             )
-            
 
     @on_action("mesh")
     async def handle_mesh(self, action: MeshAction):
@@ -107,7 +110,7 @@ class DonnaWorker:
                     mesh_ids=mesh_ids,
                 )
             )
-    
+
     @on_action("textured_mesh")
     async def handle_textured_mesh(self, action: TexturedMeshAction):
         if action.function_name == "generate_texture":

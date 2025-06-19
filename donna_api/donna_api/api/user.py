@@ -153,12 +153,14 @@ async def get_user_info(
     for project in projects:
         if project.textures != []:
             finished_projs.append(project)
-    
+
     storage_provider = StorageProvider()
-    image_url = storage_provider.generate_get_url(
-        current_user.profile_image_storage_key
-    ) if current_user.profile_image_storage_key else None
-    
+    image_url = (
+        storage_provider.generate_get_url(current_user.profile_image_storage_key)
+        if current_user.profile_image_storage_key
+        else None
+    )
+
     return GetUserInfoResponse(
         username=current_user.username,
         subscription_tier=current_user.subscription_tier,

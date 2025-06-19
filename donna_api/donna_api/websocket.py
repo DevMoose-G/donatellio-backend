@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 
 from donna_api.auth import authenticate_jwt
 from donna_api.types import (
-    MeshFormat,
     WSImageEditsResponse,
     WSImageItem,
     WSMeshItem,
@@ -14,7 +13,7 @@ from donna_api.types import (
 from donna_common.orm import ImageDAL, ProjectDAL
 from donna_common.orm.dal.mesh import MeshDAL
 from donna_common.orm.dal.project import get_project_dal
-from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
+from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.project import Project
@@ -24,12 +23,13 @@ from donna_common.redis.redisstream import RedisStream
 
 router = APIRouter()
 
+
 async def authenticate_ws(websocket: WebSocket, user_dal: UserDAL) -> User:
     await websocket.accept(subprotocol="access_token")
     # now wait for the auth message
     auth = await websocket.receive_json()
     token = auth.get("token")
-    
+
     user_id = await authenticate_jwt(token)
     user = await user_dal.get_user_by(filter=(User.id == user_id))
     if user is None:
@@ -37,6 +37,7 @@ async def authenticate_ws(websocket: WebSocket, user_dal: UserDAL) -> User:
     if user.active == False:
         raise HTTPException(status_code=400, detail="Inactive user")
     return user
+
 
 @router.websocket("/ws/projects/{project_id}/image")
 async def image_updates(
@@ -47,11 +48,11 @@ async def image_updates(
 ):
     try:
         current_user = await authenticate_ws(websocket, user_dal)
-        
+
         project = await project_dal.get_project_by((Project.id == project_id))
         if current_user.id != project.user_id:
             raise HTTPException(status_code=401, detail="Not authenticated")
-        
+
         stream = RedisStream("completed-jobs", group_name="image")
         await stream.setup_group(new_only=False)
         current_img_s3_keys = []
@@ -104,14 +105,18 @@ async def image_updates(
                         is_partial = False
                         if image and image.storage_key != None:
                             is_partial = action.is_partial
-                            image_url = storage_provider.generate_get_url(image.storage_key)
+                            image_url = storage_provider.generate_get_url(
+                                image.storage_key
+                            )
 
                         chats = await project_dal.get_image_prompt_chats(project_id)
                         await websocket.send_json(
                             WSImageEditsResponse(
                                 images=[
                                     WSImageItem(
-                                        id=image_id, url=image_url, is_partial=is_partial
+                                        id=image_id,
+                                        url=image_url,
+                                        is_partial=is_partial,
                                     )
                                 ],
                                 chats=chats.chats,
@@ -121,11 +126,13 @@ async def image_updates(
     except WebSocketDisconnect:
         # TODO: disconnect all sqlalchemy sessions
         print("Client disconnected, WebSocket closed")
-        
+
     await websocket.close()
 
-async def get_mesh_items(mesh_ids: List[str], storage_provider: StorageProvider) -> List[WSMeshItem]:
 
+async def get_mesh_items(
+    mesh_ids: List[str], storage_provider: StorageProvider
+) -> List[WSMeshItem]:
     mesh_items = []
     mesh_image_storage_keys = {}
     mesh_storage_keys = {}
@@ -146,36 +153,34 @@ async def get_mesh_items(mesh_ids: List[str], storage_provider: StorageProvider)
                     status=mesh.status,
                 )
             )
-    
+
     # now get mesh urls & mesh image urls
     for mesh_id in mesh_ids:
         mesh_image_storage_key = mesh_image_storage_keys.get(mesh_id)
         mesh_storage_key = mesh_storage_keys.get(mesh_id)
         mesh_url = (
-            storage_provider.generate_get_url(
-                mesh_storage_key
-            )
+            storage_provider.generate_get_url(mesh_storage_key)
             if mesh_storage_key
             else None
         )
         mesh_image_url = (
-            storage_provider.generate_get_url(
-                mesh_image_storage_key
-            )
+            storage_provider.generate_get_url(mesh_image_storage_key)
             if mesh_image_storage_key
             else None
         )
-        
+
         for mesh_item in mesh_items:
             if mesh_item.mesh_id == mesh_id:
                 mesh_item.url = mesh_url
                 mesh_item.mesh_image_url = mesh_image_url
                 break
-        
-        
+
     return mesh_items
 
-async def get_texture_items(texture_ids: List[str], storage_provider: StorageProvider) -> List[WSMeshItem]:
+
+async def get_texture_items(
+    texture_ids: List[str], storage_provider: StorageProvider
+) -> List[WSMeshItem]:
     textured_items: List[WSMeshItem] = []
     texture_image_storage_keys = {}
     texture_storage_keys = {}
@@ -198,26 +203,22 @@ async def get_texture_items(texture_ids: List[str], storage_provider: StoragePro
                     status=texture.status,
                 )
             )
-    
+
     # now get texture urls & texture image urls
     for texture_id in texture_ids:
         texture_image_storage_key = texture_image_storage_keys.get(texture_id)
         texture_storage_key = texture_storage_keys.get(texture_id)
         texture_url = (
-            storage_provider.generate_get_url(
-                texture_storage_key
-            )
+            storage_provider.generate_get_url(texture_storage_key)
             if texture_storage_key
             else None
         )
         texture_image_url = (
-            storage_provider.generate_get_url(
-                texture_image_storage_key
-            )
+            storage_provider.generate_get_url(texture_image_storage_key)
             if texture_image_storage_key
             else None
         )
-        
+
         for textured_item in textured_items:
             if textured_item.texture_id == texture_id:
                 textured_item.url = texture_url
@@ -226,6 +227,7 @@ async def get_texture_items(texture_ids: List[str], storage_provider: StoragePro
 
     return textured_items
 
+
 @router.websocket("/ws/projects/{project_id}/mesh")
 async def mesh_updates(
     websocket: WebSocket,
@@ -233,7 +235,6 @@ async def mesh_updates(
     user_dal: UserDAL = Depends(get_user_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
 ):
-    
     current_user = await authenticate_ws(websocket, user_dal)
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
@@ -241,7 +242,7 @@ async def mesh_updates(
 
     stream = RedisStream("completed-jobs", group_name="mesh")
     await stream.setup_group(new_only=False)
-    
+
     try:
         # TODO: need better way to keep track of the current meshes and textures
         added_meshes = set()
@@ -257,7 +258,9 @@ async def mesh_updates(
             if textures != []:
                 storage_provider = StorageProvider()
                 texture_ids = [
-                    texture.id for texture in textures if (texture.mesh_id not in added_meshes)
+                    texture.id
+                    for texture in textures
+                    if (texture.mesh_id not in added_meshes)
                 ]
                 texture_items = await get_texture_items(texture_ids, storage_provider)
                 for texture in texture_items:

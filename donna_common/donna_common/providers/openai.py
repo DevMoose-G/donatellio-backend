@@ -1,7 +1,5 @@
 import base64
-import io
 import os
-from io import BytesIO
 from typing import List
 
 import openai
@@ -74,15 +72,19 @@ class OpenAIProvider:
         )
 
         return project_name
-    
+
     async def save_thumbnail(self, image_id, image_storage_key):
         url = self.storage_provider.generate_get_url(image_storage_key)
         pillow_image = PIL.Image.open(requests.get(url, stream=True).raw)
         pillow_image.thumbnail((256, 256))
         pillow_image.save(f"{STATIC_DIR}/{image_id}_thumbnail.png", "PNG")
         image_filename = f"{image_id}_thumbnail.png"
-        key = self.storage_provider.upload_image(image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png")
-        await self.dal.image_dal.update_image(id=image_id, thumbnail_image_storage_key=key)
+        key = self.storage_provider.upload_image(
+            image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png"
+        )
+        await self.dal.image_dal.update_image(
+            id=image_id, thumbnail_image_storage_key=key
+        )
 
     async def generate_image(
         self, image_id, project_id, prompt, n, size, quality
@@ -170,9 +172,7 @@ class OpenAIProvider:
                     )
         except openai.APIError as e:
             # set project to be inactive
-            await self.dal.project_dal.update_project(
-                id=project_id, active=False
-            )
+            await self.dal.project_dal.update_project(id=project_id, active=False)
             raise e
             await completed_images_stream.send_msg(
                 ImageAction(
@@ -191,7 +191,7 @@ class OpenAIProvider:
                     },
                 )
             )
-        
+
         await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
@@ -205,36 +205,37 @@ class OpenAIProvider:
         image_name = f"{image_id}.png"
 
         original_image = await self.dal.image_dal.get_image_by_id(original_image_id)
-        while original_image.error != None and original_image.original_image_id is not None:
-            original_image = await self.dal.image_dal.get_image_by_id(original_image.original_image_id)
-        assert original_image is not None # TODO: better error
+        while (
+            original_image.error != None
+            and original_image.original_image_id is not None
+        ):
+            original_image = await self.dal.image_dal.get_image_by_id(
+                original_image.original_image_id
+            )
+        assert original_image is not None  # TODO: better error
 
         # TODO: get directly with aws sdk python
         if original_image.storage_key == None:
-            breakpoint() # TODO
-        
+            breakpoint()  # TODO
 
         prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 
         image_input = [
-                {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
-            ]
+            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
+        ]
         # if not external_id, send the actual image
         if original_image.external_id == None:
             og_image_url = self.storage_provider.generate_get_url(
                 original_image.storage_key
             )
-            image_input[0]['content'].append(
-                {
-                    "type": "input_image",
-                    "image_url": f"{og_image_url}"
-                }
+            image_input[0]["content"].append(
+                {"type": "input_image", "image_url": f"{og_image_url}"}
             )
         else:
             image_input.append(
                 {"type": "image_generation_call", "id": original_image.external_id},
             )
-        
+
         stream = self.client.responses.create(
             model="gpt-4.1",
             input=image_input,
@@ -318,7 +319,11 @@ class OpenAIProvider:
         return key
 
     def get_elaborating_questions(
-        self, project_id: str, current_prompt: str, image_id: str = None, n_questions: int = 3
+        self,
+        project_id: str,
+        current_prompt: str,
+        image_id: str = None,
+        n_questions: int = 3,
     ) -> List[str]:
         res = self.client.responses.create(
             model="gpt-4.1-mini",

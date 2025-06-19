@@ -40,7 +40,7 @@ class ProjectDAL:
                 thumbnail_url = StorageProvider().generate_get_url(
                     image.thumbnail_image_storage_key
                 )
-            
+
             if image.storage_key != None:
                 image_url = StorageProvider().generate_get_url(image.storage_key)
 
@@ -173,7 +173,9 @@ class ProjectDAL:
         project = await self.get_project_by_id(project_id)
         return [texture for texture in project.textures if texture.storage_key != None]
 
-    async def get_all_projects_by(self, filter, limit=None, offset=None) -> List[Project]:
+    async def get_all_projects_by(
+        self, filter, limit=None, offset=None
+    ) -> List[Project]:
         exec = select(Project).where(filter)
         if limit is not None:
             exec = exec.limit(limit)

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
@@ -6,7 +6,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.types import CollectionResponse, GetAssetsResponse, GetProjectsResponse, ItemCollection
+from donna_api.types import (
+    CollectionResponse,
+    GetAssetsResponse,
+    GetProjectsResponse,
+    ItemCollection,
+)
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.project import ProjectDAL, get_project_dal
 from donna_common.orm.dal.project_collection import (
@@ -18,7 +23,6 @@ from donna_common.orm.models.user import User
 load_dotenv()  # reads .env from cwd
 
 router = APIRouter(prefix="/collections")
-
 
 
 @router.get("/", status_code=200)
@@ -37,15 +41,15 @@ async def get_root_collections(
     ]
     return CollectionResponse(collections=collection_items)
 
+
 @router.get("/{collection_id}", status_code=200)
 async def get_collection_by_id(
     collection_id: str,
     collections_dal: CollectionDAL = Depends(get_collection_dal),
     current_user: User = Depends(get_current_user),
 ) -> CollectionResponse:
-    
     # TODO: check if user has access to this collection
-    
+
     collection = await collections_dal.get_collection_by_id(collection_id)
     collection_items = [
         ItemCollection(

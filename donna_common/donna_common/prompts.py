@@ -1,6 +1,8 @@
 BASE_IMAGE_GEN_PROMPT = "Zoom out to include the whole image. Draw as a 3D model."
 GPT4O_IMAGE_GEN_PROMPT = f"Don't put any background. Image has to be transparent. Remove any shadows and lighting outside of the image. {BASE_IMAGE_GEN_PROMPT}"
-GEMINI_IMAGE_GEN_PROMPT = f"Put a clear background of a color not used in the image. {BASE_IMAGE_GEN_PROMPT}"
+GEMINI_IMAGE_GEN_PROMPT = (
+    f"Put a clear background of a color not used in the image. {BASE_IMAGE_GEN_PROMPT}"
+)
 
 
 # system prompts

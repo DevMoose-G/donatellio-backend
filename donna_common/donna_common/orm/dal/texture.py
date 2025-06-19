@@ -42,7 +42,7 @@ class TextureDAL:
     async def get_textures_by(self, filter):
         results = await self.session.execute(select(Texture).where(filter))
         return results.scalars().all()
-    
+
     async def get_output_formats(self, texture_id: str) -> MeshFormat:
         storage_provider = StorageProvider()
         texture = await self.get_texture_by_id(texture_id)
@@ -53,12 +53,8 @@ class TextureDAL:
         if other_formats != None:
             for format, key in other_formats.items():
                 if key != None:
-                    other_format_url = (
-                        storage_provider.generate_get_url(key)
-                    )
-                    other_format_item.__setattr__(
-                        f"{format}_url", other_format_url
-                    )
+                    other_format_url = storage_provider.generate_get_url(key)
+                    other_format_item.__setattr__(f"{format}_url", other_format_url)
         return other_format_item
 
     # async def get_textures_by_project_id(self, project_id):

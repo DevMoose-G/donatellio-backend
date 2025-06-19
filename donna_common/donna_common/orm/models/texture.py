@@ -15,8 +15,12 @@ class Texture(Base):
     project_id = Column(
         String(128), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
-    image_id = Column(String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
-    mesh_id = Column(String(128), ForeignKey("meshes.id", ondelete="CASCADE"), nullable=False)
+    image_id = Column(
+        String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=False
+    )
+    mesh_id = Column(
+        String(128), ForeignKey("meshes.id", ondelete="CASCADE"), nullable=False
+    )
     storage_key = Column(String(1024), nullable=True)
     static_render_storage_key = Column(String(1024), nullable=True)
 

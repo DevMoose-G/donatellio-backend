@@ -25,6 +25,7 @@ class RequestCalculateTextureGenCost(BaseModel):
     texture_quality: str
     seed: int
 
+
 class ItemCollection(BaseModel):
     collection_id: str
     name: str
@@ -33,6 +34,7 @@ class ItemCollection(BaseModel):
 
 class CollectionResponse(BaseModel):
     collections: List[ItemCollection]
+
 
 step1x_labels = {
     "symmetry": [
@@ -70,6 +72,7 @@ class RequestCreateMesh(BaseModel):
     seed: Optional[int]
     labels: List[str]
     max_polygon_count: Optional[int]
+
 
 class RequestCreateImage(BaseModel):
     prompt: str
