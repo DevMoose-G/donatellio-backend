@@ -269,5 +269,5 @@ async def post_check_elaborating_questions(
         and len(req.prompt) < 512
         and current_user.subscription_tier != "free"
     ):
-        questions = openai_provider.get_elaborating_questions(None, req.prompt, None)
+        questions = openai_provider.get_elaborating_questions(None, req.prompt, None, 2)
     return {"questions": questions}

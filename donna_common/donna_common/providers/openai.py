@@ -15,7 +15,7 @@ from donna_common.orm.master import MasterDAL
 from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
-    IMAGE_GEN_PROMPT,
+    GPT4O_IMAGE_GEN_PROMPT,
     NAME_PROJECT_BASED_ON_IMAGE,
     NAME_PROJECT_BASED_ON_PROMPT,
 )
@@ -92,7 +92,7 @@ class OpenAIProvider:
 
         image_name = f"{image_id}.png"
 
-        prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
+        prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 
         stream = self.client.responses.create(
             model="gpt-4.1",
@@ -212,26 +212,32 @@ class OpenAIProvider:
         # TODO: get directly with aws sdk python
         if original_image.storage_key == None:
             breakpoint() # TODO
-        og_image_url = self.storage_provider.generate_get_url(
-            original_image.storage_key
-        )
-        response = requests.get(og_image_url)
-        img = PIL.Image.open(BytesIO(response.content))
+        
 
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
+        prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 
-        prompt = f"{IMAGE_GEN_PROMPT}\n{prompt}"
-
-        # TODO: if not external_id, send the actual image
-
+        image_input = [
+                {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
+            ]
+        # if not external_id, send the actual image
+        if original_image.external_id == None:
+            og_image_url = self.storage_provider.generate_get_url(
+                original_image.storage_key
+            )
+            image_input[0]['content'].append(
+                {
+                    "type": "input_image",
+                    "image_url": f"{og_image_url}"
+                }
+            )
+        else:
+            image_input.append(
+                {"type": "image_generation_call", "id": original_image.external_id},
+            )
+        
         stream = self.client.responses.create(
             model="gpt-4.1",
-            input=[
-                {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
-                {"type": "image_generation_call", "id": original_image.external_id},
-            ],
+            input=image_input,
             tools=[
                 {
                     "type": "image_generation",
@@ -312,11 +318,11 @@ class OpenAIProvider:
         return key
 
     def get_elaborating_questions(
-        self, project_id: str, current_prompt: str, image_id: str = None
+        self, project_id: str, current_prompt: str, image_id: str = None, n_questions: int = 3
     ) -> List[str]:
         res = self.client.responses.create(
             model="gpt-4.1-mini",
-            instructions=ELABORATION_PROMPT,
+            instructions=ELABORATION_PROMPT.format(n_questions=n_questions),
             input=f"{current_prompt}",
             max_output_tokens=128,
         )

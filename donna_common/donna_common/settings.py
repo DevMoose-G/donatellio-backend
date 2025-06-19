@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
     
-    replicate_api_key: str = Field(..., env="REPLICATE_API_KEY")
+    replicate_api_token: str = Field(..., env="REPLICATE_API_TOKEN")
 
     class Config:
         env_file = ".env"

@@ -122,7 +122,7 @@ async def get_project_info(
         # temporary (use the user profile img url)
         profile_img_url = "https://static.vecteezy.com/system/resources/previews/056/260/989/non_2x/neon-glowing-cube-with-floating-shapes-abstract-3d-render-free-png.png"
     else:
-        profile_img_url = await storage_provider.generate_get_url(
+        profile_img_url = storage_provider.generate_get_url(
             profile_storage_key
         )
     

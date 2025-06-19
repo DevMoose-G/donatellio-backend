@@ -16,7 +16,7 @@ class StorageProvider:
         self.s3_client = boto3.client("s3", region_name="us-east-1")
         self.bucket = "donatellio"
 
-    def __generate_presigned_url(self, client_method, method_parameters, expires_in):
+    def __generate_presigned_url(self, client_method, method_parameters, expires_in) -> str:
         """
         Generate a presigned Amazon S3 URL that can be used to perform an action.
 
@@ -31,7 +31,7 @@ class StorageProvider:
         )
         return url
 
-    def generate_put_url_for_mesh(self, mesh_name):
+    def generate_put_url_for_mesh(self, mesh_name) -> str:
         return self.__generate_presigned_url(
             "put_object",
             {
@@ -42,7 +42,7 @@ class StorageProvider:
             3600,  # 1 hr
         )
 
-    def generate_put_url_for_image(self, image_name, content_type="image/png"):
+    def generate_put_url_for_image(self, image_name, content_type="image/png") -> str:
         return self.__generate_presigned_url(
             "put_object",
             {

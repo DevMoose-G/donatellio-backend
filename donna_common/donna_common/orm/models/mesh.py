@@ -25,19 +25,19 @@ class Mesh(Base):
 
     seed = Column(Integer, nullable=True)
     octree_resolution = Column(
-        String(8), nullable=False, default="256"
+        String(8), nullable=True
     )  # either 256, 384, 512 (maybe others?)
     num_inference_steps = Column(
-        Integer, nullable=False, default=30
+        Integer, nullable=True
     )  # more steps = smoother, detailed shapes
 
     face_count = Column(Integer, nullable=True, default=40000)  # 5k-100k faces
     # need to separate face_count from user_set_face_count
 
     guidance_scale = Column(
-        Float, nullable=False, default=5.5
+        Float, nullable=True
     )  # 1-15, higher=listen to image more
-    mc_level = Column(Float, nullable=False, default=0.0)
+    mc_level = Column(Float, nullable=True)
     label = Column(String(512), nullable=True)
     caption = Column(String(1024), nullable=True)
 

@@ -115,8 +115,10 @@ class RequestCheckElaboratingQuestions(BaseModel):
 
 
 class ItemImagePromptChat(BaseModel):
+    image_id: str
     prompt: str
     created_at: datetime
+    image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     original_image_id: Optional[str] = None
     error: Optional[str] = None
@@ -147,8 +149,8 @@ class MeshFormat(BaseModel):
 class WSMeshItem(BaseModel):
     mesh_id: str
     image_id: str
-    url: Optional[str]
-    other_formats: MeshFormat
+    url: Optional[str] = None
+    other_formats: Optional[MeshFormat]
     texture_id: Optional[str] = None
 
     textured_image_url: Optional[str] = None

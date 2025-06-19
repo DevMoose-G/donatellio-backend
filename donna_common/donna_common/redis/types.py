@@ -23,9 +23,15 @@ class MeshAction(BaseAction):
     type: Literal["mesh"] = "mesh"
     params: Dict[str, Any]
     mesh_ids: Optional[List[str]] = None
+    
+class TexturedMeshAction(BaseAction):
+    type: Literal["textured_mesh"] = "textured_mesh"
+    params: Dict[str, Any]
+    texture_id: Optional[str] = None
+    successful: Optional[bool] = True
 
 
-Action = Union[ImageAction, MeshAction]
+Action = Union[ImageAction, MeshAction, TexturedMeshAction]
 
 
 class RedisMessage(BaseModel):

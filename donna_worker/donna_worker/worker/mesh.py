@@ -53,6 +53,7 @@ async def generate_mesh(
     project_id,
     mesh_model: str,
     n_meshes: int,
+    mesh_ids: List[str],
     quality: str,
     seed: int,
     labels: List[str],
@@ -63,6 +64,7 @@ async def generate_mesh(
     mesh_ids = await runpod_service.generate_untextured_mesh(
         project_id,
         image_id,
+        mesh_ids,
         mesh_model,
         n_meshes,
         quality,
@@ -92,6 +94,12 @@ async def generate_mesh(
             )
 
             convert_dict = run_blender_convert(glb_path, out_dir)
+            
+            # TODO: keep in mind that there are essentially 2 copies of glbs (one in mesh_id dir and one with mesh_id.glb format)
+            glb_storage_key = storage_provider.upload_mesh(
+                mesh_id, f"{mesh_id}.glb", convert_dict["glb"]
+            )
+            
             obj_storage_key = storage_provider.upload_mesh(
                 mesh_id, f"{mesh_id}.obj", convert_dict["obj"]
             )
@@ -107,6 +115,7 @@ async def generate_mesh(
 
             mesh = await mesh_dal.update_mesh(
                 mesh_id,
+                storage_key=glb_storage_key,
                 static_render_storage_key=png_storage_key,
                 format_storage_keys={
                     "obj": obj_storage_key,
@@ -120,10 +129,11 @@ async def generate_mesh(
 
 
 async def generate_texture(
-    image_id, project_id, mesh_id: str, prompt: str, texture_quality: str, seed: int
+    texture_id, image_id, project_id, mesh_id: str, prompt: str, texture_quality: str, seed: int
 ) -> str:
     runpod_service = RunpodProvider()
     texture_id = await runpod_service.generate_texture_on_mesh(
+        texture_id=texture_id,
         image_id=image_id,
         project_id=project_id,
         mesh_id=mesh_id,
@@ -339,7 +349,9 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
     # For simplicity, parse the printed lines:
     result = {}
     for line in proc.stdout.splitlines():
-        if line.strip().startswith("OBJ:"):
+        if line.strip().startswith("GLB:"):
+            result["glb"] = line.split("GLB:")[1].strip()
+        elif line.strip().startswith("OBJ:"):
             result["obj"] = line.split("OBJ:")[1].strip()
         elif line.strip().startswith("FBX:"):
             result["fbx"] = line.split("FBX:")[1].strip()

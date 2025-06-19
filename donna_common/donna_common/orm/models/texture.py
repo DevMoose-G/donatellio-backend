@@ -25,12 +25,12 @@ class Texture(Base):
     status = Column(String(32), nullable=False, default="PENDING")
 
     prompt = Column(String(1024), nullable=True)
-    n_inference_steps = Column(Integer, nullable=False, default=50)
-    guidance_scale = Column(Float, nullable=False, default=3.0)
+    n_inference_steps = Column(Integer, nullable=True)
+    guidance_scale = Column(Float, nullable=True)
     seed = Column(Integer, nullable=True)
-    lora_scale = Column(Float, nullable=False, default=1.0)
+    lora_scale = Column(Float, nullable=True)
     reference_conditioning_scale = Column(
-        Float, nullable=False, default=1.0
+        Float, nullable=True
     )  # Weight for image/geometry conditioning
 
     gpu_provider_response = Column(

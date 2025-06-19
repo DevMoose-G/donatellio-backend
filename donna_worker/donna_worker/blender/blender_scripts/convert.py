@@ -62,6 +62,28 @@ def export_to_stl(output_path: str):
             axis_up="Z",
         )
 
+def reparent_to_root(output_path: str):
+    # Clear existing scene (optional, but handy)
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete()
+
+    # Find the parent and its child
+    #    Assumes exactly one top‐level object that has one mesh child
+    all_objs = bpy.context.scene.collection.objects
+    parent = next(o for o in all_objs if o.children)      # first object with children
+    child  = parent.children[0]
+
+    # Deselect everything, then select only the child
+    bpy.ops.object.select_all(action="DESELECT")
+    child.select_set(True)
+    bpy.context.view_layer.objects.active = child
+
+    # Export only the selected object
+    bpy.ops.export_scene.gltf(
+        filepath=output_path,
+        export_selected_objects=True
+    )
+
 
 def main():
     """Parse arguments --import GLB, export in multiple formats, then exit."""
@@ -87,6 +109,9 @@ def main():
 
     # 1. Import the GLB
     import_glb(glb_path)
+    
+    glb_path = os.path.join(out_dir, "export.glb")
+    reparent_to_root(glb_path)
 
     # 2. Select only meshes for export
     for obj in bpy.context.scene.objects:
@@ -108,6 +133,7 @@ def main():
     )  # save as .blend :contentReference[oaicite:10]{index=10}
 
     print("Export complete:")
+    print(f"  GLB:   {glb_path}")
     print(f"  OBJ:   {obj_path}")
     print(f"  FBX:   {fbx_path}")
     print(f"  STL:   {stl_path}")

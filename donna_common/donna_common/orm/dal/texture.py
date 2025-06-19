@@ -2,8 +2,10 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from donna_api.types import MeshFormat
 from donna_common.orm.main import get_db
 from donna_common.orm.models.texture import Texture
+from donna_common.providers.storage import StorageProvider
 
 
 class TextureDAL:
@@ -40,6 +42,24 @@ class TextureDAL:
     async def get_textures_by(self, filter):
         results = await self.session.execute(select(Texture).where(filter))
         return results.scalars().all()
+    
+    async def get_output_formats(self, texture_id: str) -> MeshFormat:
+        storage_provider = StorageProvider()
+        texture = await self.get_texture_by_id(texture_id)
+        if texture is None:
+            raise RuntimeError("Texture not found")
+        other_format_item = MeshFormat()
+        other_formats = texture.format_storage_keys
+        if other_formats != None:
+            for format, key in other_formats.items():
+                if key != None:
+                    other_format_url = (
+                        storage_provider.generate_get_url(key)
+                    )
+                    other_format_item.__setattr__(
+                        f"{format}_url", other_format_url
+                    )
+        return other_format_item
 
     # async def get_textures_by_project_id(self, project_id):
     #     return await self.session.execute(select(Texture).where(Texture.project_id == project_id)).scalars().all()

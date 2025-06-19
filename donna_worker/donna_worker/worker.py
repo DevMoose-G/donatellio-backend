@@ -10,12 +10,13 @@ from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
-from donna_common.redis.types import ImageAction, MeshAction
+from donna_common.redis.types import ImageAction, MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import (
     fill_static_render_images,
     generate_mesh,
     generate_texture,
 )
+from donna_common.utils.profile_image import generate_profile_image_urls
 
 
 class DonnaWorker:
@@ -39,18 +40,18 @@ class DonnaWorker:
 
     @on_action("image")
     async def handle_image(self, action: ImageAction):
+        image_model = action.params.pop("image_model", None)
         if action.function_name == "generate_image":
             # wake up geometry pipeline
 
             project_name = self.openai_provider.name_project(action.project_id)
             await self.runpod_service.wake_up_geometry()
             
-            image_model = action.params.get("image_model")
+            
             if image_model == "gpt4o":
                 await self.openai_provider.generate_image(**action.params)
             else:
-                raise Exception("HAVEN'T IMPLEMENTED THIS YET")
-                await self.replicate_provider.generate_image(model=image_model, quality=action.params["quality"], prompt=action.params["prompt"])
+                await self.replicate_provider.generate_image(image_id=action.params['image_id'], model=image_model, quality=action.params["quality"], prompt=action.params["prompt"])
             
             await project_name
 
@@ -65,19 +66,23 @@ class DonnaWorker:
             )
         elif action.function_name == "edit_image":
             await self.runpod_service.wake_up_geometry()
-            try:
-                await self.openai_provider.edit_image(**action.params)
-            except openai.APIError as e:
-                async with AsyncSessionLocal() as session:
-                    await ImageDAL(session).update_image(
-                        id=action.params["image_id"], error=str(e)
-                    )
-            except Exception as e:
-                breakpoint()
-                async with AsyncSessionLocal() as session:
-                    await ImageDAL(session).update_image(
-                        id=action.params["image_id"], error=str(e)
-                    )
+            if image_model == "gpt4o":
+                try:
+                    await self.openai_provider.edit_image(**action.params)
+                except openai.APIError as e:
+                    async with AsyncSessionLocal() as session:
+                        await ImageDAL(session).update_image(
+                            id=action.params["image_id"], error=str(e)
+                        )
+                except Exception as e:
+                    breakpoint()
+                    async with AsyncSessionLocal() as session:
+                        await ImageDAL(session).update_image(
+                            id=action.params["image_id"], error=str(e)
+                        )
+            else:
+                await self.replicate_provider.edit_image(model=image_model, **action.params)
+            
             await self.completed_images_stream.send_msg(
                 ImageAction(
                     project_id=action.project_id,
@@ -87,6 +92,7 @@ class DonnaWorker:
                     is_partial=False,
                 )
             )
+            
 
     @on_action("mesh")
     async def handle_mesh(self, action: MeshAction):
@@ -101,20 +107,23 @@ class DonnaWorker:
                     mesh_ids=mesh_ids,
                 )
             )
-        elif action.function_name == "generate_texture":
-            mesh_id = await generate_texture(**action.params)
+    
+    @on_action("textured_mesh")
+    async def handle_textured_mesh(self, action: TexturedMeshAction):
+        if action.function_name == "generate_texture":
+            texture_id = await generate_texture(**action.params)
             await self.completed_meshes_stream.send_msg(
-                MeshAction(
-                    type="mesh",
+                TexturedMeshAction(
+                    type="textured_mesh",
                     project_id=action.project_id,
                     function_name=action.function_name,
                     params=action.params,
-                    mesh_ids=[mesh_id],
+                    texture_id=texture_id,
                 )
             )
 
     async def mainloop(self):
-        await fill_static_render_images()
+        # generate_profile_image_urls()
         await self.stream.setup_group(new_only=False)
 
         while True:

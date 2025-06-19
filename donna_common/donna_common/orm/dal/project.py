@@ -35,17 +35,23 @@ class ProjectDAL:
         image_prompts = []
         for image in project.images:
             thumbnail_url = None
+            image_url = None
             if image.thumbnail_image_storage_key != None:
                 thumbnail_url = StorageProvider().generate_get_url(
                     image.thumbnail_image_storage_key
                 )
+            
+            if image.storage_key != None:
+                image_url = StorageProvider().generate_get_url(image.storage_key)
 
             displayed_error = None
             if image.error:
                 displayed_error = "Error while generating image. Try again."
             image_prompts.append(
                 ItemImagePromptChat(
+                    image_id=image.id,
                     prompt=image.prompt,
+                    image_url=image_url,
                     thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
                     original_image_id=image.original_image_id,
@@ -65,11 +71,13 @@ class ProjectDAL:
 
     async def get_images(self, project_id: str) -> List[Image]:
         project = await self.get_project_by_id(project_id)
-        return project.images
+        unsorted_imgs = project.images
+        return sorted(unsorted_imgs, key=lambda x: x.created_at)
 
     async def get_meshes(self, project_id: str) -> List[Mesh]:
         project = await self.get_project_by_id(project_id)
-        return project.meshes
+        unsorted_meshes = project.meshes
+        return sorted(unsorted_meshes, key=lambda x: x.created_at)
 
     async def get_project_display(self, project: Project) -> ProjectDisplay:
         storage_provider = (
@@ -150,7 +158,8 @@ class ProjectDAL:
 
     async def get_textures(self, project_id: str) -> List[Texture]:
         project = await self.get_project_by_id(project_id)
-        return project.textures
+        unsorted_textures = project.textures
+        return sorted(unsorted_textures, key=lambda x: x.created_at)
 
     async def get_uploaded_images(self, project_id: str) -> List[Image]:
         project = await self.get_project_by_id(project_id)
@@ -164,8 +173,13 @@ class ProjectDAL:
         project = await self.get_project_by_id(project_id)
         return [texture for texture in project.textures if texture.storage_key != None]
 
-    async def get_all_projects_by(self, filter) -> List[Project]:
-        projects = await self.session.execute(select(Project).where(filter))
+    async def get_all_projects_by(self, filter, limit=None, offset=None) -> List[Project]:
+        exec = select(Project).where(filter)
+        if limit is not None:
+            exec = exec.limit(limit)
+        if offset is not None:
+            exec = exec.offset(offset)
+        projects = await self.session.execute(exec)
         return projects.scalars().all()
 
     async def get_all_projects(self) -> List[Project]:

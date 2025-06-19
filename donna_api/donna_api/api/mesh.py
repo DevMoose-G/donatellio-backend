@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -23,9 +24,10 @@ from donna_common.orm import (
     get_user_dal,
 )
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
+from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.models.user import User
 from donna_common.redis.redisstream import RedisStream
-from donna_common.redis.types import MeshAction
+from donna_common.redis.types import MeshAction, TexturedMeshAction
 
 load_dotenv()  # reads .env from cwd
 
@@ -91,6 +93,13 @@ async def create_mesh(
             content={"error_msg": "You don't have permission to create a mesh in this project"},
         )
     
+    image = await image_dal.get_image_by_id(req.image_id)
+    if not image:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Image not found"},
+        )
+    
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
@@ -102,12 +111,28 @@ async def create_mesh(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
+        
+    mesh_ids = []
+    for _ in range(req.n_meshes):
+        mesh_id = str(uuid4())
+        mesh_ids.append(mesh_id)
+        
+        await mesh_dal.create_mesh(
+            id=mesh_id,
+            project_id=project.id,
+            image_id=image.id,
+            storage_key=None,
+            status="PENDING",
+        )
 
     await stream.send_msg(
         MeshAction(
             project_id=project_id,
             function_name="generate_mesh",
-            params={**req.model_dump()},
+            params={
+                **req.model_dump(),
+                "mesh_ids": mesh_ids,
+            },
         )
     )
 
@@ -120,8 +145,9 @@ async def create_texture(
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
     user_dal: UserDAL = Depends(get_user_dal),
-    image_dal: ImageDAL = Depends(get_image_dal),
+    texture_dal: TextureDAL = Depends(get_texture_dal),
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ):
     project = await project_dal.get_project_by_id(project_id)
@@ -142,12 +168,36 @@ async def create_texture(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
+    
+    image = await image_dal.get_image_by_id(req.image_id)
+    if not image:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Image not found"},
+        )
+    
+    mesh = await mesh_dal.get_mesh_by_id(req.mesh_id)
+    if not mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    
+    texture_id = str(uuid4())
+    await texture_dal.create_texture(
+        id=texture_id,
+        project_id=project.id,
+        image_id=image.id,
+        mesh_id=mesh.id,
+        storage_key=None,
+        status="PENDING",
+    )
 
     await stream.send_msg(
-        MeshAction(
+        TexturedMeshAction(
             project_id=project_id,
             function_name="generate_texture",
-            params={**req.model_dump()},
+            params={**req.model_dump(), "texture_id": texture_id},
         )
     )
 

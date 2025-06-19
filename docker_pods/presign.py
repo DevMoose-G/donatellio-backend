@@ -46,7 +46,14 @@ def main():
     s3_client = boto3.client("s3", region_name="us-east-1")
 
     # The presigned URL is specified to expire in 3600  seconds (an hour)
-    content_type = "image/png" if args.type == "png" else "model/gltf-binary"
+    content_mapping = {
+        "png": "image/png",
+        "glb": "model/gltf-binary",
+        "pt": "application/octet-stream"
+    }
+    content_type = content_mapping.get(args.type, None)
+    if content_type is None:
+        raise ValueError(f"Unsupported file type: {args.type}. Supported types are: {', '.join(content_mapping.keys())}")
     urls = []
     if content_type == "image/png":
         if args.client_method == "put_object":
@@ -75,7 +82,7 @@ def main():
                     36000,
                 )
             )
-    else:
+    elif content_type == "model/gltf-binary":
         method_params = {
             "Bucket": args.bucket,
             "Key": args.key + ".glb",
@@ -87,7 +94,23 @@ def main():
             generate_presigned_url(
                 s3_client,
                 str(args.client_method),
-                method_params,  # , "ContentType": "model/gltf-binary"
+                method_params,
+                3600,
+            )
+        )
+    elif content_type == "application/octet-stream":
+        method_params = {
+            "Bucket": args.bucket,
+            "Key": args.key + ".pt",
+            "ContentType": "application/octet-stream",
+        }
+        if args.client_method != "put_object":
+            del method_params["ContentType"]
+        urls.append(
+            generate_presigned_url(
+                s3_client,
+                str(args.client_method),
+                method_params,
                 3600,
             )
         )

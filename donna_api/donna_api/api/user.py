@@ -13,6 +13,7 @@ from donna_common.orm.dal.credit_transaction import (
     get_credit_transaction_dal,
 )
 from donna_common.orm.models.user import User
+from donna_common.providers.storage import StorageProvider
 
 load_dotenv()  # reads .env from cwd
 
@@ -136,6 +137,7 @@ class GetUserInfoResponse(BaseModel):
     subscription_tier: str
     credit_balance: int
     n_projects: int
+    profile_image_url: Optional[str] = None
 
 
 @router.get("/info", status_code=200)
@@ -151,11 +153,18 @@ async def get_user_info(
     for project in projects:
         if project.textures != []:
             finished_projs.append(project)
+    
+    storage_provider = StorageProvider()
+    image_url = storage_provider.generate_get_url(
+        current_user.profile_image_storage_key
+    ) if current_user.profile_image_storage_key else None
+    
     return GetUserInfoResponse(
         username=current_user.username,
         subscription_tier=current_user.subscription_tier,
         credit_balance=current_user.credit_balance,
         n_projects=len(finished_projs),
+        profile_image_url=image_url,
     )
 
 

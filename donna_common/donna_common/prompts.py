@@ -1,8 +1,10 @@
-IMAGE_GEN_PROMPT = "Don't put any background. Image has to be transparent. Remove any shadows and lighting outside of the image. Zoom out to include the whole image. Draw as a 3D model."
+BASE_IMAGE_GEN_PROMPT = "Zoom out to include the whole image. Draw as a 3D model."
+GPT4O_IMAGE_GEN_PROMPT = f"Don't put any background. Image has to be transparent. Remove any shadows and lighting outside of the image. {BASE_IMAGE_GEN_PROMPT}"
+GEMINI_IMAGE_GEN_PROMPT = f"Put a clear background of a color not used in the image. {BASE_IMAGE_GEN_PROMPT}"
 
 
 # system prompts
-ELABORATION_PROMPT = "You’re a 3D model assistant.\nAsk exactly three follow-up questions to nail down the key details of the initial image.\nKeep each under six words, informal, no “who/what/where/etc.”\nReturn them as plain lines, no numbers. Focus on the image itself, not the 3D model or the background or environment."
+ELABORATION_PROMPT = "You’re a 3D model assistant.\nAsk exactly {n_questions} follow-up questions to nail down the key details of the initial image.\nKeep each under six words, informal, no “who/what/where/etc.”\nReturn them as plain lines, no numbers. Focus on the image itself, not the 3D model or the background or environment."
 CHECK_ELABORATION_PROMPT = "You’re a 3D model assistant.\nFrom the three questions below, remove any the user answered and return only the rest of the questions (unanswered).\nKeep each under six words, informal, no question words.\nList one per line, no numbering."
 
 NAME_PROJECT_BASED_ON_PROMPT = (

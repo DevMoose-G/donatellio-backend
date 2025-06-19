@@ -30,13 +30,14 @@ router.include_router(project_router)
 @router.get("/market/assets", status_code=200)
 async def get_market_assets(
     limit: int,
+    offset: Optional[int] = 0,
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ) -> GetAssetsResponse:
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=((Project.user_id != current_user.id) & (Project.public))
+            filter=((Project.user_id != current_user.id) & (Project.public)), limit=limit, offset=offset
         )
         if project.meshes != []
     ]

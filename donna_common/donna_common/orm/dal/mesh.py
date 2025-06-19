@@ -2,8 +2,10 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from donna_api.types import MeshFormat
 from donna_common.orm.main import get_db
 from donna_common.orm.models.mesh import Mesh
+from donna_common.providers.storage import StorageProvider
 
 
 class MeshDAL:
@@ -43,11 +45,24 @@ class MeshDAL:
         results = await self.session.execute(select(Mesh).where(filter))
         return results.scalars().all()
 
-    # async def get_meshes_by_project_id(self, project_id):
-    #     return await self.session.execute(select(Mesh).where(Mesh.project_id == project_id)).scalars().all()
+    async def get_output_formats(self, mesh_id: str) -> MeshFormat:
+        storage_provider = StorageProvider()
+        mesh = await self.get_mesh_by_id(mesh_id)
+        if mesh is None:
+            raise RuntimeError("Mesh not found")
+        other_format_item = MeshFormat()
+        other_formats = mesh.format_storage_keys
+        if other_formats != None:
+            for format, key in other_formats.items():
+                if key != None:
+                    other_format_url = (
+                        storage_provider.generate_get_url(key)
+                    )
+                    other_format_item.__setattr__(
+                        f"{format}_url", other_format_url
+                    )
+        return other_format_item
 
-    # async def get_meshes_by_image_id(self, image_id):
-    #     return await self.session.execute(select(Mesh).where(Mesh.image_id == image_id)).scalars().all()
 
 
 async def get_mesh_dal(db: AsyncSession = Depends(get_db)):

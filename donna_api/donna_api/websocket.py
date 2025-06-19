@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -13,6 +14,7 @@ from donna_api.types import (
 from donna_common.orm import ImageDAL, ProjectDAL
 from donna_common.orm.dal.mesh import MeshDAL
 from donna_common.orm.dal.project import get_project_dal
+from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.project import Project
@@ -122,6 +124,107 @@ async def image_updates(
         
     await websocket.close()
 
+async def get_mesh_items(mesh_ids: List[str], storage_provider: StorageProvider) -> List[WSMeshItem]:
+
+    mesh_items = []
+    mesh_image_storage_keys = {}
+    mesh_storage_keys = {}
+    async with AsyncSessionLocal() as session:
+        mesh_dal = MeshDAL(session)
+        for mesh_id in mesh_ids:
+            mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+            mesh_storage_keys[mesh.id] = mesh.storage_key
+
+            other_format_item = await mesh_dal.get_output_formats(mesh.id)
+            mesh_image_storage_keys[mesh.id] = mesh.static_render_storage_key
+
+            mesh_items.append(
+                WSMeshItem(
+                    mesh_id=mesh.id,
+                    image_id=mesh.image_id,
+                    other_formats=other_format_item,
+                    status=mesh.status,
+                )
+            )
+    
+    # now get mesh urls & mesh image urls
+    for mesh_id in mesh_ids:
+        mesh_image_storage_key = mesh_image_storage_keys.get(mesh_id)
+        mesh_storage_key = mesh_storage_keys.get(mesh_id)
+        mesh_url = (
+            storage_provider.generate_get_url(
+                mesh_storage_key
+            )
+            if mesh_storage_key
+            else None
+        )
+        mesh_image_url = (
+            storage_provider.generate_get_url(
+                mesh_image_storage_key
+            )
+            if mesh_image_storage_key
+            else None
+        )
+        
+        for mesh_item in mesh_items:
+            if mesh_item.mesh_id == mesh_id:
+                mesh_item.url = mesh_url
+                mesh_item.mesh_image_url = mesh_image_url
+                break
+        
+        
+    return mesh_items
+
+async def get_texture_items(texture_ids: List[str], storage_provider: StorageProvider) -> List[WSMeshItem]:
+    textured_items: List[WSMeshItem] = []
+    texture_image_storage_keys = {}
+    texture_storage_keys = {}
+    async with AsyncSessionLocal() as session:
+        texture_dal = TextureDAL(session)
+        for texture_id in texture_ids:
+            texture = await texture_dal.get_texture_by_id(texture_id)
+            texture_storage_keys[texture.id] = texture.storage_key
+
+            other_format_item = await texture_dal.get_output_formats(texture.id)
+
+            texture_image_storage_keys[texture.id] = texture.static_render_storage_key
+
+            textured_items.append(
+                WSMeshItem(
+                    mesh_id=texture.mesh_id,
+                    texture_id=texture.id,
+                    image_id=texture.image_id,
+                    other_formats=other_format_item,
+                    status=texture.status,
+                )
+            )
+    
+    # now get texture urls & texture image urls
+    for texture_id in texture_ids:
+        texture_image_storage_key = texture_image_storage_keys.get(texture_id)
+        texture_storage_key = texture_storage_keys.get(texture_id)
+        texture_url = (
+            storage_provider.generate_get_url(
+                texture_storage_key
+            )
+            if texture_storage_key
+            else None
+        )
+        texture_image_url = (
+            storage_provider.generate_get_url(
+                texture_image_storage_key
+            )
+            if texture_image_storage_key
+            else None
+        )
+        
+        for textured_item in textured_items:
+            if textured_item.texture_id == texture_id:
+                textured_item.url = texture_url
+                textured_item.textured_image_url = texture_image_url
+                break
+
+    return textured_items
 
 @router.websocket("/ws/projects/{project_id}/mesh")
 async def mesh_updates(
@@ -140,8 +243,7 @@ async def mesh_updates(
     await stream.setup_group(new_only=False)
     
     try:
-        current_texture_s3_keys = []
-        current_mesh_s3_keys = []
+        # TODO: need better way to keep track of the current meshes and textures
         added_meshes = set()
         while True:
             async with AsyncSessionLocal() as session:
@@ -149,112 +251,25 @@ async def mesh_updates(
                 meshes = await project_dal.get_meshes(project_id)
                 textures = await project_dal.get_textures(project_id)
 
+            # getting what's in the database
             texture_items = []
             mesh_items = []
             if textures != []:
                 storage_provider = StorageProvider()
-                for texture in textures:
-                    if (
-                        texture.storage_key not in current_texture_s3_keys
-                        and texture.storage_key != None
-                    ):
-                        texture_url = storage_provider.generate_get_url(
-                            texture.storage_key
-                        )
+                texture_ids = [
+                    texture.id for texture in textures if (texture.mesh_id not in added_meshes)
+                ]
+                texture_items = await get_texture_items(texture_ids, storage_provider)
+                for texture in texture_items:
+                    added_meshes.add(texture.mesh_id)
 
-                        other_format_item = MeshFormat()
-                        other_formats = texture.format_storage_keys
-                        if other_formats != None:
-                            for format, key in other_formats.items():
-                                if key != None:
-                                    other_format_url = (
-                                        storage_provider.generate_get_url(key)
-                                    )
-                                    other_format_item.__setattr__(
-                                        f"{format}_url", other_format_url
-                                    )
-
-                        # get the image urls
-                        textured_image_url = (
-                            storage_provider.generate_get_url(
-                                texture.static_render_storage_key
-                            )
-                            if texture.static_render_storage_key
-                            else None
-                        )
-                        matched_mesh = None
-                        for mesh in meshes:
-                            if mesh.id == texture.mesh_id:
-                                matched_mesh = mesh
-                        mesh_image_url = (
-                            storage_provider.generate_get_url(
-                                matched_mesh.static_render_storage_key
-                            )
-                            if matched_mesh.static_render_storage_key
-                            else None
-                        )
-
-                        texture_items.append(
-                            WSMeshItem(
-                                texture_id=texture.id,
-                                mesh_id=texture.mesh_id,
-                                url=texture_url,
-                                image_id=texture.image_id,
-                                other_formats=other_format_item,
-                                status=texture.status,
-                                textured_image_url=textured_image_url,
-                                mesh_image_url=mesh_image_url,
-                            )
-                        )
-                        added_meshes.add(texture.mesh_id)
-                        current_texture_s3_keys.append(texture.storage_key)
-
+            # breakpoint()
             if meshes != []:
                 storage_provider = StorageProvider()
-                for mesh in meshes:
-                    if (
-                        mesh.storage_key not in current_mesh_s3_keys
-                        and mesh.storage_key != None
-                        and mesh.id not in added_meshes
-                    ):
-                        mesh_url = (
-                            storage_provider.generate_get_url(mesh.storage_key)
-                            if mesh.storage_key != ""
-                            else None
-                        )
-
-                        other_format_item = MeshFormat()
-                        other_formats = mesh.format_storage_keys
-                        if other_formats != None:
-                            for format, key in other_formats.items():
-                                if key != None:
-                                    other_format_url = (
-                                        storage_provider.generate_get_url(key)
-                                    )
-                                    other_format_item.__setattr__(
-                                        f"{format}_url", other_format_url
-                                    )
-
-                        # get the image urls
-                        mesh_image_url = (
-                            storage_provider.generate_get_url(
-                                mesh.static_render_storage_key
-                            )
-                            if mesh.static_render_storage_key
-                            else None
-                        )
-
-                        mesh_items.append(
-                            WSMeshItem(
-                                mesh_id=mesh.id,
-                                url=mesh_url,
-                                image_id=mesh.image_id,
-                                other_formats=other_format_item,
-                                status=mesh.status,
-                                mesh_image_url=mesh_image_url,
-                            )
-                        )
-                        current_mesh_s3_keys.append(mesh.storage_key)
+                mesh_ids = [mesh.id for mesh in meshes if (mesh.id not in added_meshes)]
+                mesh_items = await get_mesh_items(mesh_ids, storage_provider)
+                for mesh in mesh_items:
+                    added_meshes.add(mesh.mesh_id)
 
             all_meshes = texture_items + mesh_items
             if all_meshes != []:
@@ -262,6 +277,7 @@ async def mesh_updates(
                     WSMeshResponse(meshes=all_meshes).model_dump(mode="json")
                 )
 
+            # now check the stream for new messages
             messages = await stream.consume_msg("consumer1", new_only=True, n_msgs=1)
             if len(messages) == 0:
                 await asyncio.sleep(2)
@@ -269,56 +285,31 @@ async def mesh_updates(
                 for msg in messages:
                     action = msg.action
                     if action.project_id == project_id:
+                        # need to also do it for textured mesh textured_mesh
                         if (
                             action.function_name == "generate_mesh"
                             and action.type == "mesh"
                         ):
                             storage_provider = StorageProvider()
-                            mesh_ids = action.mesh_ids
 
-                            mesh_items = []
-                            async with AsyncSessionLocal() as session:
-                                mesh_dal = MeshDAL(session)
-                                for mesh_id in mesh_ids:
-                                    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-                                    mesh_url = storage_provider.generate_get_url(
-                                        mesh.storage_key
-                                    )
+                            mesh_items = await get_mesh_items(
+                                action.mesh_ids, storage_provider
+                            )
+                            await websocket.send_json(
+                                WSMeshResponse(meshes=mesh_items).model_dump(
+                                    mode="json"
+                                )
+                            )
+                            await stream.ack_msg(msg.id)
+                        elif (
+                            action.function_name == "generate_texture"
+                            and action.type == "textured_mesh"
+                        ):
+                            storage_provider = StorageProvider()
 
-                                    # TODO: move this to mesh_dal?
-                                    other_format_item = MeshFormat()
-                                    other_formats = mesh.format_storage_keys
-                                    if other_formats != None:
-                                        for format, key in other_formats.items():
-                                            if key != None:
-                                                other_format_url = (
-                                                    storage_provider.generate_get_url(
-                                                        key
-                                                    )
-                                                )
-                                                other_format_item.__setattr__(
-                                                    f"{format}_url", other_format_url
-                                                )
-
-                                    # get the image urls
-                                    mesh_image_url = (
-                                        storage_provider.generate_get_url(
-                                            mesh.static_render_storage_key
-                                        )
-                                        if mesh.static_render_storage_key
-                                        else None
-                                    )
-
-                                    mesh_items.append(
-                                        WSMeshItem(
-                                            mesh_id=mesh.id,
-                                            url=mesh_url,
-                                            image_id=mesh.image_id,
-                                            other_formats=other_format_item,
-                                            status=mesh.status,
-                                            mesh_image_url=mesh_image_url,
-                                        )
-                                    )
+                            mesh_items = await get_texture_items(
+                                [action.texture_id], storage_provider
+                            )
                             await websocket.send_json(
                                 WSMeshResponse(meshes=mesh_items).model_dump(
                                     mode="json"

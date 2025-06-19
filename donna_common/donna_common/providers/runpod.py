@@ -128,11 +128,24 @@ class RunpodProvider:
 
             return EndpointHealth(**health_dict)
 
+    async def regenerate_mesh_from_latents(
+        self,
+        project_id: str,
+        mesh_id: str,
+        mc_level: float,
+        octree_resolution: int,
+        max_facenum: int,
+        do_shade_smooth: bool=True
+    ):
+        # TODO: regen mesh from latents
+        pass
+    
     # TODO: test if streaming works
     async def generate_untextured_mesh(
         self,
         project_id: str,
         image_id: str,
+        mesh_ids: List[str],
         mesh_model: str,
         n_meshes: int,
         quality: str,
@@ -163,6 +176,7 @@ class RunpodProvider:
             quality_dict = {"n_inference_steps": 70, "octree_resolution": 512}
 
         input_payload = {
+            "start_from_latents": False,
             "image_url": image_url,
             "n_meshes": n_meshes,
             "seed": seed,
@@ -185,17 +199,11 @@ class RunpodProvider:
         input_payload["label"] = json.dumps(dict_labels)
 
         mesh_mapping = {}
-        for i in range(n_meshes):
-            mesh_id = str(uuid.uuid4())
+        for mesh_id in mesh_ids:
             # create mesh in database w/ status='PENDING'
             async with AsyncSessionLocal() as session:
-                await MeshDAL(session).create_mesh(
+                await MeshDAL(session).update_mesh(
                     id=mesh_id,
-                    project_id=project.id,
-                    image_id=image.id,
-                    storage_key=None,
-                    status="PENDING",
-                    gpu_provider_response="",
                     
                     seed=seed,
                     octree_resolution=str(input_payload["octree_resolution"]),
@@ -258,8 +266,8 @@ class RunpodProvider:
         prompt: str,
         texture_quality: str,  # normal, precise, or stylized
         seed: int,
+        texture_id: str,
     ):
-        texture_id = str(uuid.uuid4())
         # create mesh in database w/ status='PENDING'
         async with AsyncSessionLocal() as session:
             image = await ImageDAL(session).get_image_by_id(image_id)
@@ -269,15 +277,15 @@ class RunpodProvider:
             assert project is not None
             assert mesh is not None
 
-            await TextureDAL(session).create_texture(
-                id=texture_id,
-                project_id=project.id,
-                image_id=image.id,
-                mesh_id=mesh.id,
-                storage_key=None,
-                status="PENDING",
-                gpu_provider_response="",
-            )
+            # await TextureDAL(session).update_texture(
+            #     id=texture_id,
+            #     project_id=project.id,
+            #     image_id=image.id,
+            #     mesh_id=mesh.id,
+            #     storage_key=None,
+            #     status="PENDING",
+            #     gpu_provider_response="",
+            # )
 
         # generate presigned url
         storage_provider = StorageProvider()

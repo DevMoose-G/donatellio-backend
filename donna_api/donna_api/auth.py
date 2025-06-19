@@ -1,3 +1,4 @@
+from random import randint
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -14,6 +15,7 @@ from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
 from donna_common.utils.hashing import get_password_hash, verify_password
+from donna_common.utils.profile_image import ICON_STORAGE_KEYS, PALETTES
 
 redis_client = redis.Redis(host="localhost", port=6379, db=0)
 
@@ -170,11 +172,14 @@ async def register(user: RequestCreateUser, response: Response, user_dal: UserDA
         )
 
     hashed_pw = get_password_hash(user.password)
+    
+    profile_img_storage_key = f"images/profile_images/{randint(0, len(ICON_STORAGE_KEYS)-1)}_{randint(0, len(PALETTES)-1)}.png"
     new_user = User(
         id=str(uuid.uuid4()),
         email=user.email,
         password=hashed_pw,
         username=user.username,
+        profile_image_storage_key=profile_img_storage_key
     )
     new_user = await user_dal.create_user(new_user)
 
@@ -185,22 +190,21 @@ async def register(user: RequestCreateUser, response: Response, user_dal: UserDA
 
     jti = str(uuid.uuid4())
     refresh_token = create_refresh_token(data={"sub": new_user.id, "jti": jti})
+
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,  # Set to True if using HTTPS
-        samesite="Lax",  # Adjust based on your needs
+        secure=True,# not settings.debug, 
+        samesite="None",  # TODO: can't use "Lax" since we need cross-site cookies for the frontend
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
-        # path="/refresh"
+        path="/"
     )
-
     return JWTToken(
         access_token=access_token,
         token_type="bearer",
         expires_in=expires_in,
-        # refresh_token=refresh_token,
-    )
+    ).model_dump()
 
 
 @router.post("/login")
@@ -279,6 +283,9 @@ async def logout(
     current_user: User = Depends(get_current_user)
 ):
     refresh_token = request.cookies.get("refresh_token")
-    payload = decode_token(refresh_token, "refresh_token")
-    blacklist_jwt(payload["jti"])
+    try:
+        payload = decode_token(refresh_token, "refresh_token")
+        blacklist_jwt(payload["jti"])
+    except JWTError:
+        pass
     return JSONResponse(status_code=200, content={"success": True})
