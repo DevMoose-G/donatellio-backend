@@ -48,6 +48,19 @@ class Project(Base):
         "ProjectCollection", back_populates="project", lazy="selectin"
     )
     collections = association_proxy("assoc_collections", "collection")
+    
+    versions = relationship(
+        "ProjectVersion",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    branches = relationship(
+        "ProjectBranch",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     @property
     async def image_s3_keys(self):

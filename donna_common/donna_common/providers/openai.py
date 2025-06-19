@@ -197,20 +197,20 @@ class OpenAIProvider:
         return key
 
     async def edit_image(
-        self, image_id, project_id, original_image_id, prompt, n, size, quality
+        self, image_id, project_id, parent_image_id, prompt, n, size, quality
     ) -> str:
         if prompt == "":
             raise Exception("Prompt cannot be empty")
 
         image_name = f"{image_id}.png"
 
-        original_image = await self.dal.image_dal.get_image_by_id(original_image_id)
+        original_image = await self.dal.image_dal.get_image_by_id(parent_image_id)
         while (
             original_image.error != None
-            and original_image.original_image_id is not None
+            and original_image.parent_image_id is not None
         ):
             original_image = await self.dal.image_dal.get_image_by_id(
-                original_image.original_image_id
+                original_image.parent_image_id
             )
         assert original_image is not None  # TODO: better error
 
@@ -282,7 +282,7 @@ class OpenAIProvider:
                         params={
                             "image_id": image_id,
                             "project_id": project_id,
-                            "original_image_id": original_image_id,
+                            "parent_image_id": parent_image_id,
                             "prompt": prompt,
                             "n": n,
                             "size": size,
@@ -306,7 +306,7 @@ class OpenAIProvider:
                         params={
                             "image_id": image_id,
                             "project_id": project_id,
-                            "original_image_id": original_image_id,
+                            "parent_image_id": parent_image_id,
                             "prompt": prompt,
                             "n": n,
                             "size": size,

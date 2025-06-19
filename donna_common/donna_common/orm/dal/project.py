@@ -54,7 +54,7 @@ class ProjectDAL:
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
-                    original_image_id=image.original_image_id,
+                    parent_image_id=image.parent_image_id,
                     error=displayed_error,
                 )
             )

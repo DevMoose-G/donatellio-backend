@@ -16,7 +16,7 @@ class Image(Base):
     )
     storage_key = Column(String(1024), nullable=True)
 
-    original_image_id = Column(String(128), nullable=True)
+    parent_image_id = Column(String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -39,7 +39,7 @@ class Image(Base):
 
     thumbnail_image_storage_key = Column(String(1024), nullable=True)
 
-    # should keep track of openai parameters
+    # TODO: should keep track of openai/replicate parameters
 
     project = relationship("Project", back_populates="images", passive_deletes=True)
     meshes = relationship(
@@ -47,4 +47,8 @@ class Image(Base):
     )
     textures = relationship(
         "Texture", back_populates="image", lazy="selectin", cascade="all, delete-orphan"
+    )
+
+    parent_image = relationship(
+        "Image", remote_side=[id], foreign_keys=[parent_image_id], lazy="selectin"
     )

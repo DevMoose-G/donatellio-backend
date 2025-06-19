@@ -21,14 +21,14 @@ class ImageDAL:
         prompt: str,
         project_id: str,
         storage_key: str = None,
-        original_image_id: str | None = None,
+        parent_image_id: str | None = None,
     ) -> Image:
         image = Image(
             id=id,
             prompt=prompt,
             project_id=project_id,
             storage_key=storage_key,
-            original_image_id=original_image_id,
+            parent_image_id=parent_image_id,
         )
         self.session.add(image)
         await self.session.commit()

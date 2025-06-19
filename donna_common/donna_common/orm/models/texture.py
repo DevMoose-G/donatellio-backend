@@ -41,6 +41,10 @@ class Texture(Base):
         String(1024), nullable=True
     )  # Runpod, etc message after inference
 
+    parent_texture_id = Column(
+        String(128), ForeignKey("textures.id", ondelete="CASCADE"), nullable=True
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -56,3 +60,5 @@ class Texture(Base):
     project = relationship("Project", back_populates="textures", passive_deletes=True)
     mesh = relationship("Mesh", back_populates="textures", passive_deletes=True)
     image = relationship("Image", back_populates="textures", passive_deletes=True)
+
+    parent_texture = relationship("Texture", remote_side=id, foreign_keys=[parent_texture_id])

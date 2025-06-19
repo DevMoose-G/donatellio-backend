@@ -22,3 +22,6 @@ from donna_common.orm.models.project import Project
 from donna_common.orm.models.project_collection import ProjectCollection
 from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
+from donna_common.orm.models.project_branch import ProjectBranch
+from donna_common.orm.models.project_action import ProjectAction
+from donna_common.orm.models.project_version import ProjectVersion

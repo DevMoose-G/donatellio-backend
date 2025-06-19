@@ -47,3 +47,5 @@ class User(Base):
     projects = relationship("Project", back_populates="owner")
     transactions = relationship("CreditTransaction", back_populates="user")
     collections = relationship("Collection", back_populates="owner")
+    project_actions = relationship("ProjectAction", back_populates="author")
+    project_versions = relationship("ProjectVersion", back_populates="author")

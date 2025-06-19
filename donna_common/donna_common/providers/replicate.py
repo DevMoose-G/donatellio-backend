@@ -106,7 +106,7 @@ class ReplicateProvider:
         model: str,
         quality: str,
         prompt: str,
-        original_image_id: str,
+        parent_image_id: str,
         **kwargs,
     ):
         image_name = f"{image_id}.png"
@@ -129,7 +129,7 @@ class ReplicateProvider:
         else:
             raise ValueError("Unsupported model")
 
-        original_image = await self.dal.image_dal.get_image_by_id(original_image_id)
+        original_image = await self.dal.image_dal.get_image_by_id(parent_image_id)
         original_image_url = self.storage_provider.generate_get_url(
             original_image.storage_key
         )
