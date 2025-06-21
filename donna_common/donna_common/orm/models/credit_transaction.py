@@ -14,6 +14,8 @@ class CreditTransaction(Base):
     )
     delta = Column(Integer, nullable=False)
     reason = Column(String(1024), nullable=False)
+    
+    action_id = Column(String(128), ForeignKey("project_actions.id"), nullable=True)
 
     user = relationship("User", back_populates="transactions", lazy="selectin")
 

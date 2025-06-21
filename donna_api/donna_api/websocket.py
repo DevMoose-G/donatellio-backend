@@ -133,7 +133,7 @@ async def image_updates(
 async def get_mesh_items(
     mesh_ids: List[str], storage_provider: StorageProvider
 ) -> List[WSMeshItem]:
-    mesh_items = []
+    mesh_items: List[WSMeshItem] = []
     mesh_image_storage_keys = {}
     mesh_storage_keys = {}
     async with AsyncSessionLocal() as session:
@@ -144,15 +144,21 @@ async def get_mesh_items(
 
             other_format_item = await mesh_dal.get_output_formats(mesh.id)
             mesh_image_storage_keys[mesh.id] = mesh.static_render_storage_key
-
-            mesh_items.append(
-                WSMeshItem(
-                    mesh_id=mesh.id,
+            
+            # mesh_url = (
+            #     storage_provider.generate_get_url(mesh.storage_key)
+            #     if mesh.storage_key
+            #     else None
+            # )
+            # mesh_image_url = (
+            #     storage_provider.generate_get_url(mesh.static_render_storage_key)
+            #     if mesh.static_render_storage_key
+            #     else None
+            # )
+            mesh_items.append(WSMeshItem(mesh_id=mesh.id,
                     image_id=mesh.image_id,
                     other_formats=other_format_item,
-                    status=mesh.status,
-                )
-            )
+                    status=mesh.status,))
 
     # now get mesh urls & mesh image urls
     for mesh_id in mesh_ids:
@@ -171,7 +177,7 @@ async def get_mesh_items(
 
         for mesh_item in mesh_items:
             if mesh_item.mesh_id == mesh_id:
-                mesh_item.url = mesh_url
+                mesh_item.mesh_url = mesh_url
                 mesh_item.mesh_image_url = mesh_image_url
                 break
 
@@ -184,12 +190,15 @@ async def get_texture_items(
     textured_items: List[WSMeshItem] = []
     texture_image_storage_keys = {}
     texture_storage_keys = {}
+    mesh_storage_keys = {}
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)
+        mesh_dal = MeshDAL(session)
         for texture_id in texture_ids:
             texture = await texture_dal.get_texture_by_id(texture_id)
+            mesh = await mesh_dal.get_mesh_by_id(texture.mesh_id)
             texture_storage_keys[texture.id] = texture.storage_key
-
+            mesh_storage_keys[texture.id] = mesh.storage_key
             other_format_item = await texture_dal.get_output_formats(texture.id)
 
             texture_image_storage_keys[texture.id] = texture.static_render_storage_key
@@ -204,10 +213,12 @@ async def get_texture_items(
                 )
             )
 
+    # better way to do this b/c not good to keep postgres session open while getting urls
     # now get texture urls & texture image urls
     for texture_id in texture_ids:
         texture_image_storage_key = texture_image_storage_keys.get(texture_id)
         texture_storage_key = texture_storage_keys.get(texture_id)
+        mesh_storage_key = mesh_storage_keys.get(texture_id)
         texture_url = (
             storage_provider.generate_get_url(texture_storage_key)
             if texture_storage_key
@@ -218,11 +229,17 @@ async def get_texture_items(
             if texture_image_storage_key
             else None
         )
+        mesh_url = (
+            storage_provider.generate_get_url(mesh_storage_key)
+            if mesh_storage_key
+            else None
+        )
 
         for textured_item in textured_items:
             if textured_item.texture_id == texture_id:
-                textured_item.url = texture_url
+                textured_item.textured_url = texture_url
                 textured_item.textured_image_url = texture_image_url
+                textured_item.mesh_url = mesh_url
                 break
 
     return textured_items

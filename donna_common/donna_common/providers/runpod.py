@@ -48,54 +48,54 @@ class RunpodProvider:
             asyncio.WindowsSelectorEventLoopPolicy()
         )  # For Windows users.
 
-    async def generate_mesh(
-        self, project_id: str, image_id: str, mesh_id: str, presigned_url: str
-    ):
-        async with aiohttp.ClientSession() as runpod_session:
-            # create mesh in database w/ status='PENDING'
-            async with AsyncSessionLocal() as session:
-                image = await ImageDAL(session).get_image_by_id(image_id)
-                project = await ProjectDAL(session).get_project_by_id(project_id)
-                assert image is not None
-                assert project is not None
-                await MeshDAL(session).create_mesh(
-                    id=mesh_id, project_id=project.id, image_id=image.id
-                )
+    # async def generate_mesh(
+    #     self, project_id: str, image_id: str, mesh_id: str, presigned_url: str
+    # ):
+    #     async with aiohttp.ClientSession() as runpod_session:
+    #         # create mesh in database w/ status='PENDING'
+    #         async with AsyncSessionLocal() as session:
+    #             image = await ImageDAL(session).get_image_by_id(image_id)
+    #             project = await ProjectDAL(session).get_project_by_id(project_id)
+    #             assert image is not None
+    #             assert project is not None
+    #             await MeshDAL(session).create_mesh(
+    #                 id=mesh_id, project_id=project.id, image_id=image.id
+    #             )
 
-            storage_provider = StorageProvider()
-            image_url = storage_provider.generate_get_url(image.storage_key)
-            input_payload = {"image_url": image_url, "presigned_urls": [presigned_url]}
-            endpoint = AsyncioEndpoint(self.endpoint_id, runpod_session)
-            job: AsyncioJob = await endpoint.run(input_payload)
+    #         storage_provider = StorageProvider()
+    #         image_url = storage_provider.generate_get_url(image.storage_key)
+    #         input_payload = {"image_url": image_url, "presigned_urls": [presigned_url]}
+    #         endpoint = AsyncioEndpoint(self.endpoint_id, runpod_session)
+    #         job: AsyncioJob = await endpoint.run(input_payload)
 
-            # Polling job status
-            while True:
-                status = await job.status()
-                print(f"Current job status: {status}")
-                if status == "COMPLETED":
-                    output = await job.output()
-                    parsed_url = urlparse(presigned_url)
+    #         # Polling job status
+    #         while True:
+    #             status = await job.status()
+    #             print(f"Current job status: {status}")
+    #             if status == "COMPLETED":
+    #                 output = await job.output()
+    #                 parsed_url = urlparse(presigned_url)
 
-                    async with AsyncSessionLocal() as session:
-                        await MeshDAL(session).update_mesh(
-                            id=mesh_id,
-                            storage_key=parsed_url.path[1:],
-                            status="COMPLETED",
-                            gpu_provider_response=str(output),
-                        )
+    #                 async with AsyncSessionLocal() as session:
+    #                     await MeshDAL(session).update_mesh(
+    #                         id=mesh_id,
+    #                         storage_key=parsed_url.path[1:],
+    #                         status="COMPLETED",
+    #                         gpu_provider_response=str(output),
+    #                     )
 
-                    print("Job output:", output)
-                    break  # Exit the loop once the job is completed.
-                elif status in ["FAILED"]:
-                    output = await job.output()
-                    print("Job failed or encountered an error.")
-                    await MeshDAL(session).update_mesh(
-                        id=mesh_id, status="FAILED", gpu_provider_response=str(output)
-                    )
-                    break
-                else:
-                    print("Job in queue or processing. Waiting 3 seconds...")
-                    await asyncio.sleep(3)
+    #                 print("Job output:", output)
+    #                 break  # Exit the loop once the job is completed.
+    #             elif status in ["FAILED"]:
+    #                 output = await job.output()
+    #                 print("Job failed or encountered an error.")
+    #                 await MeshDAL(session).update_mesh(
+    #                     id=mesh_id, status="FAILED", gpu_provider_response=str(output)
+    #                 )
+    #                 break
+    #             else:
+    #                 print("Job in queue or processing. Waiting 3 seconds...")
+    #                 await asyncio.sleep(3)
 
     async def __wake_up(self, endpoint_id: str):
         async with aiohttp.ClientSession() as runpod_session:
@@ -130,14 +130,95 @@ class RunpodProvider:
     async def regenerate_mesh_from_latents(
         self,
         project_id: str,
+        old_mesh_id: str,
         mesh_id: str,
         mc_level: float,
         octree_resolution: int,
-        max_facenum: int,
+        max_facenum: int=None,
         do_shade_smooth: bool = True,
-    ):
+        n_meshes: int = 1,
+    ) -> str:
         # TODO: regen mesh from latents
-        pass
+        async with AsyncSessionLocal() as session:
+            project = await ProjectDAL(session).get_project_by_id(project_id)
+            assert project is not None
+
+        await self.wake_up_texture()
+
+        # generate presigned url
+        storage_provider = StorageProvider()
+
+        # set mesh params
+        input_payload = {
+            "start_from_latents": True,
+            "n_meshes": n_meshes,
+            "mc_level": mc_level,
+            "octree_resolution": octree_resolution,
+            "max_facenum": max_facenum,
+            "do_shade_smooth": do_shade_smooth
+        }
+
+        mesh_mapping = {}
+        async with AsyncSessionLocal() as session:
+            await MeshDAL(session).update_mesh(
+                id=mesh_id,
+                octree_resolution=str(input_payload["octree_resolution"]),
+                face_count=max_facenum,
+                mc_level=mc_level,
+                do_shade_smooth=do_shade_smooth,
+                status="PENDING",
+            )
+        
+        # generate the presigned url to send to runpod
+        old_mesh = await MeshDAL(session).get_mesh_by_id(old_mesh_id)
+        if old_mesh.latents_storage_key is None:
+            print("latents_storage_key is None")
+            breakpoint()
+            return
+        old_mesh_latents_url = storage_provider.generate_get_url(old_mesh.latents_storage_key)
+        presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
+        mesh_mapping[mesh_id] = [old_mesh_latents_url, presigned_url]
+
+        input_payload["mesh_presigned_urls_mapping"] = mesh_mapping
+
+        async with aiohttp.ClientSession() as runpod_session:
+            input_payload = {k: v for k, v in input_payload.items() if v is not None}
+
+            endpoint = AsyncioEndpoint(self.geometry_endpoint_id, runpod_session)
+            job: AsyncioJob = await endpoint.run(input_payload)
+
+            # Polling job status
+            status = await job.status()
+            while status == "IN_QUEUE":
+                status = await job.status()
+                print(f"Current job status: {status}")
+                await asyncio.sleep(3)
+            try:
+                async for output in job.stream():
+                    presigned_url = output["mesh_presigned_url"]
+                    n_faces = output['face_count']
+                    parsed_url = urlparse(presigned_url)
+                    storage_key = parsed_url.path[1:]
+                    async with AsyncSessionLocal() as session:
+                        await MeshDAL(session).update_mesh(
+                            id=mesh_id,
+                            storage_key=storage_key,
+                            active=True,
+                            status="COMPLETED",
+                            face_count=n_faces,
+                            gpu_provider_response=str(output)[0:1024],
+                        )
+            except Exception as e:
+                breakpoint()
+                async with AsyncSessionLocal() as session:
+                    for mesh_id in mesh_mapping.keys():
+                        await MeshDAL(session).update_mesh(
+                            id=mesh_id,
+                            status="FAILED",
+                            gpu_provider_response=str(e),
+                        )
+                raise e
+        return list(mesh_mapping.keys())[0]
 
     # TODO: test if streaming works
     async def generate_untextured_mesh(
@@ -216,7 +297,8 @@ class RunpodProvider:
                 )
             # generate the presigned url to send to runpod
             presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
-            mesh_mapping[mesh_id] = presigned_url
+            latents_presigned_url = storage_provider.generate_put_url_for_latents(mesh_id)
+            mesh_mapping[mesh_id] = [latents_presigned_url, presigned_url]
 
         input_payload["mesh_presigned_urls_mapping"] = mesh_mapping
 
@@ -235,13 +317,19 @@ class RunpodProvider:
             try:
                 async for output in job.stream():
                     mesh_id = output["mesh_id"]
-                    presigned_url = output["presigned_url"]
-                    parsed_url = urlparse(presigned_url)
+                    presigned_url = output["mesh_presigned_url"]
+                    latents_presigned_url = output['latents_presigned_url']
+                    
+                    n_faces = output['face_count']
+                    parsed_mesh_url = urlparse(presigned_url)
+                    parsed_latents_url = urlparse(latents_presigned_url)
                     async with AsyncSessionLocal() as session:
                         await MeshDAL(session).update_mesh(
                             id=mesh_id,
-                            storage_key=parsed_url.path[1:],
+                            storage_key=parsed_mesh_url.path[1:],
+                            latents_storage_key=parsed_latents_url.path[1:],
                             status="COMPLETED",
+                            face_count=n_faces,
                             gpu_provider_response=str(output),
                         )
             except:

@@ -14,6 +14,9 @@ from donna_common.orm.dal.project_collection import (
 )
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
+from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
+from donna_common.orm.dal.project_action import ProjectActionDAL
+from donna_common.orm.dal.project_version import ProjectVersionDAL
 from donna_common.orm.models.collection import Collection
 from donna_common.orm.models.credit_transaction import CreditTransaction
 from donna_common.orm.models.image import Image
@@ -24,4 +27,5 @@ from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.orm.models.project_branch import ProjectBranch
 from donna_common.orm.models.project_action import ProjectAction
+from donna_common.orm.models.project_version_asset import ProjectVersionAsset
 from donna_common.orm.models.project_version import ProjectVersion

@@ -84,7 +84,7 @@ class RequestCreateImage(BaseModel):
 
 class RequestEditImage(BaseModel):
     project_id: str
-    original_image_id: str
+    parent_image_id: str
     prompt: str
     n: int
     size: str
@@ -123,7 +123,7 @@ class ItemImagePromptChat(BaseModel):
     created_at: datetime
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
-    original_image_id: Optional[str] = None
+    parent_image_url: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -152,7 +152,8 @@ class MeshFormat(BaseModel):
 class WSMeshItem(BaseModel):
     mesh_id: str
     image_id: str
-    url: Optional[str] = None
+    mesh_url: Optional[str] = None
+    textured_url: Optional[str] = None
     other_formats: Optional[MeshFormat]
     texture_id: Optional[str] = None
 

@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import PIL
 import replicate
 import requests
@@ -83,7 +84,7 @@ class ReplicateProvider:
 
         # remove the background
         output = replicate.run(
-            "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1",
+            "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
             input={"image": image_url},
         )
 
@@ -111,7 +112,7 @@ class ReplicateProvider:
     ):
         image_name = f"{image_id}.png"
 
-        prompt = f"{BASE_IMAGE_GEN_PROMPT}\n{prompt}"
+        prompt = f"{GEMINI_IMAGE_GEN_PROMPT}\n{prompt}"
 
         image_model = ""
         input_data = {"prompt": prompt}
@@ -156,7 +157,7 @@ class ReplicateProvider:
 
         # remove the background
         output = replicate.run(
-            "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1",
+            "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
             input={"image": image_url},
         )
 
@@ -173,12 +174,51 @@ class ReplicateProvider:
 
         return output
 
-    async def simplify_mesh(self, mesh_id: str, ratio: float):
-        s3_put_url = self.storage_provider.generate_put_url_for_mesh(
-            f"{mesh_id}_simp_{int(ratio * 100)}"
+    async def activate_retopology_model():
+        return await replicate.deployments.async_update(
+            deployment_name="mesh-retropology-asimp", 
+            deployment_owner="devmoose-g",
+            min_instances=1
+        )
+        
+    async def deactivate_retopology_model():
+        return await replicate.deployments.async_update(
+            deployment_name="mesh-retropology-asimp", 
+            deployment_owner="devmoose-g",
+            min_instances=0
         )
 
-        replicate.run(
-            "devmoose-g/mesh-retropology-asimp",
-            input={"glb_file": "", "s3_url": s3_put_url, "ratio": ratio},
+    async def simplify_mesh(self, old_mesh_id: str, mesh_id: str, simplify_ratio: float=None) -> str:
+        s3_put_url = self.storage_provider.generate_put_url_for_mesh(
+            f"{mesh_id}_simp_{'auto' if simplify_ratio == None else int(simplify_ratio * 100)}"
         )
+        
+        old_mesh = await self.dal.mesh_dal.get_mesh_by_id(old_mesh_id)
+        
+        glb_url = self.storage_provider.generate_get_url(old_mesh.storage_key)
+        
+        deployment = replicate.deployments.get("devmoose-g/mesh-retropology-asimp")
+        
+        pred_input = {"glb_url": glb_url, "s3_url": s3_put_url}
+        
+        # manual retopology (instead of auto)
+        if simplify_ratio != None: 
+            pred_input["ratio"] = simplify_ratio
+        
+        prediction = deployment.predictions.create(
+            input=pred_input
+        )
+        prediction.wait()
+        
+        if prediction.status == "failed":
+            mesh = await self.dal.mesh_dal.update_mesh(
+                id=mesh_id, 
+                storage_key=None,
+                gpu_provider_response=f"Error:{prediction.error[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
+                status="FAILED"
+            )
+        else:
+            parsed_url = urlparse(s3_put_url)
+            storage_key = parsed_url.path[1:]
+            mesh = await self.dal.mesh_dal.update_mesh(id=mesh_id, face_count=prediction.output['n_faces'], storage_key=storage_key, status="COMPLETED")
+        return mesh.id

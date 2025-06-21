@@ -25,8 +25,10 @@ from donna_common.orm import (
     get_user_dal,
 )
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
+from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.models.user import User
+from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 
@@ -82,6 +84,7 @@ async def create_mesh(
     req: RequestCreateMesh,
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
@@ -116,26 +119,46 @@ async def create_mesh(
         )
 
     mesh_ids = []
+    
+    main_branch = await project_dal.get_main_branch(project_id=project_id)
+    
+    params = {
+                **req.model_dump(),
+                "mesh_ids": mesh_ids,
+            }
+    
+    version = await project_branch_dal.create_version(
+        branch_id=main_branch.id,
+        author_id=current_user.id,
+        version_message=f"{req.n_meshes} mesh{'' if req.n_meshes == 1 else 'es'} created",
+    )
+    
     for _ in range(req.n_meshes):
         mesh_id = str(uuid4())
         mesh_ids.append(mesh_id)
 
-        await mesh_dal.create_mesh(
+        mesh = await mesh_dal.create_mesh(
             id=mesh_id,
             project_id=project.id,
             image_id=image.id,
             storage_key=None,
             status="PENDING",
         )
+        
+        await project_branch_dal.perform_action(
+            branch_id=main_branch.id,
+            author_id=current_user.id,
+            new_asset=mesh,
+            action_type="generate_mesh",
+            parameters=params,
+            version_id=version.id
+        )
 
     await stream.send_msg(
         MeshAction(
             project_id=project_id,
             function_name="generate_mesh",
-            params={
-                **req.model_dump(),
-                "mesh_ids": mesh_ids,
-            },
+            params=params,
         )
     )
 
@@ -149,6 +172,7 @@ async def create_texture(
     project_dal: ProjectDAL = Depends(get_project_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     texture_dal: TextureDAL = Depends(get_texture_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
@@ -189,7 +213,7 @@ async def create_texture(
         )
 
     texture_id = str(uuid4())
-    await texture_dal.create_texture(
+    texture = await texture_dal.create_texture(
         id=texture_id,
         project_id=project.id,
         image_id=image.id,
@@ -197,13 +221,259 @@ async def create_texture(
         storage_key=None,
         status="PENDING",
     )
+    
+    main_branch = await project_dal.get_main_branch(project_id=project_id)
+    
+    params = {**req.model_dump(), "texture_id": texture_id}
+    
+    await project_branch_dal.perform_action(
+        branch_id=main_branch.id,
+        author_id=current_user.id,
+        new_asset=texture,
+        action_type="generate_texture",
+        parameters=params,
+    )
 
     await stream.send_msg(
         TexturedMeshAction(
             project_id=project_id,
             function_name="generate_texture",
-            params={**req.model_dump(), "texture_id": texture_id},
+            params=params,
         )
     )
 
     return {"image_id": req.image_id, "project_id": project_id}
+
+class RequestRegenerateMesh(BaseModel):
+    project_id: str
+    mesh_id: str
+    face_count: float = None
+    level_of_detail: int = None
+    surface_thickness: float = None
+
+@router.post("/{project_id}/regen", status_code=202)
+async def regenerate_mesh(
+    req: RequestRegenerateMesh,
+    project_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
+    user_dal: UserDAL = Depends(get_user_dal),
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    current_user: User = Depends(get_current_user),
+):
+    
+    project = await project_dal.get_project_by_id(req.project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error_msg": "You don't have permission to create a mesh in this project"
+            },
+        )
+
+    old_mesh = await mesh_dal.get_mesh_by_id(req.mesh_id)
+    if not old_mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    
+    new_mesh_id = str(uuid4())
+    # copy old mesh (except octree_res, mc_level, face_count, & storage_key)
+    new_mesh = await mesh_dal.create_mesh(
+        id=new_mesh_id,
+        project_id=project.id,
+        image_id=old_mesh.image_id,
+        parent_mesh_id=old_mesh.id,
+        seed=old_mesh.seed,
+        num_inference_steps=old_mesh.num_inference_steps,
+        guidance_scale=old_mesh.guidance_scale,
+        label=old_mesh.label,
+        caption=old_mesh.caption,
+        latents_storage_key=old_mesh.latents_storage_key,
+        status="PENDING"
+    )
+    
+    stream = RedisStream("requested-jobs")
+    await stream.setup_group(new_only=False)
+    
+    main_branch = await project_dal.get_main_branch(project_id=project_id)
+    
+    version_msg = "Regenerate mesh and/or Reduce face count of mesh"
+    # if req.level_of_detail != None and req.surface_thickness != None:
+    #     version_msg += "Regenerate mesh from latents with updated options"
+    # elif req.simplify_ratio != None:
+    #     version_msg += "Reduce the face count of mesh"
+    version = await project_branch_dal.create_version(
+        branch_id=main_branch.id,
+        author_id=current_user.id,
+        version_message=version_msg
+    )
+    
+    actions_performed = []
+    if req.level_of_detail != None and req.surface_thickness != None: # temp
+        # create a new mesh (copy of the old one?) do it here or in worker (not in both)
+        # await mesh_dal.update_mesh(id=req.mesh_id, status="PENDING")
+        
+        if req.level_of_detail < 1 or req.level_of_detail > 5:
+            return JSONResponse(
+                status_code=400,
+                content={"error_msg": "Invalid level of detail"},
+            )
+        
+        octree_resolution = ""
+        if req.level_of_detail == 1:
+            octree_resolution = 128
+        elif req.level_of_detail == 2:
+            octree_resolution = 256
+        elif req.level_of_detail == 3:
+            octree_resolution = 384
+        elif req.level_of_detail == 4:
+            octree_resolution = 512
+        elif req.level_of_detail == 5:
+            octree_resolution = 768
+        
+        # check if mesh needs to be regenerated
+        if old_mesh.octree_resolution != octree_resolution or old_mesh.mc_level != req.surface_thickness:
+        
+            params = {
+                "project_id": project.id,
+                "mesh_id": new_mesh.id,
+                "mc_level": req.surface_thickness,
+                "octree_resolution": octree_resolution,
+                "old_mesh_id": old_mesh.id,
+            }
+            
+            await stream.send_msg(
+                MeshAction(
+                    project_id=req.project_id,
+                    function_name="regenerate_from_latents",
+                    params=params,
+                )
+            )
+            
+            main_branch = await project_dal.get_main_branch(project_id=project_id)
+            
+            actions_performed.append(await project_branch_dal.perform_action(
+                branch_id=main_branch.id,
+                author_id=current_user.id,
+                new_asset=new_mesh,
+                action_type="regenerate_from_latents",
+                parameters=params,
+                version_id=version.id,
+            ))
+        else:
+            print("Mesh does not need to be regenerated")
+    # TODO: send the simplify request
+    elif req.face_count != None:
+        simplify_ratio = req.face_count / old_mesh.face_count
+        if simplify_ratio >= 1 or simplify_ratio <= 0:
+            return JSONResponse(
+                status_code=400,
+                content={"error_msg": "Invalid face count"},
+            )
+        
+        params = {"simplify_ratio": simplify_ratio, "mesh_id": new_mesh.id, "old_mesh_id": old_mesh.id}
+        await stream.send_msg(
+            MeshAction(
+                project_id=req.project_id,
+                function_name="simplify_mesh",
+                params=params,
+            )
+        )
+        
+        main_branch = await project_dal.get_main_branch(project_id=project_id)
+        
+        if len(actions_performed) == 0:
+            # mesh is not being regenerated from latents, so copy over old_mesh's stats
+            new_mesh = await mesh_dal.update_mesh(
+                id=new_mesh.id,
+                mc_level=old_mesh.mc_level,
+                octree_resolution=old_mesh.octree_resolution,
+            )
+        
+        actions_performed.append(await project_branch_dal.perform_action(
+            branch_id=main_branch.id,
+            author_id=current_user.id,
+            new_asset=new_mesh,
+            action_type="simplify_mesh",
+            parameters=params,
+            version_id=version.id,
+        ))
+    
+    if len(actions_performed) == 0:
+        await mesh_dal.delete_mesh(new_mesh)
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh does not need to be regenerated or simplified"},
+        )
+
+    return {"project_id": req.project_id, "mesh_id": new_mesh.id}
+
+class GetMeshInfo(BaseModel):
+    project_id: str
+    num_faces: int
+    source_image_url: str
+    mesh_quality: str
+    level_of_detail: int
+    mc_level: float
+    created_at: datetime
+
+@router.get("/{mesh_id}")
+async def get_mesh_info(
+    mesh_id: str, 
+    mesh_dal: MeshDAL = Depends(get_mesh_dal), 
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    image_dal: ImageDAL = Depends(get_image_dal), 
+    current_user: User = Depends(get_current_user)
+):
+    
+    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+    if not mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    project = await project_dal.get_project_by_id(mesh.project_id)
+    
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to view this mesh"},
+        )
+    
+    storage_provider = StorageProvider()
+    image = await image_dal.get_image_by_id(mesh.image_id)
+    image_url = storage_provider.generate_get_url(image.storage_key)
+    
+    if mesh.num_inference_steps == 30:
+        mesh_quality = "low"
+    elif mesh.num_inference_steps == 50:
+        mesh_quality = "medium"
+    elif mesh.num_inference_steps == 70:
+        mesh_quality = "high"
+    
+    lod = None
+    if mesh.octree_resolution == None:
+        lod = 0 # TEMP
+    elif int(mesh.octree_resolution) == 128:
+        lod = 1
+    elif int(mesh.octree_resolution) == 256:
+        lod = 2
+    elif int(mesh.octree_resolution) == 384:
+        lod = 3
+    elif int(mesh.octree_resolution) == 512:
+        lod = 4
+    elif int(mesh.octree_resolution) == 768:
+        lod = 5
+    else:
+        raise Exception(f"Invalid octree resolution for mesh {mesh_id}")
+    return GetMeshInfo(
+        project_id=mesh.project_id,
+        num_faces=mesh.face_count,
+        source_image_url=image_url,
+        mesh_quality=mesh_quality,
+        level_of_detail=lod,
+        mc_level=0 if mesh.mc_level == None else mesh.mc_level,
+        created_at=mesh.created_at
+    )

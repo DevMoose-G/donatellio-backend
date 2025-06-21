@@ -20,6 +20,7 @@ from donna_common.orm import (
     get_project_dal,
     get_user_dal,
 )
+from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
 from donna_common.orm.models.user import User
 from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider, extract_s3_key
@@ -40,6 +41,7 @@ class ResponseImage(BaseModel):
 async def create_image(
     req: RequestCreateImage,
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
@@ -59,19 +61,37 @@ async def create_image(
             content={"error_msg": "Not enough credits"},
         )
 
-    await project_dal.create_project(
+    project = await project_dal.create_project(
         id=project_id, name="test", user_id=current_user.id
     )
+    
+    try:
+        main_branch = await project_dal.get_main_branch(project_id=project_id)
 
-    await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id)
-
-    await stream.send_msg(
-        ImageAction(
-            project_id=project_id,
-            function_name="generate_image",
-            params={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+        image = await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id)
+        
+        await project_branch_dal.perform_action(
+            branch_id=main_branch.id,
+            author_id=current_user.id,
+            new_asset=image,
+            action_type="generate_image",
+            parameters={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+            version_message="Image created",
         )
-    )
+
+        await stream.send_msg(
+            ImageAction(
+                type="image",
+                image_id=image_id,
+                project_id=project_id,
+                function_name="generate_image",
+                params={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+            )
+        )
+    except:
+        # delete project
+        await project_dal.hard_delete_project(project.id)
+        raise
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
@@ -81,11 +101,19 @@ async def edit_image(
     req: RequestEditImage,
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ):
     project = await project_dal.get_project_by_id(req.project_id)
+    
+    if project is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Project doesn't exist"},
+        )
+    
     if project.user_id != current_user.id:
         return JSONResponse(
             status_code=403,
@@ -102,25 +130,31 @@ async def edit_image(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
 
-    if project is None:
-        return JSONResponse(
-            status_code=400,
-            content={"error_msg": "Project doesn't exist"},
-        )
-
     await stream.send_msg(
         ImageAction(
+            type="image",
             project_id=project_id,
+            image_id=image_id,
             function_name="edit_image",
             params={**req.model_dump(), "project_id": project_id, "image_id": image_id},
         )
     )
 
-    await image_dal.create_image(
+    image = await image_dal.create_image(
         id=image_id,
         prompt=req.prompt,
         project_id=project_id,
-        original_image_id=req.original_image_id,
+        parent_image_id=req.parent_image_id,
+    )
+    
+    main_branch = await project_dal.get_main_branch(project_id=project_id)
+    await project_branch_dal.perform_action(
+        branch_id=main_branch.id,
+        author_id=current_user.id,
+        new_asset=image,
+        action_type="edit_image",
+        parameters={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+        version_message="Image edited",
     )
 
     return ResponseImage(image_id=image_id, project_id=project_id)
@@ -213,6 +247,7 @@ class RequestUploadImage(BaseModel):
 async def upload_image(
     request: RequestUploadImage,
     project_dal: ProjectDAL = Depends(get_project_dal),
+    project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ) -> ResponseImage:
@@ -220,6 +255,9 @@ async def upload_image(
     project = await project_dal.create_project(
         id=project_id, name="", user_id=current_user.id
     )
+    
+    main_branch = await project_dal.get_main_branch(project_id=project_id)
+    
     storage_key = extract_s3_key(request.presigned_url)
 
     image = await image_dal.create_image(
@@ -227,6 +265,15 @@ async def upload_image(
         prompt="Image uploaded",
         project_id=project.id,
         storage_key=storage_key,
+    )
+    
+    await project_branch_dal.perform_action(
+        branch_id=main_branch.id,
+        author_id=current_user.id,
+        new_asset=image,
+        action_type="upload_image",
+        parameters={"storage_key": storage_key, "image_id": image.id, "project_id": project.id},
+        version_message="Image uploaded",
     )
 
     # name project

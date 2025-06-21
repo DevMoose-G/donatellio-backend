@@ -30,6 +30,12 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    # skip attempts to create or alter the asset_stage_enum type
+    if type_ == "type" and name == "asset_stage_enum":
+        return False
+    return True
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 

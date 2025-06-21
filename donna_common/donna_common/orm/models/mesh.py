@@ -19,6 +19,7 @@ class Mesh(Base):
         String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=False
     )  # images?
     storage_key = Column(String(1024), nullable=True)
+    latents_storage_key = Column(String(1024), nullable=True)
     static_render_storage_key = Column(String(1024), nullable=True)
 
     format_storage_keys = Column(MutableDict.as_mutable(JSONB), nullable=True)
@@ -37,7 +38,7 @@ class Mesh(Base):
         Integer, nullable=True
     )  # more steps = smoother, detailed shapes
 
-    face_count = Column(Integer, nullable=True, default=40000)  # 5k-100k faces
+    face_count = Column(Integer, nullable=True)  # 5k-100k faces
     # need to separate face_count from user_set_face_count
 
     guidance_scale = Column(Float, nullable=True)  # 1-15, higher=listen to image more

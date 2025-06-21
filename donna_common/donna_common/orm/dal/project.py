@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 from fastapi import Depends
 from sqlalchemy import select
@@ -10,11 +10,16 @@ from donna_api.types import (
     ProjectDisplay,
     ResponseImagePromptChat,
 )
+from donna_common.orm.dal.image import ImageDAL
+from donna_common.orm.dal.project_branch import ProjectBranchDAL
+from donna_common.orm.dal.project_version import ProjectVersionDAL
 from donna_common.orm.dal.user import UserDAL
-from donna_common.orm.main import get_db
+from donna_common.orm.main import AsyncSessionLocal, get_db
 from donna_common.orm.models.image import Image
 from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.project import Project
+from donna_common.orm.models.project_action import ProjectAction
+from donna_common.orm.models.project_branch import ProjectBranch
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.storage import StorageProvider
 
@@ -46,7 +51,13 @@ class ProjectDAL:
 
             displayed_error = None
             if image.error:
-                displayed_error = "Error while generating image. Try again."
+                displayed_error = image.error
+            
+            parent_image_url = None
+            if image.parent_image_id != None:
+                async with AsyncSessionLocal() as session:
+                    parent_image = await ImageDAL(session).get_image_by_id(image.parent_image_id)
+                parent_image_url = StorageProvider().generate_get_url(parent_image.storage_key)
             image_prompts.append(
                 ItemImagePromptChat(
                     image_id=image.id,
@@ -54,7 +65,7 @@ class ProjectDAL:
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
-                    parent_image_id=image.parent_image_id,
+                    parent_image_url=parent_image_url,
                     error=displayed_error,
                 )
             )
@@ -191,9 +202,17 @@ class ProjectDAL:
     async def create_project(self, id: str, name: str, user_id: str) -> Project:
         project = Project(id=id, name=name, user_id=user_id)
         self.session.add(project)
+        
+        branch = await ProjectBranchDAL(self.session).create_branch(project_id=id, author_id=user_id, name="main")
+        
         await self.session.commit()
         await self.session.refresh(project)
         return project
+    
+    async def get_main_branch(self, project_id: str) -> ProjectBranch:
+        # TODO: handle case where main branch doesn't exist & if there are multiple main branches
+        exec = await self.session.execute(select(ProjectBranch).where(ProjectBranch.project_id == project_id, ProjectBranch.name == "main"))
+        return exec.scalars().first()
 
     async def update_project(
         self, id: str, name: str = None, user_id: str = None

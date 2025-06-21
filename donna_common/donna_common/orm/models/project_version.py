@@ -5,6 +5,7 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from donna_common.orm.base import Base
+from donna_common.orm.models.project_version_asset import ProjectVersionAsset
 
 
 class ProjectVersion(Base):
@@ -16,6 +17,7 @@ class ProjectVersion(Base):
     )
     version_number: int = Column(
         Integer,
+        nullable=False,
     )
     project_id: str = Column(
         String(128),
@@ -25,24 +27,6 @@ class ProjectVersion(Base):
     parent_version_id = Column(
         String(128),
         ForeignKey("project_versions.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    
-    image_id = Column(
-        String(128),
-        ForeignKey("images.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    
-    mesh_id = Column(
-        String(128),
-        ForeignKey("meshes.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    
-    texture_id = Column(
-        String(128),
-        ForeignKey("textures.id", ondelete="CASCADE"),
         nullable=True,
     )
     
@@ -70,3 +54,10 @@ class ProjectVersion(Base):
     project_actions = relationship(
         "ProjectAction", back_populates="project_version", lazy="selectin"
     )
+    assets = relationship(
+        "ProjectVersionAsset", back_populates="project_version", lazy="selectin"
+    )
+    # untested
+    textures = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="texture", asset_id=id))
+    meshes = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="mesh", asset_id=id))
+    images = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="image", asset_id=id))

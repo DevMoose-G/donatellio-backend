@@ -255,7 +255,11 @@ class OpenAIProvider:
 
         completed_images_stream = RedisStream("completed-jobs", group_name="image")
 
+        key = None
+        
+        events_debug = []
         for event in stream:
+            events_debug.append(event)
             if event.type == "response.image_generation_call.partial_image":
                 idx = event.partial_image_index
                 image_base64 = event.partial_image_b64
@@ -290,31 +294,74 @@ class OpenAIProvider:
                         },
                     )
                 )
-            if event.type == "response.image_generation_call.completed":
-                async with AsyncSessionLocal() as session:
-                    await ImageDAL(session).update_image(
-                        id=image_id, external_id=event.item_id
-                    )
+            elif event.type == "response.image_generation_call.completed":
+                if key != None:
+                    async with AsyncSessionLocal() as session:
+                        await ImageDAL(session).update_image(
+                            id=image_id, external_id=event.item_id
+                        )
 
-                await completed_images_stream.send_msg(
-                    ImageAction(
-                        type="image",
-                        function_name="edit_image",
-                        project_id=project_id,
-                        image_id=image_id,
-                        is_partial=False,
-                        params={
-                            "image_id": image_id,
-                            "project_id": project_id,
-                            "parent_image_id": parent_image_id,
-                            "prompt": prompt,
-                            "n": n,
-                            "size": size,
-                            "quality": quality,
-                        },
+                    await completed_images_stream.send_msg(
+                        ImageAction(
+                            type="image",
+                            function_name="edit_image",
+                            project_id=project_id,
+                            image_id=image_id,
+                            is_partial=False,
+                            params={
+                                "image_id": image_id,
+                                "project_id": project_id,
+                                "parent_image_id": parent_image_id,
+                                "prompt": prompt,
+                                "n": n,
+                                "size": size,
+                                "quality": quality,
+                            },
+                        )
                     )
-                )
-        await self.save_thumbnail(image_id, image_storage_key=key)
+            elif event.type == "response.completed":
+                if key == None:
+                    # error likely happened
+                    outputs = event.response.output
+                    error_msg = ""
+                    for output in outputs:
+                        for content in output.content:
+                            if content.type == "output_text":
+                                error_msg += f"{content.text} "
+                    
+                    if error_msg.find("safety system") != -1:
+                        error_msg = "Image was blocked by safety system. Try a different prompt or a less restrictive image model."
+                    
+                    async with AsyncSessionLocal() as session:
+                        await ImageDAL(session).update_image(
+                            id=image_id, error=error_msg, storage_key=None
+                        )
+                    
+                    await completed_images_stream.send_msg(
+                        ImageAction(
+                            type="image",
+                            function_name="edit_image",
+                            project_id=project_id,
+                            image_id=image_id,
+                            is_partial=False,
+                            params={
+                                "image_id": image_id,
+                                "project_id": project_id,
+                                "parent_image_id": parent_image_id,
+                                "prompt": prompt,
+                                "n": n,
+                                "size": size,
+                                "quality": quality,
+                            },
+                            successful=False
+                        )
+                    )
+                
+        if key == None:
+            print(events_debug)
+            breakpoint()
+        else:
+            await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
 

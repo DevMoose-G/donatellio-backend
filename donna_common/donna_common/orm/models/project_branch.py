@@ -23,8 +23,8 @@ class ProjectBranch(Base):
     )
     head_version_id: str = Column(
         String(128),
-        ForeignKey("project_versions.id", ondelete="CASCADE"),
-        nullable=True,
+        ForeignKey("project_versions.id"),
+        nullable=False,
     )
     
     created_at: datetime = Column(

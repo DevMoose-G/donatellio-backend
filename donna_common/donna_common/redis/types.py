@@ -14,7 +14,7 @@ class BaseAction(BaseModel):
 class ImageAction(BaseAction):
     type: Literal["image"] = "image"
     params: Dict[str, Any]
-    image_id: Optional[str] = None
+    image_id: str
     is_partial: Optional[bool] = False
     successful: Optional[bool] = True
 

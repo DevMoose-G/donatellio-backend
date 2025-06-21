@@ -144,7 +144,8 @@ async def get_project_info(
                 project.meshes[-1].static_render_storage_key
             )
     else:
-        preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
+        if project.images[-1].storage_key != None:
+            preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
 
     coll_paths = []
     proj_progress = None

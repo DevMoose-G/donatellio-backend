@@ -43,6 +43,17 @@ class StorageProvider:
             },
             3600,  # 1 hr
         )
+    
+    def generate_put_url_for_latents(self, mesh_name) -> str:
+        return self.__generate_presigned_url(
+            "put_object",
+            {
+                "Bucket": self.bucket,
+                "Key": f"latents/{mesh_name}.pt",
+                "ContentType": "application/octet-stream",
+            },
+            3600,  # 1 hr
+        )
 
     def generate_put_url_for_image(self, image_name, content_type="image/png") -> str:
         return self.__generate_presigned_url(

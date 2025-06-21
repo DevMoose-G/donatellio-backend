@@ -12,7 +12,7 @@ class MeshDAL:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_mesh_by_id(self, mesh_id):
+    async def get_mesh_by_id(self, mesh_id) -> Mesh:
         return await self.session.get(Mesh, mesh_id)
 
     async def create_mesh(self, id: str, **kwargs):

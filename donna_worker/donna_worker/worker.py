@@ -12,9 +12,13 @@ from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
 from donna_common.redis.types import ImageAction, MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import (
+    fill_other_formats,
+    fill_static_render_images,
     generate_mesh,
     generate_texture,
+    regenerate_from_latents,
 )
+from donna_worker.worker.setup import initialize_branches
 
 
 class DonnaWorker:
@@ -62,7 +66,7 @@ class DonnaWorker:
                     project_id=action.project_id,
                     function_name=action.function_name,
                     params=action.params,
-                    image_id=action.image_id,
+                    image_id=action.params["image_id"],
                     is_partial=False,
                 )
             )
@@ -92,7 +96,7 @@ class DonnaWorker:
                     project_id=action.project_id,
                     function_name=action.function_name,
                     params=action.params,
-                    image_id=action.image_id,
+                    image_id=action.params["image_id"],
                     is_partial=False,
                 )
             )
@@ -101,15 +105,38 @@ class DonnaWorker:
     async def handle_mesh(self, action: MeshAction):
         if action.function_name == "generate_mesh":
             mesh_ids = await generate_mesh(**action.params)
-            await self.completed_meshes_stream.send_msg(
-                MeshAction(
-                    type="mesh",
-                    params=action.params,
-                    project_id=action.project_id,
-                    function_name=action.function_name,
-                    mesh_ids=mesh_ids,
+            
+            # perform auto-retopology on generated mesh
+            for mesh_id in mesh_ids:
+                self.stream.send_msg(
+                    MeshAction(
+                        type="mesh",
+                        params={
+                            "old_mesh_id": mesh_id,
+                            "mesh_id": mesh_id,
+                        },
+                        project_id=action.project_id,
+                        function_name="simplify_mesh",
+                        mesh_ids=mesh_ids,
+                    )
                 )
+        elif action.function_name == "regenerate_from_latents":
+            mesh_id = await regenerate_from_latents(**action.params)
+            mesh_ids = [mesh_id]
+        elif action.function_name == "simplify_mesh":
+            print("Calling replicate deployment to simplify the mesh")
+            mesh_id = await self.replicate_provider.simplify_mesh(**action.params)
+            mesh_ids = [mesh_id]
+        
+        await self.completed_meshes_stream.send_msg(
+            MeshAction(
+                type="mesh",
+                params=action.params,
+                project_id=action.project_id,
+                function_name=action.function_name,
+                mesh_ids=mesh_ids,
             )
+        )
 
     @on_action("textured_mesh")
     async def handle_textured_mesh(self, action: TexturedMeshAction):
@@ -127,6 +154,9 @@ class DonnaWorker:
 
     async def mainloop(self):
         # generate_profile_image_urls()
+        # await fill_other_formats()
+        # await fill_static_render_images()
+        # await initialize_branches()
         await self.stream.setup_group(new_only=False)
 
         while True:

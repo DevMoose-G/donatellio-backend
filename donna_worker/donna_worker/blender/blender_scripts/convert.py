@@ -64,9 +64,6 @@ def export_to_stl(output_path: str):
 
 
 def reparent_to_root(output_path: str):
-    # Clear existing scene (optional, but handy)
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete()
 
     # Find the parent and its child
     #    Assumes exactly one top‐level object that has one mesh child
@@ -80,7 +77,7 @@ def reparent_to_root(output_path: str):
     bpy.context.view_layer.objects.active = child
 
     # Export only the selected object
-    bpy.ops.export_scene.gltf(filepath=output_path, export_selected_objects=True)
+    bpy.ops.export_scene.gltf(filepath=output_path, use_selection=True)
 
 
 def main():

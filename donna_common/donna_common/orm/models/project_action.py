@@ -6,13 +6,8 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
-from donna_common.orm.base import Base
+from donna_common.orm.base import Base, asset_stage_enum
 
-
-class AssetStage(enum.Enum):
-    image = "image"
-    mesh = "mesh"
-    texture = "texture"
 
 class ProjectAction(Base):
     __tablename__ = "project_actions"
@@ -20,7 +15,7 @@ class ProjectAction(Base):
     id = Column(String(128), primary_key=True)
     project_version_id = Column(String(128), ForeignKey("project_versions.id", ondelete="CASCADE"), nullable=False)
     
-    asset_stage = Column(Enum(AssetStage, name="asset_stage_enum"), nullable=False)
+    asset_stage = Column(asset_stage_enum, nullable=False)
     asset_id = Column(String(128), nullable=False)
     
     action_type = Column(String(128), nullable=False)
