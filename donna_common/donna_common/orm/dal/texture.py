@@ -52,19 +52,10 @@ class TextureDAL:
         other_formats = texture.format_storage_keys
         if other_formats != None:
             for format, key in other_formats.items():
-                if key != None:
+                if format != 'glb' and key != None:
                     other_format_url = storage_provider.generate_get_url(key)
                     other_format_item.__setattr__(f"{format}_url", other_format_url)
         return other_format_item
-
-    # async def get_textures_by_project_id(self, project_id):
-    #     return await self.session.execute(select(Texture).where(Texture.project_id == project_id)).scalars().all()
-
-    # async def get_textures_by_image_id(self, image_id):
-    #     return await self.session.execute(select(Texture).where(Texture.image_id == image_id)).scalars().all()
-
-    # async def get_textures_by_mesh_id(self, mesh_id):
-    #     return await self.session.execute(select(Texture).where(Texture.mesh_id == mesh_id)).scalars().all()
 
 
 async def get_texture_dal(db: AsyncSession = Depends(get_db)):

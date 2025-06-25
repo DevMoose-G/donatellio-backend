@@ -307,6 +307,7 @@ class RunpodProvider:
 
             endpoint = AsyncioEndpoint(self.geometry_endpoint_id, runpod_session)
             job: AsyncioJob = await endpoint.run(input_payload)
+            print("Runpod Job started")
 
             # Polling job status
             status = await job.status()

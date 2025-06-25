@@ -37,7 +37,7 @@ class MeshDAL:
         return mesh
 
     async def delete_mesh(self, mesh) -> None:
-        self.session.delete(mesh)
+        await self.session.delete(mesh)
         await self.session.commit()
         return
 

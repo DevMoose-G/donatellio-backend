@@ -40,7 +40,7 @@ class ProjectBranch(Base):
     )
     
     project = relationship(
-        "Project", back_populates="branches", lazy="selectin"
+        "Project", back_populates="branches", lazy="selectin", passive_deletes=True
     )
     
     

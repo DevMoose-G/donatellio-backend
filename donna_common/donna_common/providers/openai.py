@@ -43,7 +43,7 @@ class OpenAIProvider:
         user_input = {"role": "user", "content": []}
 
         image_get_url = None
-        if prompt is not None and len(prompt.strip()) > 0:
+        if prompt is not None and prompt != "Image uploaded":
             user_input["content"].append({"type": "input_text", "text": prompt})
         else:
             # send the image
@@ -357,10 +357,7 @@ class OpenAIProvider:
                         )
                     )
                 
-        if key == None:
-            print(events_debug)
-            breakpoint()
-        else:
+        if key != None:
             await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key

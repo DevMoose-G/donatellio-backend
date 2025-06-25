@@ -11,6 +11,7 @@ from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.texture import Texture
+from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
@@ -47,6 +48,95 @@ def crop_transparent(im):
         # Entire image is fully transparent—return as-is (or handle differently)
         return im.copy()
 
+async def render_mesh_preview_image(storage_key: str, asset_id: str, mesh_dal: MeshDAL = None, texture_dal: TextureDAL = None):
+    storage_provider = StorageProvider()
+
+    # download glb file
+    glb_path = f"{MESH_DIR}/{asset_id}.glb"
+    storage_provider.download_file(storage_key, glb_path)
+    out_dir = f"{MESH_DIR}/{asset_id}"
+    
+    render_dict = run_blender_render(glb_path, out_dir)
+    
+    # crop image
+    image = PIL.Image.open(render_dict["png"])
+    image = crop_transparent(image)
+    image.save(render_dict["png"])
+
+    png_storage_key = storage_provider.upload_image(
+        f"{asset_id}/render.png", render_dict["png"]
+    )
+    
+    if mesh_dal != None:
+        
+        asset = await mesh_dal.update_mesh(
+            asset_id,
+            static_render_storage_key=png_storage_key,
+        )
+    else:
+        asset = await texture_dal.update_texture(
+            asset_id,
+            static_render_storage_key=png_storage_key,
+        )
+    return asset
+
+async def generate_mesh_formats(asset_id: str, storage_key: str, mesh_dal: MeshDAL = None, texture_dal: TextureDAL = None):
+    storage_provider = StorageProvider()
+
+    # download glb file
+    glb_path = f"{MESH_DIR}/{asset_id}.glb"
+    storage_provider.download_file(storage_key, glb_path)
+    out_dir = f"{MESH_DIR}/{asset_id}"
+    
+
+    convert_dict = run_blender_convert(glb_path, out_dir)
+
+    # TODO: keep in mind that there are essentially 2 copies of glbs (one in mesh_id dir and one with mesh_id.glb format)
+    glb_storage_key = storage_provider.upload_mesh(
+        asset_id, f"{asset_id}.glb", convert_dict["glb"]
+    )
+
+    obj_storage_key = storage_provider.upload_mesh(
+        asset_id, f"{asset_id}.obj", convert_dict["obj"]
+    )
+    fbx_storage_key = storage_provider.upload_mesh(
+        asset_id, f"{asset_id}.fbx", convert_dict["fbx"]
+    )
+    stl_storage_key = storage_provider.upload_mesh(
+        asset_id, f"{asset_id}.stl", convert_dict["stl"]
+    )
+    blend_storage_key = storage_provider.upload_mesh(
+        asset_id, f"{asset_id}.blend", convert_dict["blend"]
+    )
+    
+    print(convert_dict["glb"])
+    # breakpoint()
+    
+
+    if mesh_dal != None:
+        
+        asset = await mesh_dal.update_mesh(
+            asset_id,
+            storage_key=glb_storage_key,
+            format_storage_keys={
+                "obj": obj_storage_key,
+                "fbx": fbx_storage_key,
+                "stl": stl_storage_key,
+                "blend": blend_storage_key,
+            },
+        )
+    else:
+        asset = await texture_dal.update_texture(
+            asset_id,
+            storage_key=glb_storage_key,
+            format_storage_keys={
+                "obj": obj_storage_key,
+                "fbx": fbx_storage_key,
+                "stl": stl_storage_key,
+                "blend": blend_storage_key,
+            },
+        )
+    return asset
 
 async def generate_mesh(
     image_id,
@@ -80,54 +170,10 @@ async def generate_mesh(
 
         for mesh_id in mesh_ids:
             mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-            storage_provider = StorageProvider()
-
-            # download glb file
-            glb_path = f"{MESH_DIR}/{mesh_id}.glb"
-            storage_provider.download_file(mesh.storage_key, glb_path)
-            out_dir = f"{MESH_DIR}/{mesh_id}"
+            # TODO: send message through websocket before converting stuff to show the user progress
             
-            # TODO: need to put these in separate function
-
-            convert_dict = run_blender_convert(glb_path, out_dir)
-
-            # TODO: keep in mind that there are essentially 2 copies of glbs (one in mesh_id dir and one with mesh_id.glb format)
-            glb_storage_key = storage_provider.upload_mesh(
-                mesh_id, f"{mesh_id}.glb", convert_dict["glb"]
-            )
-
-            obj_storage_key = storage_provider.upload_mesh(
-                mesh_id, f"{mesh_id}.obj", convert_dict["obj"]
-            )
-            fbx_storage_key = storage_provider.upload_mesh(
-                mesh_id, f"{mesh_id}.fbx", convert_dict["fbx"]
-            )
-            stl_storage_key = storage_provider.upload_mesh(
-                mesh_id, f"{mesh_id}.stl", convert_dict["stl"]
-            )
-            blend_storage_key = storage_provider.upload_mesh(
-                mesh_id, f"{mesh_id}.blend", convert_dict["blend"]
-            )
-            
-            print(convert_dict["glb"])
-            breakpoint()
-            render_dict = run_blender_render(convert_dict["glb"], out_dir)
-
-            png_storage_key = storage_provider.upload_image(
-                f"{mesh_id}/render.png", render_dict["png"]
-            )
-
-            mesh = await mesh_dal.update_mesh(
-                mesh_id,
-                storage_key=glb_storage_key,
-                static_render_storage_key=png_storage_key,
-                format_storage_keys={
-                    "obj": obj_storage_key,
-                    "fbx": fbx_storage_key,
-                    "stl": stl_storage_key,
-                    "blend": blend_storage_key,
-                },
-            )
+            await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
+            await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
 
     return mesh_ids
 
@@ -158,48 +204,10 @@ async def generate_texture(
         texture_dal = TextureDAL(session)
 
         texture = await texture_dal.get_texture_by_id(texture_id)
-        storage_provider = StorageProvider()
-
-        # download glb file
-        glb_path = f"{TEXTURE_DIR}/{texture_id}.glb"
-        storage_provider.download_file(texture.storage_key, glb_path)
-        out_dir = f"{TEXTURE_DIR}/{mesh_id}"
-
-        convert_dict = run_blender_convert(glb_path, out_dir)
+        # TODO: send message through websocket before converting stuff to show the user progress
         
-        # TODO: keep in mind that there are essentially 2 copies of glbs (one in mesh_id dir and one with mesh_id.glb format)
-        glb_storage_key = storage_provider.upload_mesh(
-            texture_id, f"{texture_id}.glb", convert_dict["glb"]
-        )
-        obj_storage_key = storage_provider.upload_mesh(
-            texture_id, f"{texture_id}.obj", convert_dict["obj"]
-        )
-        fbx_storage_key = storage_provider.upload_mesh(
-            texture_id, f"{texture_id}.fbx", convert_dict["fbx"]
-        )
-        stl_storage_key = storage_provider.upload_mesh(
-            texture_id, f"{texture_id}.stl", convert_dict["stl"]
-        )
-        blend_storage_key = storage_provider.upload_mesh(
-            texture_id, f"{texture_id}.blend", convert_dict["blend"]
-        )
-        
-        render_dict = run_blender_render(glb_path, out_dir)
-        png_storage_key = storage_provider.upload_image(
-            f"{texture_id}/render.png", render_dict["png"]
-        )
-
-        texture = await texture_dal.update_texture(
-            texture_id,
-            static_render_storage_key=png_storage_key,
-            format_storage_keys={
-                "glb": glb_storage_key,
-                "obj": obj_storage_key,
-                "fbx": fbx_storage_key,
-                "stl": stl_storage_key,
-                "blend": blend_storage_key,
-            },
-        )
+        await generate_mesh_formats(texture_id, texture.storage_key, texture_dal=texture_dal)
+        await render_mesh_preview_image(texture.storage_key, texture_id, texture_dal=texture_dal)
 
     return texture_id
 
@@ -221,52 +229,25 @@ async def regenerate_from_latents(project_id, old_mesh_id, mesh_id, mc_level, oc
         mesh_dal = MeshDAL(session)
 
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-        storage_provider = StorageProvider()
-
-        # download glb file
-        glb_path = f"{MESH_DIR}/{mesh_id}.glb"
-        storage_provider.download_file(mesh.storage_key, glb_path)
-        out_dir = f"{MESH_DIR}/{mesh_id}"
-
-        render_dict = run_blender_render(glb_path, out_dir)
-
-        png_storage_key = storage_provider.upload_image(
-            f"{mesh_id}/render.png", render_dict["png"]
-        )
-
-        convert_dict = run_blender_convert(glb_path, out_dir)
-
-        # TODO: keep in mind that there are essentially 2 copies of glbs (one in mesh_id dir and one with mesh_id.glb format)
-        glb_storage_key = storage_provider.upload_mesh(
-            mesh_id, f"{mesh_id}.glb", convert_dict["glb"]
-        )
-
-        obj_storage_key = storage_provider.upload_mesh(
-            mesh_id, f"{mesh_id}.obj", convert_dict["obj"]
-        )
-        fbx_storage_key = storage_provider.upload_mesh(
-            mesh_id, f"{mesh_id}.fbx", convert_dict["fbx"]
-        )
-        stl_storage_key = storage_provider.upload_mesh(
-            mesh_id, f"{mesh_id}.stl", convert_dict["stl"]
-        )
-        blend_storage_key = storage_provider.upload_mesh(
-            mesh_id, f"{mesh_id}.blend", convert_dict["blend"]
-        )
-
-        mesh = await mesh_dal.update_mesh(
-            mesh_id,
-            storage_key=glb_storage_key,
-            static_render_storage_key=png_storage_key,
-            format_storage_keys={
-                "obj": obj_storage_key,
-                "fbx": fbx_storage_key,
-                "stl": stl_storage_key,
-                "blend": blend_storage_key,
-            },
-        )
+        # TODO: send message through websocket before converting stuff to show the user progress
+        await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
+        await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
     return mesh.id
-            
+
+async def simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=None):
+    replicate_provider = ReplicateProvider()
+    await replicate_provider.simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=simplify_ratio)
+    
+    os.makedirs(MESH_DIR, exist_ok=True)
+
+    async with AsyncSessionLocal() as session:
+        mesh_dal = MeshDAL(session)
+
+        mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+        # TODO: send message through websocket before converting stuff to show the user progress
+        await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
+        await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
+    return mesh.id
 
 async def fill_static_render_images():
     async with AsyncSessionLocal() as session:
@@ -281,22 +262,7 @@ async def fill_static_render_images():
         for texture in textures:
             if texture.storage_key == None:
                 continue
-            glb_path = f"{TEXTURE_DIR}/{texture.id}.glb"
-            storage_provider.download_file(texture.storage_key, glb_path)
-            out_dir = f"{TEXTURE_DIR}/{texture.id}"
-            render_dict = run_blender_render(glb_path, out_dir)
-
-            # crop image
-            image = PIL.Image.open(render_dict["png"])
-            image = crop_transparent(image)
-            image.save(render_dict["png"])
-
-            png_storage_key = storage_provider.upload_image(
-                f"{texture.id}/render.png", render_dict["png"]
-            )
-            await texture_dal.update_texture(
-                texture.id, static_render_storage_key=png_storage_key
-            )
+            await render_mesh_preview_image(texture.storage_key, texture.id, texture_dal=texture_dal)
 
         meshes = await mesh_dal.get_meshes_by(
             filter=(Mesh.static_render_storage_key == None) & (Mesh.storage_key != None)
@@ -304,22 +270,7 @@ async def fill_static_render_images():
         for mesh in meshes:
             if mesh.storage_key == None:
                 continue
-            glb_path = f"{MESH_DIR}/{mesh.id}.glb"
-            storage_provider.download_file(mesh.storage_key, glb_path)
-            out_dir = f"{MESH_DIR}/{mesh.id}"
-            render_dict = run_blender_render(glb_path, out_dir)
-
-            # crop image
-            image = PIL.Image.open(render_dict["png"])
-            image = crop_transparent(image)
-            image.save(render_dict["png"])
-
-            png_storage_key = storage_provider.upload_image(
-                f"{mesh.id}/render.png", render_dict["png"]
-            )
-            await mesh_dal.update_mesh(
-                mesh.id, static_render_storage_key=png_storage_key
-            )
+            await render_mesh_preview_image(mesh.storage_key, mesh.id, mesh_dal=mesh_dal)
 
 
 async def fill_other_formats():
@@ -334,64 +285,13 @@ async def fill_other_formats():
         for texture in textures:
             if texture.storage_key == None:
                 continue
-            glb_path = f"{TEXTURE_DIR}/{texture.id}.glb"
-            storage_provider.download_file(texture.storage_key, glb_path)
-            out_dir = f"{TEXTURE_DIR}/{texture.id}"
-            convert_dict = run_blender_convert(glb_path, out_dir)
-
-            obj_key = storage_provider.upload_mesh(
-                texture.id, f"{texture.id}.obj", convert_dict["obj"]
-            )
-            fbx_key = storage_provider.upload_mesh(
-                texture.id, f"{texture.id}.fbx", convert_dict["fbx"]
-            )
-            stl_key = storage_provider.upload_mesh(
-                texture.id, f"{texture.id}.stl", convert_dict["stl"]
-            )
-            blend_key = storage_provider.upload_mesh(
-                texture.id, f"{texture.id}.blend", convert_dict["blend"]
-            )
-
-            await texture_dal.update_texture(
-                texture.id,
-                format_storage_keys={
-                    "obj": obj_key,
-                    "fbx": fbx_key,
-                    "stl": stl_key,
-                    "blend": blend_key,
-                },
-            )
+            await generate_mesh_formats(texture.id, texture.storage_key, texture_dal=texture_dal)
 
         meshes = await mesh_dal.get_meshes_by(Mesh.format_storage_keys == None)
         for mesh in meshes:
             if mesh.storage_key == None:
                 continue
-            glb_path = f"{MESH_DIR}/{mesh.id}.glb"
-            storage_provider.download_file(mesh.storage_key, glb_path)
-            out_dir = f"{MESH_DIR}/{mesh.id}"
-            convert_dict = run_blender_convert(glb_path, out_dir)
-            obj_key = storage_provider.upload_mesh(
-                mesh.id, f"{mesh.id}.obj", convert_dict["obj"]
-            )
-            fbx_key = storage_provider.upload_mesh(
-                mesh.id, f"{mesh.id}.fbx", convert_dict["fbx"]
-            )
-            stl_key = storage_provider.upload_mesh(
-                mesh.id, f"{mesh.id}.stl", convert_dict["stl"]
-            )
-            blend_key = storage_provider.upload_mesh(
-                mesh.id, f"{mesh.id}.blend", convert_dict["blend"]
-            )
-
-            await mesh_dal.update_mesh(
-                mesh.id,
-                format_storage_keys={
-                    "obj": obj_key,
-                    "fbx": fbx_key,
-                    "stl": stl_key,
-                    "blend": blend_key,
-                },
-            )
+            await generate_mesh_formats(mesh.id, mesh.storage_key, mesh_dal=mesh_dal)
 
 
 def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
@@ -453,16 +353,19 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
         raise RuntimeError(f"Blender export failed: {err}")
 
     # Validate that each file actually exists
-    # for key, path in result.items():
-    #     if not os.path.isfile(path):
-    #         raise RuntimeError(f"Expected output {key} was not created: {path}")
+    for key, path in result.items():
+        if not os.path.isfile(path):
+            breakpoint()
+            raise RuntimeError(f"Expected output {key} was not created: {path}")
     
     return result
 
 
 def run_blender_render(glb_path, out_dir, clear_texture=False) -> Dict[str, str]:
-    glb_path = os.path.abspath(glb_path)
-    out_dir = os.path.abspath(out_dir)
+    if os.path.isabs(glb_path) == False:
+        glb_path = os.path.abspath(glb_path)
+    if os.path.isabs(out_dir) == False:
+        out_dir = os.path.abspath(out_dir)
 
     # Ensure input file exists
     if not os.path.isfile(glb_path):
@@ -498,6 +401,7 @@ def run_blender_render(glb_path, out_dir, clear_texture=False) -> Dict[str, str]
     if proc.returncode != 0:
         err = proc.stderr or proc.stdout
         raise RuntimeError(f"Blender export failed: {err}")
+    
     # On success, our script prints the output paths to stdout
     # For simplicity, parse the printed lines:
     result = {"png": None}
@@ -507,7 +411,7 @@ def run_blender_render(glb_path, out_dir, clear_texture=False) -> Dict[str, str]
 
     # Validate that each file actually exists
     for key, path in result.items():
-        if not os.path.isfile(path):
-            raise RuntimeError(f"Expected output {key} was not created: {path}")
+        if path is None or not os.path.isfile(path):
+            raise RuntimeError(f"Output: \n{proc.stdout}\n\nExpected output {key} was not created: {path}")
 
     return result

@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     default_provider: str = Field("runpod", env="DEFAULT_PROVIDER")
 
     replicate_api_token: str = Field(..., env="REPLICATE_API_TOKEN")
+    
+    black_forest_api_token: str = Field(..., env="BLACK_FOREST_API_TOKEN")
 
     class Config:
         env_file = ".env"

@@ -12,6 +12,8 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,  # set to true for debugging
+    pool_timeout=30,
+    pool_pre_ping=True
 )
 
 AsyncSessionLocal = sessionmaker(

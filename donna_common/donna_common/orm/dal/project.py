@@ -240,6 +240,14 @@ class ProjectDAL:
 
     async def hard_delete_project(self, project_id: str) -> None:
         project = await self.get_project_by_id(project_id)
+        
+        for branch in project.branches:
+            await ProjectBranchDAL(self.session).hard_delete_branch(branch_id=branch.id)
+        # for version in project.versions:
+        #     for assets in version.assets:
+        #         await self.session.delete(assets)
+        #     await self.session.delete(version)
+        
         await self.session.delete(project)
         await self.session.commit()
 

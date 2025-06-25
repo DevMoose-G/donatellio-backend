@@ -68,8 +68,12 @@ def reparent_to_root(output_path: str):
     # Find the parent and its child
     #    Assumes exactly one top‐level object that has one mesh child
     all_objs = bpy.context.scene.collection.objects
-    parent = next(o for o in all_objs if o.children)  # first object with children
-    child = parent.children[0]
+    parent = next((o for o in all_objs if o.children), None)  # first object with children
+    if parent is None:
+        # already reparented
+        child = all_objs[0]
+    else:
+        child = parent.children[0]
 
     # Deselect everything, then select only the child
     bpy.ops.object.select_all(action="DESELECT")

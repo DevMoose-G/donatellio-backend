@@ -17,6 +17,7 @@ from donna_worker.worker.mesh import (
     generate_mesh,
     generate_texture,
     regenerate_from_latents,
+    simplify_mesh,
 )
 from donna_worker.worker.setup import initialize_branches
 
@@ -103,12 +104,13 @@ class DonnaWorker:
 
     @on_action("mesh")
     async def handle_mesh(self, action: MeshAction):
+        print("Got mesh action:", action)
         if action.function_name == "generate_mesh":
             mesh_ids = await generate_mesh(**action.params)
             
             # perform auto-retopology on generated mesh
             for mesh_id in mesh_ids:
-                self.stream.send_msg(
+                await self.stream.send_msg(
                     MeshAction(
                         type="mesh",
                         params={
@@ -125,7 +127,7 @@ class DonnaWorker:
             mesh_ids = [mesh_id]
         elif action.function_name == "simplify_mesh":
             print("Calling replicate deployment to simplify the mesh")
-            mesh_id = await self.replicate_provider.simplify_mesh(**action.params)
+            mesh_id = await simplify_mesh(**action.params)
             mesh_ids = [mesh_id]
         
         await self.completed_meshes_stream.send_msg(
@@ -154,8 +156,8 @@ class DonnaWorker:
 
     async def mainloop(self):
         # generate_profile_image_urls()
-        # await fill_other_formats()
-        # await fill_static_render_images()
+        await fill_other_formats()
+        await fill_static_render_images()
         # await initialize_branches()
         await self.stream.setup_group(new_only=False)
 

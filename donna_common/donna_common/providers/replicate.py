@@ -16,6 +16,11 @@ class ReplicateProvider:
     def __init__(self):
         self.storage_provider = StorageProvider()
         self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
+        
+        self.blackforest_headers = {
+            "x-key": settings.black_forest_api_token,
+            "Content-Type": "application/json"
+        }
 
     # copied from OpenAIProvider
     async def save_thumbnail(self, image_id, image_storage_key):
@@ -30,6 +35,27 @@ class ReplicateProvider:
         await self.dal.image_dal.update_image(
             id=image_id, thumbnail_image_storage_key=key
         )
+    
+    async def edit_image_flux_kontext(self, prompt, image_url, quality="high"):
+        url = f"https://api.bfl.ai/v1/flux-kontext-{'max' if quality == 'high' else 'pro'}"
+
+        payload = {
+            "prompt": prompt,
+            "input_image": image_url,
+            "aspect_ratio": "1:1",
+            "output_format": "png",
+            "prompt_upsampling": True,
+            "safety_tolerance": 6
+        }
+        headers = {
+            "x-key": "<api-key>",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.request("POST", url, json=payload, headers=headers)
+        response.json()
+        raise NotImplementedError
+
 
     async def generate_image(
         self, image_id: str, model: str, quality: str, prompt: str

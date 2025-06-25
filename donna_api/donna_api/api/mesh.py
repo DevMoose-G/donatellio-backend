@@ -1,9 +1,10 @@
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
@@ -31,6 +32,7 @@ from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import MeshAction, TexturedMeshAction
+from donna_worker.worker.mesh import MESH_DIR
 
 load_dotenv()  # reads .env from cwd
 
@@ -51,12 +53,6 @@ def calculate_texture_gen_cost(prompt, texture_quality):
     quality_multiplier = texture_quality_multiplier[texture_quality]
     cost = quality_multiplier
     return cost
-
-
-class GetMeshInfo(BaseModel):
-    name: str
-    created_at: datetime
-    editable: bool
 
 
 @router.post("/{project_id}/preview/mesh_cost", status_code=200)
@@ -232,6 +228,7 @@ async def create_texture(
         new_asset=texture,
         action_type="generate_texture",
         parameters=params,
+        version_message="Texture generated"
     )
 
     await stream.send_msg(
@@ -334,12 +331,12 @@ async def regenerate_mesh(
             octree_resolution = 768
         
         # check if mesh needs to be regenerated
-        if old_mesh.octree_resolution != octree_resolution or old_mesh.mc_level != req.surface_thickness:
+        if old_mesh.octree_resolution != str(octree_resolution) or old_mesh.mc_level != req.surface_thickness:
         
             params = {
                 "project_id": project.id,
                 "mesh_id": new_mesh.id,
-                "mc_level": req.surface_thickness,
+                "mc_level": -1 * req.surface_thickness,
                 "octree_resolution": octree_resolution,
                 "old_mesh_id": old_mesh.id,
             }
@@ -362,10 +359,28 @@ async def regenerate_mesh(
                 parameters=params,
                 version_id=version.id,
             ))
+            
+            if req.face_count == None:
+                params = {"simplify_ratio": simplify_ratio, "mesh_id": new_mesh.id, "old_mesh_id": old_mesh.id}
+                await stream.send_msg(
+                    MeshAction(
+                        project_id=req.project_id,
+                        function_name="simplify_mesh",
+                        params=params,
+                    )
+                )
+                
+                actions_performed.append(await project_branch_dal.perform_action(
+                    branch_id=main_branch.id,
+                    author_id=current_user.id,
+                    new_asset=new_mesh,
+                    action_type="simplify_mesh",
+                    parameters=params,
+                    version_id=version.id,
+                ))
         else:
             print("Mesh does not need to be regenerated")
-    # TODO: send the simplify request
-    elif req.face_count != None:
+    if req.face_count != None:
         simplify_ratio = req.face_count / old_mesh.face_count
         if simplify_ratio >= 1 or simplify_ratio <= 0:
             return JSONResponse(
@@ -412,12 +427,12 @@ async def regenerate_mesh(
 
 class GetMeshInfo(BaseModel):
     project_id: str
-    num_faces: int
     source_image_url: str
     mesh_quality: str
-    level_of_detail: int
-    mc_level: float
     created_at: datetime
+    level_of_detail: Optional[int] = None
+    mc_level: Optional[float] = None
+    num_faces: Optional[int] = None
 
 @router.get("/{mesh_id}")
 async def get_mesh_info(
@@ -446,6 +461,7 @@ async def get_mesh_info(
     image = await image_dal.get_image_by_id(mesh.image_id)
     image_url = storage_provider.generate_get_url(image.storage_key)
     
+    mesh_quality = ""
     if mesh.num_inference_steps == 30:
         mesh_quality = "low"
     elif mesh.num_inference_steps == 50:
@@ -476,4 +492,58 @@ async def get_mesh_info(
         level_of_detail=lod,
         mc_level=0 if mesh.mc_level == None else mesh.mc_level,
         created_at=mesh.created_at
+    )
+
+@router.get("/{asset_id}/download")
+async def get_mesh_format_download(
+    asset_id: str, 
+    format: str,
+    textured: Optional[bool] = False,
+    mesh_dal: MeshDAL = Depends(get_mesh_dal), 
+    texture_dal: TextureDAL = Depends(get_texture_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user)
+):
+    if textured:
+        asset = await texture_dal.get_texture_by_id(asset_id)
+    else:
+        asset = await mesh_dal.get_mesh_by_id(asset_id)
+    project = await project_dal.get_project_by_id(asset.project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to view this mesh"},
+        )
+    
+    format = format.lower()
+    if format not in ['glb', 'fbx', 'obj', 'blend', 'stl']:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Invalid format"},
+        )
+    
+    storage_provider = StorageProvider()
+    mesh_path = f"{MESH_DIR}/{asset_id}.{format}"
+    mesh_type = ""
+    if format == "glb":
+        storage_provider.download_file(asset.storage_key, mesh_path)
+        mesh_type = "model/gltf-binary"
+        # mesh_url = storage_provider.generate_get_url(mesh.storage_key)
+    else:
+        storage_provider.download_file(asset.format_storage_keys[format], mesh_path)
+        
+        if (format == "blend"):
+            mesh_type = "application/octet-stream"
+        elif (format == "fbx"):
+            mesh_type = "application/octet-stream"
+        elif (format == "obj"):
+            mesh_type = "model/obj"
+        elif (format == "stl"):
+            mesh_type = "model/stl"
+        # mesh_url = storage_provider.generate_get_url(mesh.format_storage_keys[format])
+    
+    return FileResponse(
+        path=mesh_path,
+        media_type=mesh_type,
+        filename=f"export.{format}"
     )

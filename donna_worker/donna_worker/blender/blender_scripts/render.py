@@ -49,7 +49,12 @@ def render(is_textured, input_path, output_path):
 
     # 4. Get reference to imported object
     obj = bpy.context.selected_objects[0]
-    bb = get_world_bbox(obj.children[0])
+    # try:
+    #     obj = obj.children[0]
+    # except IndexError:
+    #     pass
+    
+    bb = get_world_bbox(obj)
     print(bb)
     print(bb[0].y)
 

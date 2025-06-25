@@ -30,3 +30,5 @@ class ProjectVersionDAL:
         return version
 
     
+async def get_project_version_dal(session: AsyncSession = Depends(get_db)) -> ProjectVersionDAL:
+    return ProjectVersionDAL(session)

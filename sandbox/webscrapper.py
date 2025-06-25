@@ -208,7 +208,11 @@ def main():
                 driver.get(href)
                 try_download()
                 wait_for_download()
-                rename_latest_file(f"{name}.glb", filename)
+                try:
+                    rename_latest_file(f"{name}.glb", filename)
+                except:
+                    print(f"Failed to rename {name}.glb")
+                    
             # 9) NAVIGATE BACK TO THE PARENT PAGE (so you can continue the loop)
             driver.back()
             sleep_randomly(5)

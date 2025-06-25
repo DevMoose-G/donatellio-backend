@@ -148,22 +148,29 @@ class MeshFormat(BaseModel):
     stl_url: Optional[str] = None
     blend_url: Optional[str] = None
 
-
 class WSMeshItem(BaseModel):
     mesh_id: str
-    image_id: str
     mesh_url: Optional[str] = None
-    textured_url: Optional[str] = None
-    other_formats: Optional[MeshFormat]
-    texture_id: Optional[str] = None
-
-    textured_image_url: Optional[str] = None
     mesh_image_url: Optional[str] = None
+    other_formats: Optional[MeshFormat]
     status: str
 
+class WSTextureItem(BaseModel):
+    texture_id: str
+    texture_url: Optional[str] = None
+    texture_image_url: Optional[str] = None
+    other_formats: Optional[MeshFormat]
+    status: str
 
-class WSMeshResponse(BaseModel):
-    meshes: List[WSMeshItem]
+class WSModelItem(BaseModel):
+    image_id: str
+    mesh: WSMeshItem
+    texture: Optional[WSTextureItem] = None
+    
+
+
+class WSModelResponse(BaseModel):
+    models: List[WSModelItem]
 
 
 class AssetDisplay(BaseModel):

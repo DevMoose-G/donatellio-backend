@@ -18,7 +18,7 @@ class ModifyMeshRequest(BaseRequest):
     
     mc_level: float = 0.0
     octree_resolution: int = 256
-    max_facenum: int = None
+    max_facenum: int = 200_000
     do_shade_smooth: bool = True
     
 class GenerateModelRequest(BaseRequest):
@@ -32,7 +32,7 @@ class GenerateModelRequest(BaseRequest):
     octree_resolution: int = 256 # 256, 384, 512, 768, 1024
 
     guidance_scale: float = 7.5
-    max_facenum: int = None
+    max_facenum: int = 200_000
 
     # if you see gaps or thin bits dropped, rerun with mc_level slightly negative (e.g. -0.05).
     # if your silhouette is too bloated or fuzzy, push mc_level slightly positive (e.g. +0.02).
@@ -57,7 +57,7 @@ if on_runpod:
 
 geom_pipe = Step1X3DGeometryPipeline.from_pretrained(
     cache_dir if on_runpod else "stepfun-ai/Step1X-3D", 
-    subfolder='Step1X-3D-Geometry-1300m'
+    subfolder='Step1X-3D-Geometry-Label-1300m'
 ).to(device)
 
 
@@ -77,10 +77,6 @@ def generate_meshes(request: GenerateModelRequest, n_meshes: int) -> str:
         mc_level=request.mc_level
     )
 
-    # export untextured mesh as .glb format
-    # meshes = []
-    # untexture_mesh = remove_degenerate_face(out.mesh[0])
-    # untexture_mesh = reduce_face(untexture_mesh)
     return out.mesh
 
 def generate_latents(request: GenerateModelRequest, n_meshes: int) -> FloatTensor:

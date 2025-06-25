@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, and_
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
@@ -41,7 +41,7 @@ class ProjectVersion(Base):
     
     
     project = relationship(
-        "Project", back_populates="versions", lazy="selectin"
+        "Project", back_populates="versions", lazy="selectin", passive_deletes=True
     )
     author = relationship("User", back_populates="project_versions", lazy="selectin")
     parent_version = relationship(
@@ -52,12 +52,23 @@ class ProjectVersion(Base):
     )
     
     project_actions = relationship(
-        "ProjectAction", back_populates="project_version", lazy="selectin"
+        "ProjectAction", back_populates="project_version", lazy="selectin", cascade="all, delete-orphan"
     )
     assets = relationship(
-        "ProjectVersionAsset", back_populates="project_version", lazy="selectin"
+        "ProjectVersionAsset", back_populates="project_version", lazy="selectin", passive_deletes=True, cascade="all, delete-orphan",
     )
-    # untested
-    textures = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="texture", asset_id=id))
-    meshes = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="mesh", asset_id=id))
-    images = association_proxy("assets", "asset_id", creator=lambda id: ProjectVersionAsset(asset_type="image", asset_id=id))
+
+    meshes_assets = relationship("ProjectVersionAsset", primaryjoin=and_(ProjectVersionAsset.project_version_id == id, ProjectVersionAsset.asset_type == "mesh"), viewonly=True, lazy="selectin")
+    mesh_ids = association_proxy(
+        "meshes_assets", "asset_id"
+    )
+    
+    texture_assets = relationship("ProjectVersionAsset", primaryjoin=and_(ProjectVersionAsset.project_version_id == id, ProjectVersionAsset.asset_type == "texture"), viewonly=True, lazy="selectin")
+    texture_ids = association_proxy(
+        "texture_assets", "asset_id"
+    )
+    
+    image_assets = relationship("ProjectVersionAsset", primaryjoin=and_(ProjectVersionAsset.project_version_id == id, ProjectVersionAsset.asset_type == "image"), viewonly=True, lazy="selectin")
+    image_ids = association_proxy(
+        "image_assets", "asset_id"
+    )

@@ -95,8 +95,9 @@ class ProjectBranchDAL:
             # raise RuntimeError(400, detail="Need either branch_id or version_id to perform action")
         
         if version_id is None:
+            if version_message is None:
+                raise RuntimeError(400, detail="Need either version_message or version_id to perform action")
             version = await self.create_version(branch_id=branch_id, author_id=author_id, version_message=version_message)
-        
         else:
             project_version_dal = ProjectVersionDAL(self.session)
             version = await project_version_dal.get_version_by_id(version_id)
@@ -106,6 +107,12 @@ class ProjectBranchDAL:
         # loop through actions to update those links
         await project_version_asset_dal.update_from_actions(project_version_id=version.id, actions=[action])
         return action
+
+    async def hard_delete_branch(self, branch_id: str) -> ProjectBranch:
+        branch = await self.get_branch_by_id(branch_id)
+        await self.session.delete(branch)
+        await self.session.commit()
+        return branch
     
 def get_project_branch_dal(session: AsyncSession = Depends(get_db)) -> ProjectBranchDAL:
     return ProjectBranchDAL(session)

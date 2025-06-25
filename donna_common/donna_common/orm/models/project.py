@@ -45,18 +45,19 @@ class Project(Base):
     )
 
     assoc_collections = relationship(
-        "ProjectCollection", back_populates="project", lazy="selectin"
+        "ProjectCollection", back_populates="project", lazy="selectin", passive_deletes=True, cascade="all, delete-orphan"
     )
     collections = association_proxy("assoc_collections", "collection")
     
-    versions = relationship(
-        "ProjectVersion",
+    branches = relationship(
+        "ProjectBranch",
         back_populates="project",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    branches = relationship(
-        "ProjectBranch",
+    
+    versions = relationship(
+        "ProjectVersion",
         back_populates="project",
         lazy="selectin",
         cascade="all, delete-orphan",
