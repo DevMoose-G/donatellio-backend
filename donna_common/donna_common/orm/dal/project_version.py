@@ -16,7 +16,8 @@ class ProjectVersionDAL:
     
     async def get_all_versions(self, project_id: str) -> List[ProjectVersion]:
         stmt = select(ProjectVersion).where(ProjectVersion.project_id == project_id)
-        return await self.session.scalars(stmt)
+        exec = await self.session.execute(stmt)
+        return exec.scalars().all()
     
     async def get_version_by_id(self, version_id: str) -> ProjectVersion:
         return await self.session.get(ProjectVersion, version_id)
@@ -28,6 +29,13 @@ class ProjectVersionDAL:
         await self.session.commit()
         await self.session.refresh(version)
         return version
+    
+    async def hard_delete_version(self, version_id: str) -> None:
+        version = await self.get_version_by_id(version_id=version_id)
+        for assets in version.assets:
+            await self.session.delete(assets)
+        await self.session.delete(version)
+        await self.session.commit()
 
     
 async def get_project_version_dal(session: AsyncSession = Depends(get_db)) -> ProjectVersionDAL:

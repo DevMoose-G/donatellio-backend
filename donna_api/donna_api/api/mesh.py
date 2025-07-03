@@ -25,9 +25,13 @@ from donna_common.orm import (
     get_project_dal,
     get_user_dal,
 )
+from donna_common.orm.base import AssetStage
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
 from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
+from donna_common.orm.dal.project_version import ProjectVersionDAL, get_project_version_dal
+from donna_common.orm.dal.project_version_asset import ProjectVersionAssetDAL, get_project_version_asset_dal
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
+from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
@@ -254,6 +258,7 @@ async def regenerate_mesh(
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
     project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
+    project_version_dal: ProjectVersionDAL = Depends(get_project_version_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     current_user: User = Depends(get_current_user),
@@ -313,6 +318,7 @@ async def regenerate_mesh(
         # await mesh_dal.update_mesh(id=req.mesh_id, status="PENDING")
         
         if req.level_of_detail < 1 or req.level_of_detail > 5:
+            await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(
                 status_code=400,
                 content={"error_msg": "Invalid level of detail"},
@@ -383,6 +389,7 @@ async def regenerate_mesh(
     if req.face_count != None:
         simplify_ratio = req.face_count / old_mesh.face_count
         if simplify_ratio >= 1 or simplify_ratio <= 0:
+            await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(
                 status_code=400,
                 content={"error_msg": "Invalid face count"},
@@ -418,6 +425,7 @@ async def regenerate_mesh(
     
     if len(actions_performed) == 0:
         await mesh_dal.delete_mesh(new_mesh)
+        await project_version_dal.hard_delete_version(version_id=version.id)
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Mesh does not need to be regenerated or simplified"},
@@ -547,3 +555,46 @@ async def get_mesh_format_download(
         media_type=mesh_type,
         filename=f"export.{format}"
     )
+
+@router.delete("/{mesh_id}", status_code=200)
+async def delete_mesh(
+    mesh_id: str,
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    project_version_dal: ProjectVersionDAL = Depends(get_project_version_dal),
+    project_version_asset_dal: ProjectVersionAssetDAL = Depends(get_project_version_asset_dal),
+    texture_dal: TextureDAL = Depends(get_texture_dal),
+    current_user: User = Depends(get_current_user)
+):
+    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+    if not mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    project = await project_dal.get_project_by_id(mesh.project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to delete this mesh"},
+        )
+
+    texture_ids = []
+    textures = await texture_dal.get_textures_by(Texture.mesh_id == mesh_id)
+    texture_ids = [texture.id for texture in textures]
+
+    # delete all version_assets
+    versions = await project_version_dal.get_all_versions(project.id)
+    for version in versions:
+        assets = version.assets
+        for asset in assets:
+            if asset.asset_id == mesh_id and asset.asset_type == AssetStage.mesh:
+                await project_version_asset_dal.unlink_asset(version.id, "mesh", asset.asset_id)
+            elif asset.asset_id in texture_ids and asset.asset_type == AssetStage.texture:
+                await project_version_asset_dal.unlink_asset(version.id, "texture", asset.asset_id)
+    
+    # delete all textures
+    for texture_id in texture_ids:
+        await texture_dal.delete_texture(texture_id)
+
+    await mesh_dal.delete_mesh(mesh)

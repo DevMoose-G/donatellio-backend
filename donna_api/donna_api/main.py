@@ -18,7 +18,7 @@ app.include_router(api_router)
 # allow local react to interact with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # CRA’s default
+    allow_origins=["http://localhost:3000", "https://donna.ngrok.dev"],  # CRA’s default
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],

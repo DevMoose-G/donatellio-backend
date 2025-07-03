@@ -14,6 +14,7 @@ from donna_common.orm.models.texture import Texture
 from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
+from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_common.settings import settings
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -148,6 +149,7 @@ async def generate_mesh(
     seed: int,
     labels: List[str],
     max_polygon_count: int,
+    completed_meshes_stream
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
@@ -165,12 +167,32 @@ async def generate_mesh(
 
     os.makedirs(MESH_DIR, exist_ok=True)
 
+    # send message through websocket before converting stuff to show the user progress
+    await completed_meshes_stream.send_msg(
+        MeshAction(
+            type="mesh",
+            params={
+                "image_id": image_id,
+                "mesh_ids": mesh_ids,
+                "project_id": project_id,
+                "mesh_model": mesh_model,
+                "n_meshes": n_meshes,
+                "quality": quality,
+                "seed": seed,
+                "labels": labels,
+                "max_polygon_count": max_polygon_count
+            },
+            project_id=project_id,
+            function_name="generate_mesh",
+            mesh_ids=mesh_ids,
+        )
+    )
+
     async with AsyncSessionLocal() as session:
         mesh_dal = MeshDAL(session)
 
         for mesh_id in mesh_ids:
             mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-            # TODO: send message through websocket before converting stuff to show the user progress
             
             await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
             await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
@@ -186,6 +208,7 @@ async def generate_texture(
     prompt: str,
     texture_quality: str,
     seed: int,
+    completed_meshes_stream
 ) -> str:
     runpod_service = RunpodProvider()
     texture_id = await runpod_service.generate_texture_on_mesh(
@@ -199,6 +222,24 @@ async def generate_texture(
     )
 
     os.makedirs(TEXTURE_DIR, exist_ok=True)
+
+    await completed_meshes_stream.send_msg(
+        TexturedMeshAction(
+            type="textured_mesh",
+            project_id=project_id,
+            function_name="generate_texture",
+            params={
+                "texture_id": texture_id,
+                "image_id": image_id,
+                "project_id": project_id,
+                "mesh_id": mesh_id,
+                "prompt": prompt,
+                "texture_quality": texture_quality,
+                "seed": seed
+            },
+            texture_id=texture_id,
+        )
+    )
 
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)

@@ -266,6 +266,8 @@ async def upload_image(
         project_id=project.id,
         storage_key=storage_key,
     )
+
+    # TODO: generate the thumbnail image
     
     await project_branch_dal.perform_action(
         branch_id=main_branch.id,

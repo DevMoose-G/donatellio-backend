@@ -106,7 +106,7 @@ class DonnaWorker:
     async def handle_mesh(self, action: MeshAction):
         print("Got mesh action:", action)
         if action.function_name == "generate_mesh":
-            mesh_ids = await generate_mesh(**action.params)
+            mesh_ids = await generate_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream)
             
             # perform auto-retopology on generated mesh
             for mesh_id in mesh_ids:
@@ -143,7 +143,7 @@ class DonnaWorker:
     @on_action("textured_mesh")
     async def handle_textured_mesh(self, action: TexturedMeshAction):
         if action.function_name == "generate_texture":
-            texture_id = await generate_texture(**action.params)
+            texture_id = await generate_texture(**action.params, completed_meshes_stream=self.completed_meshes_stream)
             await self.completed_meshes_stream.send_msg(
                 TexturedMeshAction(
                     type="textured_mesh",
@@ -167,7 +167,7 @@ class DonnaWorker:
             )
             if messages == []:
                 print("No messages available")
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
             for msg in messages:
                 print("got a message")
                 handler = HANDLERS.get(msg.action.type)

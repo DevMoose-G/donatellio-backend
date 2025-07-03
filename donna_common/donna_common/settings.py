@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     
     black_forest_api_token: str = Field(..., env="BLACK_FOREST_API_TOKEN")
 
+    baseten_api_key: str = Field(..., env="BASETEN_API_KEY")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

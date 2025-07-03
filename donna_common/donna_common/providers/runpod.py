@@ -265,18 +265,27 @@ class RunpodProvider:
         }
         input_payload.update(quality_dict)
 
+        labels = [label.lower() for label in labels]
+
         dict_labels = {}
+        # for some reason, symmetry can't be in an array
         if "symmetric" in labels:
             dict_labels["symmetry"] = "x"
         elif "asymmetric" in labels:
             dict_labels["symmetry"] = "asymmetry"
+        
         if "sharp" in labels:
-            dict_labels["edge_type"] = "sharp"
+            dict_labels["geometry_type"] = ["sharp"]
         elif "normal" in labels:
-            dict_labels["edge_type"] = "normal"
+            dict_labels["geometry_type"] = ["normal"]
         elif "smooth" in labels:
-            dict_labels["edge_type"] = "smooth"
-        input_payload["label"] = json.dumps(dict_labels)
+            dict_labels["geometry_type"] = ["smooth"]
+
+        if "t-pose" in labels:
+            dict_labels["pose"] = ["t-pose"]
+        elif "a-pose" in labels:
+            dict_labels["pose"] = ["a-pose"]
+        input_payload["label"] = dict_labels
 
         mesh_mapping = {}
         for mesh_id in mesh_ids:
@@ -288,7 +297,6 @@ class RunpodProvider:
                     octree_resolution=str(input_payload["octree_resolution"]),
                     num_inference_steps=input_payload["n_inference_steps"],
                     face_count=max_polygon_count,
-                    # label=",".join(labels) if len(labels) > 0 else None,
                     label=json.dumps(dict_labels),
                     # TODO: have to add these to frontend
                     guidance_scale=5.5,
@@ -314,6 +322,16 @@ class RunpodProvider:
             while status == "IN_QUEUE":
                 status = await job.status()
                 print(f"Current job status: {status}")
+                if status == "FAILED":
+                    async with AsyncSessionLocal() as session:
+                        for mesh_id in mesh_mapping.keys():
+                            await MeshDAL(session).update_mesh(
+                                id=mesh_id,
+                                status="FAILED",
+                                gpu_provider_response="Error during mesh generation",
+                            )
+                    print("Runpod Job failed")
+                    break
                 await asyncio.sleep(3)
             try:
                 async for output in job.stream():

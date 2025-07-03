@@ -45,6 +45,9 @@ class ProjectDAL:
                 thumbnail_url = StorageProvider().generate_get_url(
                     image.thumbnail_image_storage_key
                 )
+            
+            elif image.storage_key != None:
+                thumbnail_url = StorageProvider().generate_get_url(image.storage_key)
 
             if image.storage_key != None:
                 image_url = StorageProvider().generate_get_url(image.storage_key)

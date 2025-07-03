@@ -41,7 +41,8 @@ step1x_labels = {
         "symmetric",  # have to convert this to 'x'
         "asymmetric",  # have to convert this to 'asymmetry' when inputted to model
     ],
-    "edge_type": ["sharp", "normal", "smooth"],
+    "geometry_type": ["sharp", "normal", "smooth"],
+    "pose": ["t-pose", "a-pose"]
 }
 
 
@@ -154,6 +155,7 @@ class WSMeshItem(BaseModel):
     mesh_image_url: Optional[str] = None
     other_formats: Optional[MeshFormat]
     status: str
+    created_at: datetime
 
 class WSTextureItem(BaseModel):
     texture_id: str
@@ -161,6 +163,7 @@ class WSTextureItem(BaseModel):
     texture_image_url: Optional[str] = None
     other_formats: Optional[MeshFormat]
     status: str
+    created_at: datetime
 
 class WSModelItem(BaseModel):
     image_id: str

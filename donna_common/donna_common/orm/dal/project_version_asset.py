@@ -35,7 +35,7 @@ class ProjectVersionAssetDAL:
     
         return await self.get_assets_by_version_id(project_version_id=project_version_id)
     
-    async def delete_asset(self, project_version_id: str, asset_type: str, asset_id: str):
+    async def unlink_asset(self, project_version_id: str, asset_type: str, asset_id: str):
         stmt = select(ProjectVersionAsset).where(ProjectVersionAsset.project_version_id == project_version_id, ProjectVersionAsset.asset_type == asset_type, ProjectVersionAsset.asset_id == asset_id)
         asset = await self.session.scalar(stmt)
         await self.session.delete(asset)
@@ -70,3 +70,5 @@ class ProjectVersionAssetDAL:
                 continue
             await self.create(project_version_id=project_version_id, asset_type=action.asset_stage, asset_id=action.asset_id)
     
+def get_project_version_asset_dal(session: AsyncSession = Depends(get_db)) -> ProjectVersionAssetDAL:
+    return ProjectVersionAssetDAL(session=session)

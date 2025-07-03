@@ -234,17 +234,27 @@ class ReplicateProvider:
         prediction = deployment.predictions.create(
             input=pred_input
         )
-        prediction.wait()
-        
-        if prediction.status == "failed":
+        try:
+            prediction.wait()
+
+            if prediction.status == "failed":
+                mesh = await self.dal.mesh_dal.update_mesh(
+                    id=mesh_id, 
+                    storage_key=None,
+                    gpu_provider_response=f"Error:{prediction.error[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
+                    status="FAILED"
+                )
+            else:
+                parsed_url = urlparse(s3_put_url)
+                storage_key = parsed_url.path[1:]
+                mesh = await self.dal.mesh_dal.update_mesh(id=mesh_id, face_count=prediction.output['n_faces'], storage_key=storage_key, status="COMPLETED")
+        except Exception as e:
             mesh = await self.dal.mesh_dal.update_mesh(
                 id=mesh_id, 
                 storage_key=None,
-                gpu_provider_response=f"Error:{prediction.error[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
+                gpu_provider_response=f"Error:{str(e)[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
                 status="FAILED"
             )
-        else:
-            parsed_url = urlparse(s3_put_url)
-            storage_key = parsed_url.path[1:]
-            mesh = await self.dal.mesh_dal.update_mesh(id=mesh_id, face_count=prediction.output['n_faces'], storage_key=storage_key, status="COMPLETED")
+        
+        
         return mesh.id
