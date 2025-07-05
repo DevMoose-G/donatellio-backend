@@ -252,7 +252,10 @@ async def generate_texture(
 
     return texture_id
 
-async def regenerate_from_latents(project_id, old_mesh_id, mesh_id, mc_level, octree_resolution, max_facenum=None, do_shade_smooth=True) -> str:
+async def regenerate_from_latents(
+    project_id, old_mesh_id, mesh_id, mc_level, octree_resolution, 
+    completed_meshes_stream=None, max_facenum=None, do_shade_smooth=True
+) -> str:
     runpod_service = RunpodProvider()
     mesh_id = await runpod_service.regenerate_mesh_from_latents(
         project_id=project_id,
@@ -271,23 +274,47 @@ async def regenerate_from_latents(project_id, old_mesh_id, mesh_id, mc_level, oc
 
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
         # TODO: send message through websocket before converting stuff to show the user progress
+        # await completed_meshes_stream.send_msg(
+        #     MeshAction(
+        #         type="mesh",
+        #         params={
+        #             "image_id": image_id,
+        #             "mesh_ids": mesh_ids,
+        #             "project_id": project_id,
+        #             "mesh_model": mesh_model,
+        #             "n_meshes": n_meshes,
+        #             "quality": quality,
+        #             "seed": seed,
+        #             "labels": labels,
+        #             "max_polygon_count": max_polygon_count
+        #         },
+        #         project_id=project_id,
+        #         function_name="generate_mesh",
+        #         mesh_ids=mesh_ids,
+        #     )
+        # )
+
         await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
         await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
     return mesh.id
 
-async def simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=None):
-    replicate_provider = ReplicateProvider()
-    await replicate_provider.simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=simplify_ratio)
+async def simplify_mesh(mesh_id, new_mesh_id, simplify_ratio=None):
+    runpod_service = RunpodProvider()
+    mesh_id = await runpod_service.simplify_mesh(
+        mesh_id, new_mesh_id, simplify_ratio=simplify_ratio
+    )
+    # replicate_provider = ReplicateProvider()
+    # await replicate_provider.simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=simplify_ratio)
     
     os.makedirs(MESH_DIR, exist_ok=True)
 
     async with AsyncSessionLocal() as session:
         mesh_dal = MeshDAL(session)
 
-        mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+        new_mesh = await mesh_dal.get_mesh_by_id(new_mesh_id)
         # TODO: send message through websocket before converting stuff to show the user progress
-        await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
-        await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
+        await generate_mesh_formats(new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal)
+        await render_mesh_preview_image(new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal)
     return mesh.id
 
 async def fill_static_render_images():

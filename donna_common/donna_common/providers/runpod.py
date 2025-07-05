@@ -41,9 +41,11 @@ class EndpointHealth(BaseModel):
 class RunpodProvider:
     def __init__(self):
         runpod.api_key = settings.runpod_api_key
+        # TODO: move this to settings(.env file)
         self.endpoint_id = "sp98vhbopbrqtt"
         self.geometry_endpoint_id = "1l903cupb6er9d"
         self.texture_endpoint_id = "3svqlzp0hepfvh"
+        self.retopology_endpoint_id = "mnf4bkxzhziico"
         # asyncio.set_event_loop_policy(
         #     asyncio.WindowsSelectorEventLoopPolicy()
         # )  # For Windows users.
@@ -68,6 +70,13 @@ class RunpodProvider:
         if health.jobs.inQueue > 0:
             return
         await self.__wake_up(self.texture_endpoint_id)
+    
+    async def wake_up_retopology(self):
+        health = await self.health(self.retopology_endpoint_id)
+        # don't send request if there are jobs in queue
+        if health.jobs.inQueue > 0:
+            return
+        await self.__wake_up(self.retopology_endpoint_id)
 
     async def health(self, endpoint_id: str) -> EndpointHealth:
         async with aiohttp.ClientSession() as runpod_session:
@@ -78,6 +87,70 @@ class RunpodProvider:
                 health_dict = await resp.json()
 
             return EndpointHealth(**health_dict)
+
+    async def simplify_mesh(self, mesh_id: str, new_mesh_id: str, simplify_ratio: float=None):
+        async with AsyncSessionLocal() as session:
+            mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
+            assert mesh is not None
+
+            new_mesh = await MeshDAL(session).get_mesh_by_id(new_mesh_id)
+            assert new_mesh is not None
+
+            await MeshDAL(session).update_mesh(
+                id=new_mesh_id,
+                status="PENDING",
+            )
+        
+        # generate presigned url
+        storage_provider = StorageProvider()
+        mesh_url = storage_provider.generate_get_url(mesh.storage_key)
+        new_mesh_put_url = storage_provider.generate_put_url_for_mesh(new_mesh_id)
+
+        # set mesh params
+        input_payload = {
+            "glb_url": mesh_url,
+            "s3_url": new_mesh_put_url,
+            "ratio": simplify_ratio
+        }
+
+        async with aiohttp.ClientSession() as runpod_session:
+            input_payload = {k: v for k, v in input_payload.items() if v is not None}
+
+            endpoint = AsyncioEndpoint(self.retopology_endpoint_id, runpod_session)
+            job: AsyncioJob = await endpoint.run(input_payload)
+
+            # Polling job status
+            status = await job.status()
+            while status == "IN_QUEUE":
+                status = await job.status()
+                print(f"Current job status: {status}")
+                await asyncio.sleep(3)
+            try:
+                async for output in job.stream():
+                    presigned_url = output["url"]
+                    n_faces = output['n_faces']
+                    _ = output["process_time"]
+                    _ = output["ratio"]
+                    parsed_url = urlparse(presigned_url)
+                    storage_key = parsed_url.path[1:]
+                    async with AsyncSessionLocal() as session:
+                        await MeshDAL(session).update_mesh(
+                            id=new_mesh_id,
+                            storage_key=storage_key,
+                            active=True,
+                            status="COMPLETED",
+                            face_count=n_faces,
+                            gpu_provider_response=str(output)[-1000:],
+                        )
+            except Exception as e:
+                async with AsyncSessionLocal() as session:
+                    await MeshDAL(session).update_mesh(
+                        id=new_mesh_id,
+                        status="FAILED",
+                        gpu_provider_response=str(e)[-1000:],
+                    )
+                raise e
+        
 
     async def regenerate_mesh_from_latents(
         self,
@@ -170,6 +243,9 @@ class RunpodProvider:
                             gpu_provider_response=str(e)[-1000:],
                         )
                 raise e
+
+        self.wake_up_retopology()
+
         return list(mesh_mapping.keys())[0]
 
     # TODO: test if streaming works

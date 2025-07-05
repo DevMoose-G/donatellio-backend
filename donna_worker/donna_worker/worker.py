@@ -1,6 +1,7 @@
 import asyncio
 
 import openai
+import os
 
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
@@ -21,7 +22,9 @@ from donna_worker.worker.mesh import (
     simplify_mesh,
 )
 from donna_worker.worker.setup import initialize_branches
+from donna_common.settings import settings
 
+MESH_PATH = f"{settings.static_dir}/meshes"
 
 class DonnaWorker:
     def __init__(self):
@@ -110,13 +113,15 @@ class DonnaWorker:
             mesh_ids = await generate_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream)
             
             # perform auto-retopology on generated mesh
+            # TODO: need to move this so you don't wait until other formats are exported or the render image is generated
             for mesh_id in mesh_ids:
+                # should this be a new mesh or just replace the existing mesh?
                 await self.stream.send_msg(
                     MeshAction(
                         type="mesh",
                         params={
-                            "old_mesh_id": mesh_id,
                             "mesh_id": mesh_id,
+                            "new_mesh_id": mesh_id,
                         },
                         project_id=action.project_id,
                         function_name="simplify_mesh",
@@ -127,7 +132,7 @@ class DonnaWorker:
             mesh_id = await regenerate_from_latents(**action.params)
             mesh_ids = [mesh_id]
         elif action.function_name == "simplify_mesh":
-            print("Calling replicate deployment to simplify the mesh")
+            print("Calling runpod deployment to simplify the mesh")
             mesh_id = await simplify_mesh(**action.params)
             mesh_ids = [mesh_id]
         
@@ -160,8 +165,11 @@ class DonnaWorker:
         
         # generate_profile_image_urls()
 
-        await fill_other_formats()
-        await fill_static_render_images()
+        os.makedirs(MESH_PATH, exist_ok=True)
+
+        # await fill_other_formats()
+        # await fill_static_render_images()
+
         await self.stream.setup_group(new_only=False)
 
         while True:

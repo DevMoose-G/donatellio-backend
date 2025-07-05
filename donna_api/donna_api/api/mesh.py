@@ -366,24 +366,6 @@ async def regenerate_mesh(
                 version_id=version.id,
             ))
             
-            if req.face_count == None:
-                params = {"simplify_ratio": simplify_ratio, "mesh_id": new_mesh.id, "old_mesh_id": old_mesh.id}
-                await stream.send_msg(
-                    MeshAction(
-                        project_id=req.project_id,
-                        function_name="simplify_mesh",
-                        params=params,
-                    )
-                )
-                
-                actions_performed.append(await project_branch_dal.perform_action(
-                    branch_id=main_branch.id,
-                    author_id=current_user.id,
-                    new_asset=new_mesh,
-                    action_type="simplify_mesh",
-                    parameters=params,
-                    version_id=version.id,
-                ))
         else:
             print("Mesh does not need to be regenerated")
     if req.face_count != None:
@@ -395,7 +377,7 @@ async def regenerate_mesh(
                 content={"error_msg": "Invalid face count"},
             )
         
-        params = {"simplify_ratio": simplify_ratio, "mesh_id": new_mesh.id, "old_mesh_id": old_mesh.id}
+        params = {"simplify_ratio": simplify_ratio, "new_mesh_id": new_mesh.id, "mesh_id": old_mesh.id}
         await stream.send_msg(
             MeshAction(
                 project_id=req.project_id,
