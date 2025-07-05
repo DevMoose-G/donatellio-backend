@@ -27,6 +27,9 @@ class TextureDAL:
         if texture is None:
             raise RuntimeError("Texture not found")
         for key, value in kwargs.items():
+            if key == "gpu_provider_response" and len(value) > 1024:
+                print("GPU provider response too long, truncating")
+                value = value[:1020]
             if hasattr(texture, key) and value is not None:
                 setattr(texture, key, value)
         self.session.add(texture)

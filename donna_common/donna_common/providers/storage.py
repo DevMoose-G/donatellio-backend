@@ -14,7 +14,7 @@ def extract_s3_key(presigned_url):
 class StorageProvider:
     def __init__(self):
         self.s3_client = boto3.client("s3", region_name="us-east-1")
-        self.bucket = "donatellio"
+        self.bucket = "donatell-io"
 
     def __generate_presigned_url(
         self, client_method, method_parameters, expires_in

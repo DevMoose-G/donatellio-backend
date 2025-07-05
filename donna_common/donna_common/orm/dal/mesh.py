@@ -29,6 +29,9 @@ class MeshDAL:
         for key, value in kwargs.items():
             if key == "octree_resolution" and type(value) != str:
                 raise RuntimeError("Octree resolution must be a string")
+            if key == "gpu_provider_response" and len(value) > 1024:
+                print("GPU provider response too long, truncating")
+                value = value[:1020]
             if hasattr(mesh, key) and value is not None:
                 setattr(mesh, key, value)
         self.session.add(mesh)

@@ -1,6 +1,6 @@
 import requests
 from PIL import Image
-
+import os
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
 
@@ -49,6 +49,8 @@ def generate_profile_image_urls() -> str:
                 ),
                 icon_img,
             )
+            profile_pic_dir = f"{STATIC_DIR}/profile_images"
+            os.makedirs(profile_pic_dir, exist_ok=True)
             image_filepath = f"{STATIC_DIR}/profile_images/{index}_{pallete_index}.png"
             image.save(image_filepath, "PNG")
             storage_key = storage_provider.upload_image(

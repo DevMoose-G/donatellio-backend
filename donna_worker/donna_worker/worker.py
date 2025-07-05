@@ -11,6 +11,7 @@ from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
 from donna_common.redis.types import ImageAction, MeshAction, TexturedMeshAction
+from donna_common.utils.profile_image import generate_profile_image_urls
 from donna_worker.worker.mesh import (
     fill_other_formats,
     fill_static_render_images,
@@ -155,10 +156,12 @@ class DonnaWorker:
             )
 
     async def mainloop(self):
+        # await initialize_branches()
+        
         # generate_profile_image_urls()
+
         await fill_other_formats()
         await fill_static_render_images()
-        # await initialize_branches()
         await self.stream.setup_group(new_only=False)
 
         while True:

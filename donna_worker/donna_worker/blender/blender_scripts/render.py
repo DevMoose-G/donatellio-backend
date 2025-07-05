@@ -49,14 +49,14 @@ def render(is_textured, input_path, output_path):
 
     # 4. Get reference to imported object
     obj = bpy.context.selected_objects[0]
-    # try:
-    #     obj = obj.children[0]
-    # except IndexError:
-    #     pass
+    try:
+        obj = obj.children[0]
+    except IndexError:
+        pass
     
     bb = get_world_bbox(obj)
-    print(bb)
-    print(bb[0].y)
+    # print(bb)
+    # print(bb[0].y)
 
     y_offset = bb[0].y
     x_width = max(abs(bb[0].x), abs(bb[1].x))
@@ -77,6 +77,7 @@ def render(is_textured, input_path, output_path):
     y_position = (-1 * (1.2 * (max(x_width, z_height * 1.25) * 2))) + y_offset
     cam.location = (0, y_position, 0)
     cam.rotation_euler = (1.57, 0, 0)  # approx looking at origin
+    print("Camera setup complete")
 
     # 7. Set up lighting
     light_data = bpy.data.lights.new(name="KeyLight", type="SUN")
@@ -100,15 +101,17 @@ def render(is_textured, input_path, output_path):
     back_light = bpy.data.objects.new(name="BackLight", object_data=back_light_data)
     back_light.rotation_euler = (1.25, 0, 1.57 + (1.2 / 2))
     bpy.context.collection.objects.link(back_light)
+    print("Light setup complete")
 
     # 8. Render settings
-    bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"  # or 'CYCLES'
+    # bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"  # or 'CYCLES'
     bpy.context.scene.render.filepath = output_path
     bpy.context.scene.render.image_settings.file_format = "PNG"
     bpy.context.scene.render.image_settings.color_mode = "RGBA"
     bpy.context.scene.render.film_transparent = True
     bpy.context.scene.render.resolution_x = 512
     bpy.context.scene.render.resolution_y = 512
+    print("Render settings set")
 
     # 9. Render
     bpy.ops.render.render(write_still=True)
@@ -140,7 +143,7 @@ def main():
 
     # Ensure output directory exists:
     os.makedirs(out_dir, exist_ok=True)
-
+    print("Starting the render")
     render(is_textured, glb_path, os.path.join(out_dir, "render.png"))
 
 

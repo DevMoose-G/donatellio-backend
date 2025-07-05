@@ -11,6 +11,12 @@ class Settings(BaseSettings):
 
     redis_url: str = Field(..., env="REDIS_URL")
 
+    database_host: str = Field(..., env="DATABASE_HOST")
+    database_port: str = Field(..., env="DATABASE_PORT")
+    database_user: str = Field(..., env="DATABASE_USER")
+    database_password: str = Field(..., env="DATABASE_PASSWORD")
+    database_name: str = Field(..., env="DATABASE_NAME")
+    
     database_url: str = Field(..., env="DATABASE_URL")
     database_sync_url: str = Field(..., env="DATABASE_SYNC_URL")  # for alembic upgrades
 

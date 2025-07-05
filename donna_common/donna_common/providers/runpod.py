@@ -44,58 +44,10 @@ class RunpodProvider:
         self.endpoint_id = "sp98vhbopbrqtt"
         self.geometry_endpoint_id = "1l903cupb6er9d"
         self.texture_endpoint_id = "3svqlzp0hepfvh"
-        asyncio.set_event_loop_policy(
-            asyncio.WindowsSelectorEventLoopPolicy()
-        )  # For Windows users.
+        # asyncio.set_event_loop_policy(
+        #     asyncio.WindowsSelectorEventLoopPolicy()
+        # )  # For Windows users.
 
-    # async def generate_mesh(
-    #     self, project_id: str, image_id: str, mesh_id: str, presigned_url: str
-    # ):
-    #     async with aiohttp.ClientSession() as runpod_session:
-    #         # create mesh in database w/ status='PENDING'
-    #         async with AsyncSessionLocal() as session:
-    #             image = await ImageDAL(session).get_image_by_id(image_id)
-    #             project = await ProjectDAL(session).get_project_by_id(project_id)
-    #             assert image is not None
-    #             assert project is not None
-    #             await MeshDAL(session).create_mesh(
-    #                 id=mesh_id, project_id=project.id, image_id=image.id
-    #             )
-
-    #         storage_provider = StorageProvider()
-    #         image_url = storage_provider.generate_get_url(image.storage_key)
-    #         input_payload = {"image_url": image_url, "presigned_urls": [presigned_url]}
-    #         endpoint = AsyncioEndpoint(self.endpoint_id, runpod_session)
-    #         job: AsyncioJob = await endpoint.run(input_payload)
-
-    #         # Polling job status
-    #         while True:
-    #             status = await job.status()
-    #             print(f"Current job status: {status}")
-    #             if status == "COMPLETED":
-    #                 output = await job.output()
-    #                 parsed_url = urlparse(presigned_url)
-
-    #                 async with AsyncSessionLocal() as session:
-    #                     await MeshDAL(session).update_mesh(
-    #                         id=mesh_id,
-    #                         storage_key=parsed_url.path[1:],
-    #                         status="COMPLETED",
-    #                         gpu_provider_response=str(output),
-    #                     )
-
-    #                 print("Job output:", output)
-    #                 break  # Exit the loop once the job is completed.
-    #             elif status in ["FAILED"]:
-    #                 output = await job.output()
-    #                 print("Job failed or encountered an error.")
-    #                 await MeshDAL(session).update_mesh(
-    #                     id=mesh_id, status="FAILED", gpu_provider_response=str(output)
-    #                 )
-    #                 break
-    #             else:
-    #                 print("Job in queue or processing. Waiting 3 seconds...")
-    #                 await asyncio.sleep(3)
 
     async def __wake_up(self, endpoint_id: str):
         async with aiohttp.ClientSession() as runpod_session:
@@ -206,7 +158,7 @@ class RunpodProvider:
                             active=True,
                             status="COMPLETED",
                             face_count=n_faces,
-                            gpu_provider_response=str(output)[0:1024],
+                            gpu_provider_response=str(output)[-1000:],
                         )
             except Exception as e:
                 breakpoint()
@@ -215,7 +167,7 @@ class RunpodProvider:
                         await MeshDAL(session).update_mesh(
                             id=mesh_id,
                             status="FAILED",
-                            gpu_provider_response=str(e),
+                            gpu_provider_response=str(e)[-1000:],
                         )
                 raise e
         return list(mesh_mapping.keys())[0]
@@ -349,7 +301,7 @@ class RunpodProvider:
                             latents_storage_key=parsed_latents_url.path[1:],
                             status="COMPLETED",
                             face_count=n_faces,
-                            gpu_provider_response=str(output),
+                            gpu_provider_response=str(output)[-1000:],
                         )
             except:
                 breakpoint()

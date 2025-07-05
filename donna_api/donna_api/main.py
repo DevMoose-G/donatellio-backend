@@ -18,9 +18,9 @@ app.include_router(api_router)
 # allow local react to interact with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://donna.ngrok.dev"],  # CRA’s default
+    allow_origins=["http://localhost:3000"],  # CRA’s default
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -34,3 +34,8 @@ app.add_middleware(
 
 # Serve all files under ./static at the /static URL path
 # app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def health_check():
+    """Just a simple health check."""
+    return {"status": "OK"}
