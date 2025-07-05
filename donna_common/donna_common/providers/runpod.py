@@ -244,7 +244,7 @@ class RunpodProvider:
                         )
                 raise e
 
-        self.wake_up_retopology()
+        await self.wake_up_retopology()
 
         return list(mesh_mapping.keys())[0]
 

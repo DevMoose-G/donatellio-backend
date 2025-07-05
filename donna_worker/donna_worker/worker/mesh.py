@@ -315,7 +315,7 @@ async def simplify_mesh(mesh_id, new_mesh_id, simplify_ratio=None):
         # TODO: send message through websocket before converting stuff to show the user progress
         await generate_mesh_formats(new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal)
         await render_mesh_preview_image(new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal)
-    return mesh.id
+    return new_mesh.id
 
 async def fill_static_render_images():
     async with AsyncSessionLocal() as session:
