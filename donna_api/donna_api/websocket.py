@@ -63,14 +63,10 @@ async def image_updates(
         await stream.setup_group(new_only=False)
         current_img_s3_keys = []
         while True:
-            async with AsyncSessionLocal() as session:
-                project_dal = ProjectDAL(session)
-                images = await project_dal.get_images(project_id)
+            images = await project_dal.get_images(project_id)
 
             if images != []:
-                async with AsyncSessionLocal() as session:
-                    project_dal = ProjectDAL(session)
-                    chats = await project_dal.get_image_prompt_chats(project_id)
+                chats = await project_dal.get_image_prompt_chats(project_id)
 
                 storage_provider = StorageProvider()
 
@@ -148,10 +144,9 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
             return
         mesh_storage_key = mesh.storage_key
 
-        other_format_item = await mesh_dal.get_output_formats(mesh.id)
         mesh_image_storage_key = mesh.static_render_storage_key
         
-        mesh_item = WSMeshItem(mesh_id=mesh.id, other_formats=other_format_item, status=mesh.status, created_at=mesh.created_at)
+        mesh_item = WSMeshItem(mesh_id=mesh.id, status=mesh.status, created_at=mesh.created_at)
     
     mesh_url = (
         storage_provider.generate_get_url(mesh_storage_key)
@@ -179,10 +174,9 @@ async def get_texture_item(storage_provider: StorageProvider, texture_id: str) -
         texture = await texture_dal.get_texture_by_id(texture_id)
         texture_storage_key = texture.storage_key
 
-        other_format_item = await texture_dal.get_output_formats(texture.id)
         texture_image_storage_key = texture.static_render_storage_key
         
-        texture_item = WSTextureItem(texture_id=texture.id, other_formats=other_format_item, status=texture.status, created_at=texture.created_at)
+        texture_item = WSTextureItem(texture_id=texture.id,  status=texture.status, created_at=texture.created_at)
     
     texture_url = (
         storage_provider.generate_get_url(texture_storage_key)
@@ -279,7 +273,6 @@ async def get_texture_model_items(
             mesh = await mesh_dal.get_mesh_by_id(texture.mesh_id)
             texture_storage_keys[texture.id] = texture.storage_key
             mesh_storage_keys[texture.id] = mesh.storage_key
-            other_format_item = await texture_dal.get_output_formats(texture.id)
 
             texture_image_storage_keys[texture.id] = texture.static_render_storage_key
             mesh_image_storage_keys[texture.id] = mesh.static_render_storage_key
@@ -288,7 +281,6 @@ async def get_texture_model_items(
                     mesh_id=texture.mesh_id,
                     texture_id=texture.id,
                     image_id=texture.image_id,
-                    other_formats=other_format_item,
                     status=texture.status,
                     created_at=texture.created_at
                 )
@@ -299,7 +291,6 @@ async def get_texture_model_items(
                         mesh_id=texture.mesh_id,
                         mesh_url=None,
                         mesh_image_url=None,
-                        other_formats=None,
                         status=mesh.status,
                         created_at=mesh.created_at
                     ),
@@ -447,9 +438,6 @@ async def mesh_updates(
                             except Exception as e:
                                 print(e)
                                 breakpoint()
-                            await get_texture_items(
-                                [action.texture_id], storage_provider
-                            )
                             await websocket.send_json(
                                 WSModelResponse(models=[model_item]).model_dump(
                                     mode="json"

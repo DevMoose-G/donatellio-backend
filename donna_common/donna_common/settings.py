@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     black_forest_api_token: str = Field(..., env="BLACK_FOREST_API_TOKEN")
 
     baseten_api_key: str = Field(..., env="BASETEN_API_KEY")
+    
+    stripe_secret_key: str = Field(..., env="STRIPE_SECRET_KEY")
+    stripe_websocket_secret: str = Field(..., env="STRIPE_WEBSOCKET_SECRET")
 
     class Config:
         env_file = ".env"

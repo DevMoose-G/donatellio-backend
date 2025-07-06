@@ -46,20 +46,6 @@ class TextureDAL:
         results = await self.session.execute(select(Texture).where(filter))
         return results.scalars().all()
 
-    async def get_output_formats(self, texture_id: str) -> MeshFormat:
-        storage_provider = StorageProvider()
-        texture = await self.get_texture_by_id(texture_id)
-        if texture is None:
-            raise RuntimeError("Texture not found")
-        other_format_item = MeshFormat()
-        other_formats = texture.format_storage_keys
-        if other_formats != None:
-            for format, key in other_formats.items():
-                if format != 'glb' and key != None:
-                    other_format_url = storage_provider.generate_get_url(key)
-                    other_format_item.__setattr__(f"{format}_url", other_format_url)
-        return other_format_item
-
 
 async def get_texture_dal(db: AsyncSession = Depends(get_db)):
     return TextureDAL(db)

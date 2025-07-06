@@ -166,6 +166,9 @@ async def register(
     response: Response,
     user_dal: UserDAL = Depends(get_user_dal),
 ):
+    return {
+        "message":"Temporarily disabled"
+    }
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
         return JSONResponse(
@@ -187,6 +190,7 @@ async def register(
         password=hashed_pw,
         username=user.username,
         profile_image_storage_key=profile_img_storage_key,
+        credit_balance=10
     )
     new_user = await user_dal.create_user(new_user)
 

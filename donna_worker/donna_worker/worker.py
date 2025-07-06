@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 import openai
 import os
@@ -11,7 +12,7 @@ from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
-from donna_common.redis.types import ImageAction, MeshAction, TexturedMeshAction
+from donna_common.redis.types import ImageAction, MeshAction, RedisMessage, TexturedMeshAction
 from donna_common.utils.profile_image import generate_profile_image_urls
 from donna_worker.worker.mesh import (
     fill_other_formats,
@@ -159,10 +160,10 @@ class DonnaWorker:
                     texture_id=texture_id,
                 )
             )
+    
+    
 
     async def mainloop(self):
-        # await initialize_branches()
-        
         # generate_profile_image_urls()
 
         os.makedirs(MESH_PATH, exist_ok=True)
@@ -172,21 +173,25 @@ class DonnaWorker:
 
         await self.stream.setup_group(new_only=False)
 
-        while True:
-            messages = await self.stream.consume_msg(
-                "consumer", new_only=True, n_msgs=10
-            )
-            if messages == []:
-                print("No messages available")
-                await asyncio.sleep(2)
-            for msg in messages:
-                print("got a message")
-                handler = HANDLERS.get(msg.action.type)
-                if not handler:
-                    raise RuntimeError(f"Unknown action type: {msg.action.type}")
-                await handler(self, msg.action)
-                await self.stream.ack_msg(msg.id)
-
+        for i in range(10):
+            while True:
+                messages = await self.stream.consume_msg(
+                    f'consumer-{i}', new_only=True, n_msgs=10
+                )
+                if messages == []:
+                    print("No messages available")
+                    await asyncio.sleep(2)
+                for msg in messages:
+                    print("got a message")
+                    handler = HANDLERS.get(msg.action.type)
+                    if not handler:
+                        raise RuntimeError(f"Unknown action type: {msg.action.type}")
+                    
+                    async def process_message(msg: RedisMessage):
+                        await handler(self, msg.action)
+                        await self.stream.ack_msg(msg.id)
+                    asyncio.create_task(process_message(msg))
+                        
 
 async def mainloop():
     worker = await DonnaWorker.create()

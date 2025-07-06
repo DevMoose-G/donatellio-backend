@@ -153,7 +153,6 @@ class WSMeshItem(BaseModel):
     mesh_id: str
     mesh_url: Optional[str] = None
     mesh_image_url: Optional[str] = None
-    other_formats: Optional[MeshFormat]
     status: str
     created_at: datetime
 
@@ -161,7 +160,6 @@ class WSTextureItem(BaseModel):
     texture_id: str
     texture_url: Optional[str] = None
     texture_image_url: Optional[str] = None
-    other_formats: Optional[MeshFormat]
     status: str
     created_at: datetime
 

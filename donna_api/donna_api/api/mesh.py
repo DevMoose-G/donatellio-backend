@@ -412,6 +412,11 @@ async def regenerate_mesh(
             status_code=400,
             content={"error_msg": "Mesh does not need to be regenerated or simplified"},
         )
+    else:
+        # TODO: charge credit
+        response = await user_dal.charge_credit(
+            current_user, 1, "user_action:regenerate_mesh"
+        )
 
     return {"project_id": req.project_id, "mesh_id": new_mesh.id}
 
