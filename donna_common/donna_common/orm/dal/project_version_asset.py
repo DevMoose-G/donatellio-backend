@@ -56,14 +56,14 @@ class ProjectVersionAssetDAL:
                     raise RuntimeError(400, detail="Mesh not found in project version")
                 if mesh.parent_mesh_id in old_assets.keys():
                     old_asset = old_assets[mesh.parent_mesh_id]
-                    self.delete_asset(project_version_id=project_version_id, asset_type=old_asset.asset_type, asset_id=old_asset.asset_id)
+                    self.unlink_asset(project_version_id=project_version_id, asset_type=old_asset.asset_type, asset_id=old_asset.asset_id)
             elif action.asset_stage == "texture":
                 texture = await TextureDAL(session=self.session).get_texture_by_id(action.asset_id)
                 if texture is None:
                     raise RuntimeError(400, detail="Texture not found in project version")
                 if texture.parent_texture_id in old_assets.keys():
                     old_asset = old_assets[texture.parent_texture_id]
-                    self.delete_asset(project_version_id=project_version_id, asset_type=old_asset.asset_type, asset_id=old_asset.asset_id)
+                    self.unlink_asset(project_version_id=project_version_id, asset_type=old_asset.asset_type, asset_id=old_asset.asset_id)
             
             # check if asset link to version already exists
             if action.asset_id in old_assets.keys() and action.asset_stage == old_assets[action.asset_id].asset_type:

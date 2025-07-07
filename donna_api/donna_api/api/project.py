@@ -372,9 +372,8 @@ async def mesh_project_version_updates(
 
     storage_provider = StorageProvider()
 
-    while True:
-        # getting what's in the database
-        new_model_items, _ = await get_all_models_items(storage_provider, set(), project_version_id)
+    # getting what's in the database
+    new_model_items, _ = await get_all_models_items(storage_provider, set(), project_version_id)
 
-        if new_model_items != []:
-            return WSModelResponse(models=new_model_items).model_dump(mode="json")
+    if new_model_items != []:
+        return WSModelResponse(models=new_model_items).model_dump(mode="json")

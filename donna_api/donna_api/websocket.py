@@ -139,7 +139,7 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
         
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
         if mesh is None:
-            print("Mesh not found")
+            print(f"Mesh {mesh_id} not found")
             return
         mesh_storage_key = mesh.storage_key
 

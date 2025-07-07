@@ -187,7 +187,7 @@ class AssetDisplay(BaseModel):
 class ProjectDisplay(BaseModel):
     project_id: str
     project_name: str
-    url: str
+    url: Optional[str] = None
     user_name: str
     current_state: str
 

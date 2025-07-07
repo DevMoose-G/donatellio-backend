@@ -117,15 +117,10 @@ async def create_mesh(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
-
-    mesh_ids = []
     
     main_branch = await project_dal.get_main_branch(project_id=project_id)
     
-    params = {
-                **req.model_dump(),
-                "mesh_ids": mesh_ids,
-            }
+    
     
     version = await project_branch_dal.create_version(
         branch_id=main_branch.id,
@@ -133,10 +128,13 @@ async def create_mesh(
         version_message=f"{req.n_meshes} mesh{'' if req.n_meshes == 1 else 'es'} created",
     )
     
-    for _ in range(req.n_meshes):
-        mesh_id = str(uuid4())
-        mesh_ids.append(mesh_id)
-
+    mesh_ids = [str(uuid4()) for _ in range(req.n_meshes)]
+    
+    params = {
+        **req.model_dump(),
+        "mesh_ids": mesh_ids,
+    }
+    for mesh_id in mesh_ids:
         mesh = await mesh_dal.create_mesh(
             id=mesh_id,
             project_id=project.id,
