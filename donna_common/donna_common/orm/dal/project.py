@@ -111,6 +111,14 @@ class ProjectDAL:
                     user_name=user.username,
                     current_state="image",
                 )
+            else:
+                return ProjectDisplay(
+                    project_id=project.id,
+                    project_name=project.name,
+                    url=None,
+                    user_name=user.username,
+                    current_state="image",
+                )
         elif (
             project.textures == []
         ):  # don't display textured meshes (considered complete)
@@ -139,6 +147,14 @@ class ProjectDAL:
                     current_state="mesh",
                     textured_image_url=textured_image_url,
                     mesh_image_url=mesh_image_url,
+                )
+            else:
+                return ProjectDisplay(
+                    project_id=project.id,
+                    project_name=project.name,
+                    url=None,
+                    user_name=user.username,
+                    current_state="mesh",
                 )
 
     async def get_asset_display(self, project: Project) -> AssetDisplay:
@@ -201,8 +217,8 @@ class ProjectDAL:
         projects = await self.session.execute(select(Project))
         return projects.scalars().all()
 
-    async def create_project(self, id: str, name: str, user_id: str) -> Project:
-        project = Project(id=id, name=name, user_id=user_id)
+    async def create_project(self, id: str, name: str, user_id: str, public: bool = False) -> Project:
+        project = Project(id=id, name=name, user_id=user_id, public=public)
         self.session.add(project)
         
         branch = await ProjectBranchDAL(self.session).create_branch(project_id=id, author_id=user_id, name="main")

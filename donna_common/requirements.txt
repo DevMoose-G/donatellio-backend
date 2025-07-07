@@ -2,6 +2,7 @@ fastapi
 pydantic
 rq
 sqlalchemy
+greenlet
 pydantic-settings
 psycopg2-binary
 asyncpg

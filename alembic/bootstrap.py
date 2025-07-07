@@ -19,7 +19,6 @@ url_object = URL.create(
     port=settings.database_port,
     database=settings.database_name,
 )
-breakpoint()
 
 engine = create_engine(
     url_object,

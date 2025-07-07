@@ -62,7 +62,7 @@ async def create_image(
         )
 
     project = await project_dal.create_project(
-        id=project_id, name="test", user_id=current_user.id
+        id=project_id, name="test", user_id=current_user.id, public=True # temp public
     )
     
     try:
@@ -172,7 +172,7 @@ async def get_image_cost(
 ):
     if req.image_model == "gpt4o":
         if req.quality == "high":
-            cost = 3
+            cost = 2
         elif req.quality == "medium":
             cost = 2
         elif req.quality == "low":
@@ -253,7 +253,7 @@ async def upload_image(
 ) -> ResponseImage:
     project_id = str(uuid.uuid4())
     project = await project_dal.create_project(
-        id=project_id, name="", user_id=current_user.id
+        id=project_id, name="", user_id=current_user.id, public=True # temp public
     )
     
     main_branch = await project_dal.get_main_branch(project_id=project_id)

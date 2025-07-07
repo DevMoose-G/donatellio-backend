@@ -280,6 +280,12 @@ async def regenerate_mesh(
             content={"error_msg": "Mesh not found"},
         )
     
+    
+    if current_user.credit_balance < 1:
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Not enough credits"}
+        )
+    
     new_mesh_id = str(uuid4())
     # copy old mesh (except octree_res, mc_level, face_count, & storage_key)
     new_mesh = await mesh_dal.create_mesh(
@@ -377,7 +383,7 @@ async def regenerate_mesh(
                 content={"error_msg": "Invalid face count"},
             )
         
-        params = {"simplify_ratio": simplify_ratio, "new_mesh_id": new_mesh.id, "mesh_id": old_mesh.id}
+        params = {"simplify_ratio": simplify_ratio, "new_mesh_id": new_mesh.id, "mesh_id": old_mesh.id, "project_id": project.id}
         await stream.send_msg(
             MeshAction(
                 project_id=req.project_id,

@@ -194,6 +194,27 @@ class OpenAIProvider:
 
         await self.save_thumbnail(image_id, image_storage_key=key)
 
+        await self.dal.image_dal.update_image(
+            id=image_id, external_id=event.item_id
+        )
+        await completed_images_stream.send_msg(
+            ImageAction(
+                type="image",
+                function_name="generate_image",
+                project_id=project_id,
+                image_id=image_id,
+                is_partial=False,
+                params={
+                    "image_id": image_id,
+                    "project_id": project_id,
+                    "prompt": prompt,
+                    "n": n,
+                    "size": size,
+                    "quality": quality,
+                },
+            )
+        )
+
         return key
 
     async def edit_image(

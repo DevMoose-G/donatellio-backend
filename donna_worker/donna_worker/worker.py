@@ -111,30 +111,15 @@ class DonnaWorker:
     async def handle_mesh(self, action: MeshAction):
         print("Got mesh action:", action)
         if action.function_name == "generate_mesh":
-            mesh_ids = await generate_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream)
-            
-            # perform auto-retopology on generated mesh
-            # TODO: need to move this so you don't wait until other formats are exported or the render image is generated
-            for mesh_id in mesh_ids:
-                # should this be a new mesh or just replace the existing mesh?
-                await self.stream.send_msg(
-                    MeshAction(
-                        type="mesh",
-                        params={
-                            "mesh_id": mesh_id,
-                            "new_mesh_id": mesh_id,
-                        },
-                        project_id=action.project_id,
-                        function_name="simplify_mesh",
-                        mesh_ids=mesh_ids,
-                    )
-                )
+            mesh_ids = await generate_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream, job_stream=self.stream)
+
         elif action.function_name == "regenerate_from_latents":
-            mesh_id = await regenerate_from_latents(**action.params)
+            mesh_id = await regenerate_from_latents(**action.params, completed_meshes_stream=self.completed_meshes_stream)
             mesh_ids = [mesh_id]
+            
         elif action.function_name == "simplify_mesh":
             print("Calling runpod deployment to simplify the mesh")
-            mesh_id = await simplify_mesh(**action.params)
+            mesh_id = await simplify_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream)
             mesh_ids = [mesh_id]
         
         await self.completed_meshes_stream.send_msg(

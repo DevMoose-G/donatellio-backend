@@ -149,7 +149,8 @@ async def generate_mesh(
     seed: int,
     labels: List[str],
     max_polygon_count: int,
-    completed_meshes_stream
+    completed_meshes_stream,
+    job_stream
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
@@ -193,9 +194,26 @@ async def generate_mesh(
 
         for mesh_id in mesh_ids:
             mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+
+            # perform auto-retopology on generated mesh
+            # should this be a new mesh or just replace the existing mesh?
+            await job_stream.send_msg(
+                MeshAction(
+                    type="mesh",
+                    params={
+                        "mesh_id": mesh_id,
+                        "new_mesh_id": mesh_id,
+                        'project_id': project_id
+                    },
+                    project_id=project_id,
+                    function_name="simplify_mesh",
+                    mesh_ids=[mesh_id],
+                )
+            )
             
-            await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
-            await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
+            # do i need to generate formats and render if the mesh will be simplified anyways
+            # await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
+            # await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
 
     return mesh_ids
 
@@ -254,7 +272,7 @@ async def generate_texture(
 
 async def regenerate_from_latents(
     project_id, old_mesh_id, mesh_id, mc_level, octree_resolution, 
-    completed_meshes_stream=None, max_facenum=None, do_shade_smooth=True
+    completed_meshes_stream, max_facenum=None, do_shade_smooth=True
 ) -> str:
     runpod_service = RunpodProvider()
     mesh_id = await runpod_service.regenerate_mesh_from_latents(
@@ -273,38 +291,32 @@ async def regenerate_from_latents(
         mesh_dal = MeshDAL(session)
 
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-        # TODO: send message through websocket before converting stuff to show the user progress
-        # await completed_meshes_stream.send_msg(
-        #     MeshAction(
-        #         type="mesh",
-        #         params={
-        #             "image_id": image_id,
-        #             "mesh_ids": mesh_ids,
-        #             "project_id": project_id,
-        #             "mesh_model": mesh_model,
-        #             "n_meshes": n_meshes,
-        #             "quality": quality,
-        #             "seed": seed,
-        #             "labels": labels,
-        #             "max_polygon_count": max_polygon_count
-        #         },
-        #         project_id=project_id,
-        #         function_name="generate_mesh",
-        #         mesh_ids=mesh_ids,
-        #     )
-        # )
+        # send message through websocket before converting stuff to show the user progress
+        await completed_meshes_stream.send_msg(
+            MeshAction(
+                type="mesh",
+                params={
+                    "old_mesh_id": old_mesh_id,
+                    "mesh_id": mesh_id,
+                    "project_id": project_id,
+                    "mc_level": mc_level,
+                    "octree_resolution": octree_resolution,
+                },
+                project_id=project_id,
+                function_name="regenerate_from_latents",
+                mesh_ids=[mesh_id],
+            )
+        )
 
         await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
         await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
     return mesh.id
 
-async def simplify_mesh(mesh_id, new_mesh_id, simplify_ratio=None):
+async def simplify_mesh(project_id, mesh_id, new_mesh_id, completed_meshes_stream, simplify_ratio=None):
     runpod_service = RunpodProvider()
-    mesh_id = await runpod_service.simplify_mesh(
+    await runpod_service.simplify_mesh(
         mesh_id, new_mesh_id, simplify_ratio=simplify_ratio
     )
-    # replicate_provider = ReplicateProvider()
-    # await replicate_provider.simplify_mesh(old_mesh_id, mesh_id, simplify_ratio=simplify_ratio)
     
     os.makedirs(MESH_DIR, exist_ok=True)
 
@@ -312,7 +324,23 @@ async def simplify_mesh(mesh_id, new_mesh_id, simplify_ratio=None):
         mesh_dal = MeshDAL(session)
 
         new_mesh = await mesh_dal.get_mesh_by_id(new_mesh_id)
-        # TODO: send message through websocket before converting stuff to show the user progress
+
+        # send message through websocket before converting stuff to show the user progress
+        await completed_meshes_stream.send_msg(
+            MeshAction(
+                type="mesh",
+                params={
+                    "project_id": project_id,
+                    "new_mesh_id": new_mesh_id,
+                    "mesh_id": mesh_id,
+                    "simplify_ratio": simplify_ratio,
+                },
+                project_id=project_id,
+                function_name="simplify_mesh",
+                mesh_ids=[new_mesh_id],
+            )
+        )
+
         await generate_mesh_formats(new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal)
         await render_mesh_preview_image(new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal)
     return new_mesh.id

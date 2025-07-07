@@ -402,19 +402,18 @@ async def mesh_updates(
                     if action.project_id == project_id:
                         # need to also do it for textured mesh textured_mesh
                         if (
-                            action.function_name == "generate_mesh"
+                            (action.function_name == "generate_mesh" or action.function_name == "regenerate_from_latents" or action.function_name == "simplify_mesh")
                             and action.type == "mesh"
                         ):
                             model_items = []
                             for mesh_id in action.mesh_ids:
-                                try:
-                                    model_items.append(WSModelItem(
-                                        mesh=await get_mesh_item(storage_provider, mesh_id),
-                                        image_id=action.params['image_id']
-                                    ))
-                                except Exception as e:
-                                    print(e)
-                                    breakpoint()
+                                async with AsyncSessionLocal() as session:
+                                    image = await MeshDAL(session).get_mesh_by_id(mesh_id)
+                                    image_id = image.image_id
+                                model_items.append(WSModelItem(
+                                    mesh=await get_mesh_item(storage_provider, mesh_id),
+                                    image_id=image_id
+                                ))
                                 
                             await websocket.send_json(
                                 WSModelResponse(models=model_items).model_dump(
