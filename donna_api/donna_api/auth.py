@@ -166,9 +166,9 @@ async def register(
     response: Response,
     user_dal: UserDAL = Depends(get_user_dal),
 ):
-    # return {
-    #     "message":"Temporarily disabled"
-    # }
+    return {
+        "message":"Temporarily disabled"
+    }
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
     if db_user is not None:
         return JSONResponse(
