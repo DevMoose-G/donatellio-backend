@@ -41,11 +41,11 @@ class ProjectDAL:
         for image in project.images:
             thumbnail_url = None
             image_url = None
+            
             if image.thumbnail_image_storage_key != None:
                 thumbnail_url = StorageProvider().generate_get_url(
                     image.thumbnail_image_storage_key
                 )
-            
             elif image.storage_key != None:
                 thumbnail_url = StorageProvider().generate_get_url(image.storage_key)
 
@@ -58,8 +58,7 @@ class ProjectDAL:
             
             parent_image_url = None
             if image.parent_image_id != None:
-                async with AsyncSessionLocal() as session:
-                    parent_image = await ImageDAL(session).get_image_by_id(image.parent_image_id)
+                parent_image = await ImageDAL(self.session).get_image_by_id(image.parent_image_id)
                 parent_image_url = StorageProvider().generate_get_url(parent_image.storage_key)
             image_prompts.append(
                 ItemImagePromptChat(

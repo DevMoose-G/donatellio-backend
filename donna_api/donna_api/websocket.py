@@ -49,13 +49,13 @@ async def authenticate_ws(websocket: WebSocket, user_dal: UserDAL) -> User:
 async def image_updates(
     websocket: WebSocket,
     project_id: str,
-    project_dal: ProjectDAL = Depends(get_project_dal),
-    user_dal: UserDAL = Depends(get_user_dal),
 ):
     try:
-        current_user = await authenticate_ws(websocket, user_dal)
-
-        project = await project_dal.get_project_by((Project.id == project_id))
+        async with AsyncSessionLocal() as session:
+            current_user = await authenticate_ws(websocket, UserDAL(session))
+        
+        async with AsyncSessionLocal() as session:
+            project = await ProjectDAL(session).get_project_by((Project.id == project_id))
         if current_user.id != project.user_id:
             raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -63,10 +63,12 @@ async def image_updates(
         await stream.setup_group(new_only=False)
         current_img_s3_keys = []
         while True:
-            images = await project_dal.get_images(project_id)
+            async with AsyncSessionLocal() as session:
+                images = await ProjectDAL(session).get_images(project_id)
 
             if images != []:
-                chats = await project_dal.get_image_prompt_chats(project_id)
+                async with AsyncSessionLocal() as session:
+                    chats = await ProjectDAL(session).get_image_prompt_chats(project_id)
 
                 storage_provider = StorageProvider()
 
@@ -100,18 +102,18 @@ async def image_updates(
                         image_id = action.image_id
 
                         async with AsyncSessionLocal() as session:
-                            image_dal = ImageDAL(session)
-                            image = await image_dal.get_image_by_id(image_id)
+                            image = await ImageDAL(session).get_image_by_id(image_id)
 
                         image_url = None
-                        is_partial = False
+                        is_partial = True
                         if image and image.storage_key != None:
                             is_partial = action.is_partial
                             image_url = storage_provider.generate_get_url(
                                 image.storage_key
                             )
 
-                        chats = await project_dal.get_image_prompt_chats(project_id)
+                        async with AsyncSessionLocal() as session:
+                            chats = await ProjectDAL(session).get_image_prompt_chats(project_id)
                         await websocket.send_json(
                             WSImageEditsResponse(
                                 images=[
@@ -126,10 +128,7 @@ async def image_updates(
                         )
                         await stream.ack_msg(msg.id)
     except WebSocketDisconnect:
-        # TODO: disconnect all sqlalchemy sessions
         print("Client disconnected, WebSocket closed")
-    finally:
-        await project_dal.session.close()
 
 async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Optional[WSMeshItem]:
     mesh_storage_key = None
@@ -362,11 +361,11 @@ async def get_all_models_items(storage_provider: StorageProvider, added_meshes: 
 async def mesh_updates(
     websocket: WebSocket,
     project_id: str,
-    user_dal: UserDAL = Depends(get_user_dal),
-    project_dal: ProjectDAL = Depends(get_project_dal),
 ):
-    current_user = await authenticate_ws(websocket, user_dal)
-    project = await project_dal.get_project_by_id(project_id)
+    async with AsyncSessionLocal() as session:
+        current_user = await authenticate_ws(websocket, UserDAL(session))
+    async with AsyncSessionLocal() as session:
+        project = await ProjectDAL(session).get_project_by_id(project_id)
     if current_user.id != project.user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -380,8 +379,8 @@ async def mesh_updates(
     try:
         # TODO: need better way to keep track of the current meshes and textures
         added_meshes = set()
-        current_branch = await project_dal.get_main_branch(project_id)
-        
+        async with AsyncSessionLocal() as session:
+            current_branch = await ProjectDAL(session).get_main_branch(project_id)
         
         while True:
             # getting what's in the database
@@ -447,5 +446,3 @@ async def mesh_updates(
 
     except WebSocketDisconnect:
         print("Client disconnected, WebSocket closed")
-    finally:
-        await user_dal.session.close()

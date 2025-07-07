@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
+from typing import List
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from donna_common.orm.base import Base
+from donna_common.orm.models.image import Image
 
 
 class Project(Base):
@@ -31,7 +33,7 @@ class Project(Base):
     public = Column(Boolean, nullable=False, default=False, server_default="False")
 
     owner = relationship("User", back_populates="projects", lazy="selectin")
-    images = relationship(
+    images: Mapped[List[Image]] = relationship(
         "Image", back_populates="project", lazy="selectin", cascade="all, delete-orphan"
     )
     meshes = relationship(
