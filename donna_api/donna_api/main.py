@@ -18,7 +18,11 @@ app.include_router(api_router)
 # allow local react to interact with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # CRA’s default
+    allow_origins=[
+        "http://localhost:3000", 
+        "https://donatell.io",
+        "https://www.donatell.io",
+    ],  # CRA’s default
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

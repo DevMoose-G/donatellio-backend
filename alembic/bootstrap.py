@@ -8,9 +8,6 @@ from donna_common.settings import settings
 from sqlalchemy import create_engine
 
 # grab the same URL you used in Alembic
-DATABASE_URL = settings.database_sync_url
-
-# DATABASE_URL = settings.database_url
 url_object = URL.create(
     "postgresql+psycopg2",
     username=settings.database_user,

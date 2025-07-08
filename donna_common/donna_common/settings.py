@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     
     stripe_secret_key: str = Field(..., env="STRIPE_SECRET_KEY")
     stripe_websocket_secret: str = Field(..., env="STRIPE_WEBSOCKET_SECRET")
+    
+    frontend_url: str = Field(..., env="FRONTEND_URL")
 
     class Config:
         env_file = ".env"

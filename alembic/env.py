@@ -1,15 +1,38 @@
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy import URL
 
 from alembic import context
+from alembic.config import Config
 from donna_common.settings import settings
+from configparser import RawConfigParser
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+# config = context.config
 
-config.set_main_option("sqlalchemy.url", settings.database_sync_url)
+# this is your SQLAlchemy URL object
+# DATABASE_URL = settings.database_url
+url_object = URL.create(
+    "postgresql+psycopg2",
+    username=settings.database_user,
+    password=settings.database_password,  # plain (unescaped) text
+    host=settings.database_host,
+    port=settings.database_port,
+    database=settings.database_name,
+)
+
+# standard Alembic boilerplate
+config = context.config
+fileConfig(config.config_file_name)
+
+# override the section dictionary directly
+section = config.get_section(config.config_ini_section)
+section["sqlalchemy.url"] = url_object.render_as_string(hide_password=False)
+
+# now build the engine from that in-memory dict
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -68,7 +91,7 @@ def run_migrations_online() -> None:
 
     """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

@@ -120,7 +120,7 @@ async def subscribe_user(
         after_completion={
             "type": "redirect",
             "redirect": {
-                "url": "http://localhost:3000/subscribe/complete?session_id={CHECKOUT_SESSION_ID}"
+                "url": settings.frontend_url+"/subscribe/complete?session_id={CHECKOUT_SESSION_ID}"
             }
         },
         idempotency_key=idempotency_key
