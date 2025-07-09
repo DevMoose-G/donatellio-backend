@@ -60,7 +60,7 @@ async def api_calculate_texture_gen_cost(
     project_id: str,
     current_user: User = Depends(get_current_user),
 ) -> ResponseGenerateTextureInfo:
-    cost = calculate_texture_gen_cost(req.prompt, req.texture_quality)
+    cost = calculate_texture_gen_cost(req.texture_quality)
     return ResponseGenerateTextureInfo(cost=cost)
 
 
@@ -172,7 +172,7 @@ async def create_texture(
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
-    texture_cost = calculate_texture_gen_cost(req.prompt, req.texture_quality)
+    texture_cost = calculate_texture_gen_cost(req.texture_quality)
     response = await user_dal.charge_credit(
         current_user, texture_cost, "user_action:generate_texture"
     )

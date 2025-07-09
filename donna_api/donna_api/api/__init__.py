@@ -10,6 +10,7 @@ from donna_api.api.mesh import router as mesh_router
 from donna_api.api.project import router as project_router
 from donna_api.api.user import router as user_router
 from donna_api.auth import get_current_user
+from donna_api.consts import TIER_FEATURES
 from donna_api.types import GetAssetsResponse
 from donna_common.orm import Project, ProjectDAL, get_project_dal
 from donna_common.orm.models.user import User
@@ -68,7 +69,6 @@ class PricingResponse(BaseModel):
     studio: PricingTier
     enterprise: PricingTier
 
-
 @router.get("/pricing", status_code=200)
 async def get_pricing():
     return PricingResponse(
@@ -77,8 +77,8 @@ async def get_pricing():
             monthly_price=0,
             annual_price=0,
             description="Explore core features at no cost",
-            n_monthly_credits=10,
-            features=["Generate 3D models from text", "Decent queue priority"],
+            n_monthly_credits=15,
+            features=TIER_FEATURES["free"],
         ),
         pro=PricingTier(
             name="Pro",
@@ -86,13 +86,7 @@ async def get_pricing():
             annual_price=240,
             description="Polished assets with advanced controls to match your style",
             n_monthly_credits=200,
-            features=[
-                "Everything in Free",
-                "Download community models",
-                "Access to all public style collections",
-                "2 custom style collections",
-                "Good queue priority",
-            ],
+            features=TIER_FEATURES["pro"],
             additional_credits_price=0.20,
         ),
         studio=PricingTier(
@@ -101,12 +95,7 @@ async def get_pricing():
             annual_price=1080,
             description="High-volume pipeline with plugins and team collaboration tools",
             n_monthly_credits=1000,
-            features=[
-                "Everything in Pro",
-                "Download community models",
-                "10 custom style collections",
-                "Better queue priority",
-            ],
+            features=TIER_FEATURES["studio"],
             additional_credits_price=0.15,
         ),
         enterprise=PricingTier(
@@ -115,10 +104,6 @@ async def get_pricing():
             annual_price=None,
             description="Unlimited access to our full suite of tools",
             n_monthly_credits=None,
-            features=[
-                "Everything in Studio",
-                "Unlimited style collections",
-                "Best queue priority",
-            ],
+            features=TIER_FEATURES["enterprise"],
         ),
     )

@@ -133,7 +133,9 @@ async def get_project_info(
     profile_storage_key = project.owner.profile_image_storage_key
     if profile_storage_key is None:
         # temporary (use the user profile img url)
-        profile_img_url = "https://static.vecteezy.com/system/resources/previews/056/260/989/non_2x/neon-glowing-cube-with-floating-shapes-abstract-3d-render-free-png.png"
+        profile_img_url = None
+    elif profile_storage_key.startswith("http"):
+        profile_img_url = profile_storage_key
     else:
         profile_img_url = storage_provider.generate_get_url(profile_storage_key)
 

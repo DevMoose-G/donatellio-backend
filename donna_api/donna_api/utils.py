@@ -30,7 +30,27 @@ def calculate_mesh_gen_cost(n_meshes, quality, labels):
     return cost
 
 
-def calculate_texture_gen_cost(prompt, texture_quality):
+def calculate_texture_gen_cost(texture_quality):
     quality_multiplier = texture_quality_multiplier[texture_quality]
     cost = quality_multiplier
     return cost
+
+def expected_mesh_gen_time(quality):
+    if quality == "low":
+        time = 35
+    elif quality == "medium":
+        time = 55
+    elif quality == "high":
+        time = 70
+    
+    return time
+
+def expected_texture_gen_time(texture_quality):
+    if texture_quality == "normal":
+        time = 52
+    elif texture_quality == "precise":
+        time = 75
+    elif texture_quality == "stylized":
+        time = 52
+    
+    return time

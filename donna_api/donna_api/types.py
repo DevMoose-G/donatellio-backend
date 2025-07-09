@@ -155,6 +155,7 @@ class WSMeshItem(BaseModel):
     mesh_url: Optional[str] = None
     mesh_image_url: Optional[str] = None
     status: str
+    expected_completion_date: Optional[datetime] = None
     created_at: datetime
 
 class WSTextureItem(BaseModel):
@@ -162,6 +163,7 @@ class WSTextureItem(BaseModel):
     texture_url: Optional[str] = None
     texture_image_url: Optional[str] = None
     status: str
+    expected_completion_date: Optional[datetime] = None
     created_at: datetime
 
 class WSModelItem(BaseModel):

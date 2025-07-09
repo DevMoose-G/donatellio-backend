@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     stripe_websocket_secret: str = Field(..., env="STRIPE_WEBSOCKET_SECRET")
     
     frontend_url: str = Field(..., env="FRONTEND_URL")
+    oid_google_client_id: str = Field(..., env="OID_GOOGLE_CLIENT_ID")
+    oid_google_secret: str = Field(..., env="OID_GOOGLE_SECRET")
 
     class Config:
         env_file = ".env"

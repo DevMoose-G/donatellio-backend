@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
+from donna_api.consts import CREDITS_BY_TIER, PRICE_BY_TIER, REVERSED_TIER_MAP, TIER_FEATURES, TIER_MAP
 from donna_api.types import GetAssetsResponse, GetProjectsResponse
 from donna_common.settings import settings
 from donna_common.orm import Project, ProjectDAL, UserDAL, get_project_dal, get_user_dal
@@ -24,19 +25,6 @@ load_dotenv()  # reads .env from cwd
 router = APIRouter(prefix="/user")
 
 stripe.api_key = settings.stripe_secret_key
-
-TIER_MAP = {
-    "":"free",
-    "prod_Scu7PE0RUE0bkF": "pro",
-    "prod_ScyEebHjNsSFAa": "studio"
-}
-REVERSED_TIER_MAP = {v: k for k, v in TIER_MAP.items()}
-
-CREDITS_BY_TIER = {
-    "free": 10,
-    "pro": 200,
-    "studio": 1000
-}
 
 @router.post("/subscribe")
 async def webhook(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
@@ -274,9 +262,12 @@ async def update_user_settings(
 class GetUserInfoResponse(BaseModel):
     username: str
     subscription_tier: str
+    tier_features: List[str]
     credit_balance: int
     n_projects: int
+    tier_credits: int
     profile_image_url: Optional[str] = None
+    tier_price: float
 
 
 @router.get("/info", status_code=200)
@@ -294,11 +285,13 @@ async def get_user_info(
             finished_projs.append(project)
 
     storage_provider = StorageProvider()
-    image_url = (
-        storage_provider.generate_get_url(current_user.profile_image_storage_key)
-        if current_user.profile_image_storage_key
-        else None
-    )
+    
+    image_url = None
+    
+    if current_user.profile_image_storage_key.startswith("http"):
+        image_url = current_user.profile_image_storage_key
+    elif current_user.profile_image_storage_key:
+        image_url = storage_provider.generate_get_url(current_user.profile_image_storage_key)
     
     if current_user.subscription_id != '':
         subscription = stripe.Subscription.retrieve(current_user.subscription_id)
@@ -313,7 +306,10 @@ async def get_user_info(
         subscription_tier=subscription_tier, # TEMP: current_user.subscription_id
         credit_balance=current_user.credit_balance,
         n_projects=len(finished_projs),
+        tier_features=TIER_FEATURES[subscription_tier],
         profile_image_url=image_url,
+        tier_credits=CREDITS_BY_TIER[subscription_tier],
+        tier_price=PRICE_BY_TIER[subscription_tier],
     )
 
 

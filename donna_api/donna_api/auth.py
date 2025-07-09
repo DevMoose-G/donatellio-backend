@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from random import randint
 from typing import Any
 
+from pydantic import BaseModel
 import redis
 from fastapi import (
     APIRouter,
@@ -15,7 +16,9 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
+from donna_api.consts import CREDITS_BY_TIER
 from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
+from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
 from donna_common.utils.hashing import get_password_hash, verify_password
@@ -190,7 +193,7 @@ async def register(
         password=hashed_pw,
         username=user.username,
         profile_image_storage_key=profile_img_storage_key,
-        credit_balance=10
+        credit_balance=CREDITS_BY_TIER['free'],
     )
     new_user = await user_dal.create_user(new_user)
 
@@ -299,3 +302,79 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
     except JWTError:
         pass
     return JSONResponse(status_code=200, content={"success": True})
+
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+class RequestGoogleAuth(BaseModel):
+    access_token: str
+
+@router.post("/auth/google")
+async def google_auth(request: RequestGoogleAuth, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+    try:
+        payload = id_token.verify_oauth2_token(
+            request.access_token,
+            google_requests.Request(),
+            settings.oid_google_client_id  # from your env vars
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    
+    google_id = payload["sub"]
+    email = payload["email"]
+    user_name = payload["name"]
+    profile_pic_url = payload['picture']
+    if (payload['email_verified'] != True):
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    # check if there is account with that google id, if so login
+    existing_user = await user_dal.get_user_by(filter=(User.google_auth_id == google_id))
+    if existing_user is not None:
+        # login
+        user = existing_user
+    
+    else:
+        user_by_email = await user_dal.get_user_by_email(email)
+        if user_by_email is not None:
+            raise HTTPException(status_code=400, detail="Email already in use, but not with Google Auth")
+        
+        # create new user with google id
+        # check if an account has that username
+        db_user = await user_dal.get_user_by(filter=(User.username == user_name))
+        while db_user is not None:
+            user_name = f"{user_name}{randint(0, 9)}"
+            db_user = await user_dal.get_user_by(filter=(User.username == user_name))
+        user = User(
+            id=str(uuid.uuid4()),
+            google_auth_id=google_id,
+            email=email,
+            username=user_name,
+            profile_image_storage_key=profile_pic_url,
+            password="",
+            credit_balance=CREDITS_BY_TIER['free']
+        )
+    
+        user = await user_dal.create_user(user)
+
+    expires_in = datetime.now(timezone.utc) + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    access_token = create_access_token(data={"sub": user.id})
+
+    jti = str(uuid.uuid4())
+    refresh_token = create_refresh_token(data={"sub": user.id, "jti": jti})
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,  # not settings.debug,
+        samesite="None",  # TODO: can't use "Lax" since we need cross-site cookies for the frontend
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
+        path="/",
+    )
+    return JWTToken(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=expires_in,
+    ).model_dump()

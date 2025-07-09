@@ -32,6 +32,12 @@ class ProjectActionDAL:
         await self.session.refresh(action)
         return action
     
-    async def get_all_actions_in_project_version(self, version_id: str):
+    async def get_all_actions_in_project_version(self, version_id: str) -> List[ProjectAction]:
         stmt = select(ProjectAction).where(ProjectAction.project_version_id == version_id)
         return await self.session.scalars(stmt)
+    
+    async def get_actions_by_asset(self, asset_id: str, asset_type: AssetStage) -> List[ProjectAction]:
+        stmt = select(ProjectAction) \
+         .where((ProjectAction.asset_id == asset_id) & (ProjectAction.asset_stage == asset_type.value)).order_by(ProjectAction.created_at.desc())
+        scalars = await self.session.scalars(stmt)
+        return scalars.all()
