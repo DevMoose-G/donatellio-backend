@@ -177,7 +177,7 @@ class DonnaWorker:
                         await self.stream.ack_msg(msg.id)
                     asyncio.create_task(process_message(msg))
                         
-
+# TODO: increase # of concurrent workers
 async def mainloop():
     worker = await DonnaWorker.create()
     await worker.mainloop()

@@ -4,6 +4,8 @@ GEMINI_IMAGE_GEN_PROMPT = (
     f"Put a clear background of a color not used in the image. {BASE_IMAGE_GEN_PROMPT}"
 )
 
+REPLICATE_IMAGE_EDIT_PROMPT = ""
+
 
 # system prompts
 ELABORATION_PROMPT = "You’re a 3D model assistant.\nAsk exactly {n_questions} follow-up questions to nail down the key details of the initial image.\nKeep each under six words, informal, no “who/what/where/etc.”\nReturn them as plain lines, no numbers. Focus on the image itself, not the 3D model or the background or environment."

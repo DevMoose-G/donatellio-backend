@@ -372,8 +372,9 @@ async def regenerate_mesh(
             
         else:
             print("Mesh does not need to be regenerated")
-    if req.face_count != None:
+    if req.face_count != None and req.face_count != old_mesh.face_count:
         simplify_ratio = req.face_count / old_mesh.face_count
+            
         if simplify_ratio >= 1 or simplify_ratio <= 0:
             await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(

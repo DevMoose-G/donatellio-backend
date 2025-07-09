@@ -145,7 +145,7 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
 
         mesh_image_storage_key = mesh.static_render_storage_key
         
-        mesh_item = WSMeshItem(mesh_id=mesh.id, status=mesh.status, created_at=mesh.created_at)
+        mesh_item = WSMeshItem(mesh_id=mesh.id, status=mesh.status, created_at=mesh.created_at, parent_mesh_id=mesh.parent_mesh_id)
     
     mesh_url = (
         storage_provider.generate_get_url(mesh_storage_key)
@@ -291,7 +291,8 @@ async def get_texture_model_items(
                         mesh_url=None,
                         mesh_image_url=None,
                         status=mesh.status,
-                        created_at=mesh.created_at
+                        created_at=mesh.created_at,
+                        parent_mesh_id=mesh.parent_mesh_id
                     ),
                     texture=texture_item
                 )

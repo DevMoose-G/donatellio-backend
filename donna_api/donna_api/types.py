@@ -151,6 +151,7 @@ class MeshFormat(BaseModel):
 
 class WSMeshItem(BaseModel):
     mesh_id: str
+    parent_mesh_id: Optional[str] = None
     mesh_url: Optional[str] = None
     mesh_image_url: Optional[str] = None
     status: str

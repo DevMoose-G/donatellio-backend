@@ -5,7 +5,7 @@ import requests
 
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
-from donna_common.prompts import BASE_IMAGE_GEN_PROMPT, GEMINI_IMAGE_GEN_PROMPT, KLING_VIDEO_MV_NEGATIVE_PROMPT, KLING_VIDEO_MV_PROMPT
+from donna_common.prompts import BASE_IMAGE_GEN_PROMPT, GEMINI_IMAGE_GEN_PROMPT, KLING_VIDEO_MV_NEGATIVE_PROMPT, KLING_VIDEO_MV_PROMPT, REPLICATE_IMAGE_EDIT_PROMPT
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
 from donna_common.utils.multiview import extract_frames
@@ -119,7 +119,7 @@ class ReplicateProvider:
     ):
         image_name = f"{image_id}.png"
 
-        prompt = f"{GEMINI_IMAGE_GEN_PROMPT}\n{prompt}"
+        prompt = f"{REPLICATE_IMAGE_EDIT_PROMPT}\n{prompt}"
 
         image_model = ""
         input_data = {"prompt": prompt}
