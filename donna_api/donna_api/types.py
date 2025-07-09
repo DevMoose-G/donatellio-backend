@@ -137,6 +137,10 @@ class WSImageItem(BaseModel):
     url: Optional[str] = None
     is_partial: bool = False
 
+class GetImageInfo(BaseModel):
+    id: str
+    url: Optional[str] = None
+
 
 class WSImageEditsResponse(BaseModel):
     images: List[WSImageItem]

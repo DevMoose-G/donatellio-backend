@@ -165,7 +165,7 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
                         mesh_action = action
                         break
                 
-                mesh_quality = action.parameters['quality']
+                mesh_quality = action.parameters.get("quality", None)
                 
                 all_actions_in_version = await project_action_dal.get_all_actions_in_project_version(version_id=mesh_action.project_version_id)
                 sorted_actions: List[ProjectAction] = sorted(all_actions_in_version, key=lambda action: action.created_at)
@@ -177,9 +177,11 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
                         if action.id == mesh_action.id:
                             break
             
-            estimated_total_time = num_of_meshes_before * expected_mesh_gen_time(mesh_quality)
+            if (mesh_quality == None):
+                estimated_total_time = 30
+            else:
+                estimated_total_time = num_of_meshes_before * expected_mesh_gen_time(mesh_quality)
             expected_time = mesh.created_at + timedelta(seconds=estimated_total_time)
-            print(f"expected time: {expected_time}")
         
         mesh_item = WSMeshItem(mesh_id=mesh.id, status=mesh.status, created_at=mesh.created_at, parent_mesh_id=mesh.parent_mesh_id, expected_completion_date=expected_time)
     
@@ -229,7 +231,6 @@ async def get_texture_item(storage_provider: StorageProvider, texture_id: str) -
             estimated_total_time = expected_texture_gen_time(texture_quality)
             expected_time = texture.created_at + timedelta(seconds=estimated_total_time)
 
-            print(f"expected time: {expected_time}")
         texture_item = WSTextureItem(texture_id=texture.id,  status=texture.status, created_at=texture.created_at, expected_completion_date=expected_time)
     
     texture_url = (
@@ -374,7 +375,7 @@ async def mesh_updates(
                 for msg in messages:
                     action = msg.action
                     if action.project_id == project_id:
-                        # need to also do it for textured mesh textured_mesh
+                        print(f"got a message: {action}")
                         if (
                             (action.function_name == "generate_mesh" or action.function_name == "regenerate_from_latents" or action.function_name == "simplify_mesh")
                             and action.type == "mesh"
@@ -416,6 +417,8 @@ async def mesh_updates(
                                 )
                             )
                             await stream.ack_msg(msg.id)
+                        else:
+                            print("did not send message")
 
     except WebSocketDisconnect:
         print("Client disconnected, WebSocket closed")

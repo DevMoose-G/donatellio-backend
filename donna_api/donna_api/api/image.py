@@ -64,7 +64,7 @@ async def create_image(
         )
 
     project = await project_dal.create_project(
-        id=project_id, name="test", user_id=current_user.id, public=True # temp public
+        id=project_id, name="Unnamed Project", user_id=current_user.id, public=True # temp public
     )
     
     try:

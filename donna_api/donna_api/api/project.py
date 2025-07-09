@@ -8,10 +8,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.types import ItemCollection, WSModelResponse
+from donna_api.types import GetImageInfo, ItemCollection, WSModelResponse
 from donna_api.websocket import get_all_models_items
 from donna_common.orm import ProjectDAL, get_project_dal
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
+from donna_common.orm.dal.image import ImageDAL, get_image_dal
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
 from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
 from donna_common.orm.dal.project_collection import (
@@ -379,3 +380,27 @@ async def mesh_project_version_updates(
 
     if new_model_items != []:
         return WSModelResponse(models=new_model_items).model_dump(mode="json")
+
+@router.get("/{project_id}/image", status_code=200)
+async def get_latest_image(
+    project_id: str,
+    image_id: Optional[str] = None,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    image_dal: ImageDAL = Depends(get_image_dal),
+    current_user: User = Depends(get_current_user),
+) -> GetImageInfo:
+    
+    project = await project_dal.get_project_by_id(project_id)
+    if (current_user.id != project.user_id):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if (image_id == None):
+        images = await project_dal.get_uploaded_images(project_id)
+        image = images[-1]
+    else:
+        image = await image_dal.get_image_by_id(image_id)
+        if (project.id != image.project_id):
+            raise HTTPException(status_code=400, detail="Image doesn't exist on this project.")
+    storage_provider = StorageProvider()
+    image_url = storage_provider.generate_get_url(image.storage_key)
+    return GetImageInfo(id=image.id, url=image_url)
