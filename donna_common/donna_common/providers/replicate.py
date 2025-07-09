@@ -5,9 +5,10 @@ import requests
 
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
-from donna_common.prompts import BASE_IMAGE_GEN_PROMPT, GEMINI_IMAGE_GEN_PROMPT
+from donna_common.prompts import BASE_IMAGE_GEN_PROMPT, GEMINI_IMAGE_GEN_PROMPT, KLING_VIDEO_MV_NEGATIVE_PROMPT, KLING_VIDEO_MV_PROMPT
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
+from donna_common.utils.multiview import extract_frames
 
 STATIC_DIR = settings.static_dir
 
@@ -35,26 +36,6 @@ class ReplicateProvider:
         await self.dal.image_dal.update_image(
             id=image_id, thumbnail_image_storage_key=key
         )
-    
-    async def edit_image_flux_kontext(self, prompt, image_url, quality="high"):
-        url = f"https://api.bfl.ai/v1/flux-kontext-{'max' if quality == 'high' else 'pro'}"
-
-        payload = {
-            "prompt": prompt,
-            "input_image": image_url,
-            "aspect_ratio": "1:1",
-            "output_format": "png",
-            "prompt_upsampling": True,
-            "safety_tolerance": 6
-        }
-        headers = {
-            "x-key": "<api-key>",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.request("POST", url, json=payload, headers=headers)
-        response.json()
-        raise NotImplementedError
 
 
     async def generate_image(
@@ -200,61 +181,36 @@ class ReplicateProvider:
 
         return output
 
-    async def activate_retopology_model():
-        return await replicate.deployments.async_update(
-            deployment_name="mesh-retropology-asimp", 
-            deployment_owner="devmoose-g",
-            min_instances=1
+    async def generate_multiviews(self, image_id):
+        image = await self.dal.image_dal.get_image_by_id(image_id)
+        image_url = self.storage_provider.generate_get_url(
+            image.storage_key
+        )
+        input_data = {
+            "start_image": image_url,
+            "prompt":KLING_VIDEO_MV_PROMPT,
+            "negative_prompt":KLING_VIDEO_MV_NEGATIVE_PROMPT,
+            "duration": 5
+        }
+        
+        output = replicate.run(
+            "kwaivgi/kling-v2.1",
+            input=input_data
         )
         
-    async def deactivate_retopology_model():
-        return await replicate.deployments.async_update(
-            deployment_name="mesh-retropology-asimp", 
-            deployment_owner="devmoose-g",
-            min_instances=0
-        )
-
-    async def simplify_mesh(self, old_mesh_id: str, mesh_id: str, simplify_ratio: float=None) -> str:
-        s3_put_url = self.storage_provider.generate_put_url_for_mesh(
-            f"{mesh_id}_simp_{'auto' if simplify_ratio == None else int(simplify_ratio * 100)}"
-        )
+        output_path = f"{STATIC_DIR}/{image_id}_mv.mp4"
+        with open(output_path, "wb") as file:
+            file.write(output.read())
         
-        old_mesh = await self.dal.mesh_dal.get_mesh_by_id(old_mesh_id)
+        frame_paths = extract_frames(output_path, f"{STATIC_DIR}/{image_id}_mv")
         
-        glb_url = self.storage_provider.generate_get_url(old_mesh.storage_key)
-        
-        deployment = replicate.deployments.get("devmoose-g/mesh-retropology-asimp")
-        
-        pred_input = {"glb_url": glb_url, "s3_url": s3_put_url}
-        
-        # manual retopology (instead of auto)
-        if simplify_ratio != None: 
-            pred_input["ratio"] = simplify_ratio
-        
-        prediction = deployment.predictions.create(
-            input=pred_input
-        )
-        try:
-            prediction.wait()
-
-            if prediction.status == "failed":
-                mesh = await self.dal.mesh_dal.update_mesh(
-                    id=mesh_id, 
-                    storage_key=None,
-                    gpu_provider_response=f"Error:{prediction.error[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
-                    status="FAILED"
-                )
-            else:
-                parsed_url = urlparse(s3_put_url)
-                storage_key = parsed_url.path[1:]
-                mesh = await self.dal.mesh_dal.update_mesh(id=mesh_id, face_count=prediction.output['n_faces'], storage_key=storage_key, status="COMPLETED")
-        except Exception as e:
-            mesh = await self.dal.mesh_dal.update_mesh(
-                id=mesh_id, 
-                storage_key=None,
-                gpu_provider_response=f"Error:{str(e)[-100:]}\nID:{prediction.id}\nModel:{prediction.model}\nLogs:{prediction.logs[-800:]}",
-                status="FAILED"
+        # upload all the frames in a single folder in s3 and save that folder's key in db
+        mv_storage_key = f"{image_id}_mv"
+        for i, frame_path in enumerate(frame_paths):
+            self.storage_provider.upload_image(
+                f"{mv_storage_key}/frame_{i}.png", frame_path
             )
-        
-        
-        return mesh.id
+        mv_storage_key = f"images/{mv_storage_key}"
+        await self.dal.image_dal.update_image(
+            id=image_id, multiview_image_dir=mv_storage_key
+        )

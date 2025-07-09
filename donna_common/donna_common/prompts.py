@@ -15,3 +15,6 @@ NAME_PROJECT_BASED_ON_PROMPT = (
 NAME_PROJECT_BASED_ON_IMAGE = (
     "Concisely name the object based on the image given. Use no more than 9 words."
 )
+
+KLING_VIDEO_MV_PROMPT="Pan diagonally (horizontally and vertically) around this object showing different perspectives with this object in the center until it shows the back of this object. This object is static and doesn't move or animate at all. Draw the background as a unique color not present in this image."
+KLING_VIDEO_MV_NEGATIVE_PROMPT="do not animate or move the object at all"

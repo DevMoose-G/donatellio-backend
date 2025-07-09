@@ -20,3 +20,4 @@ runpod
 boto3
 replicate
 stripe
+opencv-python
