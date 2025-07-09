@@ -17,6 +17,7 @@ from donna_api.types import (
     ResponseGenerateTextureInfo,
     step1x_labels,
 )
+from donna_api.utils import calculate_mesh_gen_cost, calculate_texture_gen_cost, regen_mesh_cost
 from donna_common.orm import (
     ImageDAL,
     ProjectDAL,
@@ -41,22 +42,6 @@ from donna_worker.worker.mesh import MESH_DIR
 load_dotenv()  # reads .env from cwd
 
 router = APIRouter(prefix="/mesh")
-
-mesh_quality_multiplier = {"low": 1, "medium": 2, "high": 3}
-
-texture_quality_multiplier = {"normal": 2, "precise": 4, "stylized": 4}
-
-
-def calculate_mesh_gen_cost(n_meshes, quality, labels):
-    quality_multiplier = mesh_quality_multiplier[quality]
-    cost = (n_meshes * quality_multiplier) + len(labels)
-    return cost
-
-
-def calculate_texture_gen_cost(prompt, texture_quality):
-    quality_multiplier = texture_quality_multiplier[texture_quality]
-    cost = quality_multiplier
-    return cost
 
 
 @router.post("/{project_id}/preview/mesh_cost", status_code=200)
@@ -420,7 +405,7 @@ async def regenerate_mesh(
     else:
         # TODO: charge credit
         response = await user_dal.charge_credit(
-            current_user, 1, "user_action:regenerate_mesh"
+            current_user, regen_mesh_cost, "user_action:regenerate_mesh"
         )
 
     return {"project_id": req.project_id, "mesh_id": new_mesh.id}

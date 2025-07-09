@@ -12,6 +12,7 @@ from donna_api.types import (
     RequestEditImage,
     RequestGetElaboratingQuestions,
 )
+from donna_api.utils import image_cost
 from donna_common.orm import (
     ImageDAL,
     ProjectDAL,
@@ -52,8 +53,9 @@ async def create_image(
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
+    cost = image_cost(req.image_model, req.quality)
     response = await user_dal.charge_credit(
-        current_user, 2, "user_action:generate_image"
+        current_user, cost, "user_action:generate_image"
     )
     if response.success == False:
         return JSONResponse(
@@ -124,7 +126,8 @@ async def edit_image(
     image_id = str(uuid.uuid4())
     await stream.setup_group(new_only=False)
 
-    response = await user_dal.charge_credit(current_user, 2, "user_action:edit_image")
+    cost = image_cost(req.image_model, req.quality)
+    response = await user_dal.charge_credit(current_user, cost, "user_action:edit_image")
     if response.success == False:
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
@@ -170,22 +173,7 @@ async def get_image_cost(
     req: RequestImageCost,
     current_user: User = Depends(get_current_user),
 ):
-    if req.image_model == "gpt4o":
-        if req.quality == "high":
-            cost = 2
-        elif req.quality == "medium":
-            cost = 2
-        elif req.quality == "low":
-            cost = 1
-    elif req.image_model == "fluxkontext":
-        if req.quality == "high":
-            cost = 2
-        elif req.quality == "medium":
-            cost = 1
-        elif req.quality == "low":
-            cost = 1
-    elif req.image_model == "imagen4":
-        cost = 1
+    cost = image_cost(req.image_model, req.quality)
     return {"cost": cost}
 
 
