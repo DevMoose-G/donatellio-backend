@@ -6,20 +6,19 @@ TIER_FEATURES = {
     "free": ["Generate 3D models from text", "Decent queue priority"],
     "pro": [
         "Everything in Free",
-        "Download community models",
-        "Access to all public style collections",
-        "2 custom style collections",
+        # "Download community models",
+        # "Access to all public style collections",
+        # "2 custom style collections",
         "Good queue priority",
     ],
     "studio": [
         "Everything in Pro",
-        "Download community models",
-        "10 custom style collections",
+        # "10 custom style collections",
         "Better queue priority",
     ],
     "enterprise": [
         "Everything in Studio",
-        "Unlimited style collections",
+        # "Unlimited style collections",
         "Best queue priority",
     ],
 }

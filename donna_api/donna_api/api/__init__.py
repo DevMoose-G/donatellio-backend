@@ -38,18 +38,22 @@ async def get_market_assets(
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=((Project.user_id != current_user.id) & (Project.public)),
-            limit=limit,
-            offset=offset,
+            filter=((Project.user_id != current_user.id) & (Project.public))
         )
         if project.meshes != []
     ]
+
     assets = []
+    # TODO: need better way to implement limit & offset (prob need a static list of projects that gets updated periodically)
     for i in range(min(limit, len(projects))):
         project = projects[i]
         asset_display = await project_dal.get_asset_display(project)
         if asset_display != None:  # skip unfinished projects
+            if offset > 0:
+                offset -= 1
+                continue
             assets.append(asset_display)
+    assets = assets[:limit]
     return GetAssetsResponse(assets=assets, count=len(assets))
 
 

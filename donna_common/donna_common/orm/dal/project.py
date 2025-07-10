@@ -206,10 +206,10 @@ class ProjectDAL:
         self, filter, limit=None, offset=None
     ) -> List[Project]:
         exec = select(Project).where(filter)
-        if limit is not None:
-            exec = exec.limit(limit)
         if offset is not None:
             exec = exec.offset(offset)
+        if limit is not None:
+            exec = exec.limit(limit)
         projects = await self.session.execute(exec)
         return projects.scalars().all()
 
