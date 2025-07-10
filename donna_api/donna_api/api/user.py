@@ -288,7 +288,9 @@ async def get_user_info(
     
     image_url = None
     
-    if current_user.profile_image_storage_key.startswith("http"):
+    if current_user.profile_image_storage_key == None:
+        image_url = None
+    elif current_user.profile_image_storage_key.startswith("http"):
         image_url = current_user.profile_image_storage_key
     elif current_user.profile_image_storage_key:
         image_url = storage_provider.generate_get_url(current_user.profile_image_storage_key)
