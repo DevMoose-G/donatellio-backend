@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     oid_google_client_id: str = Field(..., env="OID_GOOGLE_CLIENT_ID")
     oid_google_secret: str = Field(..., env="OID_GOOGLE_SECRET")
 
+    auth_secret_key: str = Field(..., env="AUTH_SECRET_KEY")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -27,6 +27,8 @@ class User(Base):
     subscription_id = Column(String(128), nullable=False, default="")
     stripe_customer_id = Column(String(128), nullable=True)
     google_auth_id = Column(String(128), nullable=True)
+    # is_verified = Column(Boolean, nullable=False, default=False)
+
     credit_balance = Column(Integer, nullable=False, default=0)
 
     profile_image_storage_key = Column(String(1024), nullable=True)

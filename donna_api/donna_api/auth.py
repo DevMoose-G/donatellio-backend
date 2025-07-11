@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from random import randint
 from typing import Any
+from itsdangerous import URLSafeTimedSerializer
 
 from pydantic import BaseModel
 import redis
@@ -31,7 +32,7 @@ redis_client = redis.Redis(host="localhost", port=6379, db=0)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # this should be an environment variable. should this be regenerated on restart?
-SECRET_KEY = "a-very-long-random-string-that-you-keep-secret"  # should be high-entropy (at least 256 bits). change this
+SECRET_KEY = settings.auth_secret_key  # should be high-entropy (at least 256 bits). change this
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15  # e.g. tokens valid for 15 mins
 REFRESH_TOKEN_EXPIRE_DAYS = 5
@@ -47,12 +48,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme), user_dal: UserDAL = Depends(get_user_dal)
 ) -> User:
     """
-    Dependency that:
-      - Reads token from “Authorization: Bearer <token>”
-      - Decodes & validates JWT
-      - Retrieves user from DB
-      - Raises 401 if something fails
-      - Returns UserInDB if successful
+    Reads token from “Authorization: Bearer <token>” and returns user if successful
     """
     credentials_exception = HTTPException(
         status_code=401,  # Unauthorized
