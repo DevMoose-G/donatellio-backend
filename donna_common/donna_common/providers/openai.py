@@ -235,7 +235,7 @@ class OpenAIProvider:
 
         # TODO: get directly with aws sdk python
         if original_image.storage_key == None:
-            breakpoint()  # TODO
+            return # bug
 
         prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 

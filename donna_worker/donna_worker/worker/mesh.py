@@ -538,7 +538,6 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
     # Validate that each file actually exists
     for key, path in result.items():
         if not os.path.isfile(path):
-            breakpoint()
             raise RuntimeError(f"Expected output {key} was not created: {path}")
 
     return result

@@ -197,8 +197,8 @@ class RunpodProvider:
         # generate the presigned url to send to runpod
         old_mesh = await MeshDAL(session).get_mesh_by_id(old_mesh_id)
         if old_mesh.latents_storage_key is None:
-            print("latents_storage_key is None")
-            breakpoint()
+            print("[ERROR] latents_storage_key is None. This should not happen")
+            # breakpoint()
             return
         old_mesh_latents_url = storage_provider.generate_get_url(
             old_mesh.latents_storage_key
@@ -236,7 +236,6 @@ class RunpodProvider:
                             gpu_provider_response=str(output)[-1000:],
                         )
             except Exception as e:
-                breakpoint()
                 async with AsyncSessionLocal() as session:
                     for mesh_id in mesh_mapping.keys():
                         await MeshDAL(session).update_mesh(
@@ -384,7 +383,6 @@ class RunpodProvider:
                             gpu_provider_response=str(output)[-1000:],
                         )
             except:
-                breakpoint()
                 async with AsyncSessionLocal() as session:
                     for mesh_id in mesh_mapping.keys():
                         await MeshDAL(session).update_mesh(

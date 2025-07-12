@@ -181,21 +181,22 @@ async def get_mesh_item(
 
                 mesh_quality = action.parameters.get("quality", None)
 
-                all_actions_in_version = (
-                    await project_action_dal.get_all_actions_in_project_version(
-                        version_id=mesh_action.project_version_id
+                if mesh_action != None:
+                    all_actions_in_version = (
+                        await project_action_dal.get_all_actions_in_project_version(
+                            version_id=mesh_action.project_version_id
+                        )
                     )
-                )
-                sorted_actions: List[ProjectAction] = sorted(
-                    all_actions_in_version, key=lambda action: action.created_at
-                )
-                # figure out how many meshes being generated are before this one in the queue
-                num_of_meshes_before = 0
-                for action in sorted_actions:
-                    if action.action_type == "generate_mesh":
-                        num_of_meshes_before += 1
-                        if action.id == mesh_action.id:
-                            break
+                    sorted_actions: List[ProjectAction] = sorted(
+                        all_actions_in_version, key=lambda action: action.created_at
+                    )
+                    # figure out how many meshes being generated are before this one in the queue
+                    num_of_meshes_before = 0
+                    for action in sorted_actions:
+                        if action.action_type == "generate_mesh":
+                            num_of_meshes_before += 1
+                            if action.id == mesh_action.id:
+                                break
 
             if mesh_quality == None:
                 estimated_total_time = 30
@@ -329,7 +330,7 @@ async def get_model_items(
         for texture_id in texture_ids:
             texture = await texture_dal.get_texture_by_id(texture_id)
             if texture is None:
-                breakpoint()
+                return
             texture_item = await get_texture_item(storage_provider, texture_id)
 
             mesh_item = mesh_items[texture.mesh_id]
@@ -482,7 +483,6 @@ async def mesh_updates(
                                 )
                             except Exception as e:
                                 print(e)
-                                breakpoint()
                             await websocket.send_json(
                                 WSModelResponse(models=[model_item]).model_dump(
                                     mode="json"

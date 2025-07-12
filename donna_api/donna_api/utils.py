@@ -43,21 +43,21 @@ def calculate_texture_gen_cost(texture_quality):
 
 def expected_mesh_gen_time(quality):
     if quality == "low":
-        time = 35
+        time = 45
     elif quality == "medium":
-        time = 55
+        time = 65
     elif quality == "high":
-        time = 70
+        time = 80
 
     return time
 
 
 def expected_texture_gen_time(texture_quality):
     if texture_quality == "normal":
-        time = 52
+        time = 60
     elif texture_quality == "precise":
-        time = 75
+        time = 85
     elif texture_quality == "stylized":
-        time = 52
+        time = 65
 
     return time

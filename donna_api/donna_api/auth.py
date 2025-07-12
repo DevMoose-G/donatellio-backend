@@ -26,7 +26,7 @@ from donna_common.settings import settings
 from donna_common.utils.hashing import get_password_hash, verify_password
 from donna_common.utils.profile_image import ICON_STORAGE_KEYS, PALETTES
 
-redis_client = redis.Redis(host="localhost", port=6379, db=0)
+redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
 # 3. Define the “token URL” that the client will call to get a token:
 #    This corresponds to our login endpoint path (e.g. "/token").

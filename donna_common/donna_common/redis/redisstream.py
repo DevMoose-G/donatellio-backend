@@ -4,8 +4,9 @@ from pydantic import TypeAdapter
 from redis.asyncio import Redis
 
 from donna_common.redis.types import Action, BaseAction, RedisMessage
+from donna_common.settings import settings
 
-r = Redis(host="localhost", port=6379, decode_responses=True)
+r = Redis.from_url(settings.redis_url, decode_responses=True)
 
 
 class RedisStream:
@@ -59,7 +60,6 @@ class RedisStream:
         )
         if len(entries) == 0:
             return []
-            # return RedisReadResponse(self.stream_key, [])
         messages = []
         for _, msgs in entries:
             for _id, fields in msgs:
@@ -69,7 +69,6 @@ class RedisStream:
                     raise Exception(str(fields))
                 action = TypeAdapter(Action).validate_json(fields["data"])
                 messages.append(RedisMessage(id=_id, action=action))
-                # msgs.append(RedisMessage(msg[0], RedisPayload(**msg[1])))
         return messages
 
     async def ack_msg(self, msg_id):
