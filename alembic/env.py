@@ -10,15 +10,15 @@ from donna_common.settings import settings
 # config = context.config
 
 # this is your SQLAlchemy URL object
-# DATABASE_URL = settings.database_url
-url_object = URL.create(
-    "postgresql+psycopg2",
-    username=settings.database_user,
-    password=settings.database_password,  # plain (unescaped) text
-    host=settings.database_host,
-    port=settings.database_port,
-    database=settings.database_name,
-)
+DATABASE_URL = settings.database_sync_url
+# url_object = URL.create(
+#     "postgresql+psycopg2",
+#     username=settings.database_user,
+#     password=settings.database_password,  # plain (unescaped) text
+#     host=settings.database_host,
+#     port=settings.database_port,
+#     database=settings.database_name,
+# )
 
 # standard Alembic boilerplate
 config = context.config
@@ -26,7 +26,8 @@ fileConfig(config.config_file_name)
 
 # override the section dictionary directly
 section = config.get_section(config.config_ini_section)
-section["sqlalchemy.url"] = url_object.render_as_string(hide_password=False)
+# section["sqlalchemy.url"] = url_object.render_as_string(hide_password=False)
+section['sqlalchemy.url'] = DATABASE_URL
 
 # now build the engine from that in-memory dict
 
