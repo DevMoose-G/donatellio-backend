@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from random import randint
 from typing import Any
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from pydantic import BaseModel
 import redis
@@ -18,6 +18,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
 from donna_api.consts import CREDITS_BY_TIER
+from donna_api.email import send_verification_email
 from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
 from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
@@ -36,9 +37,15 @@ SECRET_KEY = settings.auth_secret_key  # should be high-entropy (at least 256 bi
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15  # e.g. tokens valid for 15 mins
 REFRESH_TOKEN_EXPIRE_DAYS = 5
+SECURITY_SALT = "email-confirm-salt"
+
+EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES=30
 
 router = APIRouter()
 
+def generate_email_verification_token(user_id: str) -> str:
+    serializer = URLSafeTimedSerializer(SECRET_KEY, salt=SECURITY_SALT)
+    return serializer.dumps(user_id)
 
 def blacklist_jwt(jti: str) -> None:
     redis_client.set(jti, "revoked", ex=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
@@ -190,16 +197,42 @@ async def register(
         username=user.username,
         profile_image_storage_key=profile_img_storage_key,
         credit_balance=CREDITS_BY_TIER['free'],
+        is_verified=False
     )
     new_user = await user_dal.create_user(new_user)
+
+    verification_token = generate_email_verification_token(new_user.id)
+    await send_verification_email(user.email, verification_token)
+
+    return {
+
+    }
+
+@router.get("/verify")
+async def verify(token: str, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+    serializer = URLSafeTimedSerializer(SECRET_KEY, salt=SECURITY_SALT)
+    try:
+        user_id = serializer.loads(
+            token, salt=SECURITY_SALT, max_age=EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES * 60
+        )
+    except SignatureExpired:
+        raise HTTPException(400, "Verification link expired")
+    except BadSignature:
+        raise HTTPException(400, "Invalid verification link")
+
+    user = await user_dal.get_user_by(filter=(User.id == user_id))
+    if user is None:
+        raise HTTPException(400, "Invalid verification link")
+
+    user = await user_dal.update_user(user_id, is_verified=True)
 
     expires_in = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    access_token = create_access_token(data={"sub": new_user.id})
+    access_token = create_access_token(data={"sub": user.id})
 
     jti = str(uuid.uuid4())
-    refresh_token = create_refresh_token(data={"sub": new_user.id, "jti": jti})
+    refresh_token = create_refresh_token(data={"sub": user.id, "jti": jti})
 
     response.set_cookie(
         key="refresh_token",
@@ -210,12 +243,12 @@ async def register(
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
         path="/",
     )
+
     return JWTToken(
         access_token=access_token,
         token_type="bearer",
         expires_in=expires_in,
     ).model_dump()
-
 
 @router.post("/login")
 async def login(
@@ -231,6 +264,16 @@ async def login(
     db_user = await authenticate_user(
         request.username, request.email, request.password, user_dal
     )
+
+    if db_user is None:
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Invalid username or password"}
+        )
+    if db_user.is_verified == False:
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Account not verified"}
+        )
+
     expires_in = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
@@ -275,6 +318,10 @@ async def refresh(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
     if db_user is None:
         return JSONResponse(
             status_code=400, content={"error_msg": "User does not exist"}
+        )
+    if db_user.is_verified == False:
+        return JSONResponse(
+            status_code=400, content={"error_msg": "Account not verified"}
         )
 
     expires_in = datetime.now(timezone.utc) + timedelta(
@@ -347,7 +394,8 @@ async def google_auth(request: RequestGoogleAuth, response: Response, user_dal: 
             username=user_name,
             profile_image_storage_key=profile_pic_url,
             password="",
-            credit_balance=CREDITS_BY_TIER['free']
+            credit_balance=CREDITS_BY_TIER['free'],
+            is_verified=True
         )
     
         user = await user_dal.create_user(user)

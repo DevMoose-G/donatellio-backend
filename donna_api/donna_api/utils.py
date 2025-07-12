@@ -4,7 +4,7 @@ texture_quality_multiplier = {"normal": 3, "precise": 5, "stylized": 4}
 
 regen_mesh_cost = 2
 
-def image_cost(image_model, quality) -> int:
+def image_cost(image_model, quality, has_style_image=False) -> int:
     if image_model == "gpt4o":
         if quality == "high":
             cost = 3
@@ -21,6 +21,9 @@ def image_cost(image_model, quality) -> int:
             cost = 1
     elif image_model == "imagen4":
         cost = 1
+    
+    if has_style_image:
+        cost += 1
     
     return cost
 

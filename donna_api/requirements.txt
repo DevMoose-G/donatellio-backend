@@ -16,3 +16,4 @@ python-jose
 redis
 starlette-csrf
 google-auth
+fastapi_mail

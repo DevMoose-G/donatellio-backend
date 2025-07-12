@@ -31,6 +31,7 @@ class Project(Base):
     )
 
     public = Column(Boolean, nullable=False, default=False, server_default="False")
+    styleboard_id = Column(String(128), ForeignKey("styleboards.id"), nullable=True)
 
     owner = relationship("User", back_populates="projects", lazy="selectin")
     images: Mapped[List[Image]] = relationship(
@@ -63,6 +64,12 @@ class Project(Base):
         back_populates="project",
         lazy="selectin",
         cascade="all, delete-orphan",
+    )
+
+    styleboard = relationship(
+        "StyleBoard",
+        back_populates="projects",
+        lazy="selectin",
     )
 
     @property

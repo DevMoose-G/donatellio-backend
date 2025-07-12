@@ -44,6 +44,10 @@ class Settings(BaseSettings):
 
     auth_secret_key: str = Field(..., env="AUTH_SECRET_KEY")
 
+    verify_email: str = Field(..., env="VERIFY_EMAIL")
+    support_email: str = Field(..., env="SUPPORT_EMAIL")
+    mail_password: str = Field(..., env="MAIL_PASSWORD")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

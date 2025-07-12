@@ -229,6 +229,27 @@ async def get_project_info(
         main_branch_id=main_branch_id
     )
 
+class UpdateProjectRequest(BaseModel):
+    name: str
+    is_public: bool
+
+class GetProjectResponse(BaseModel):
+    project_id: str
+    name: str
+    is_public: bool
+
+@router.post("/{project_id}/update", status_code=200)
+async def update_project(request: UpdateProjectRequest, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal), current_user: User = Depends(get_current_user)):
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to update this project"},
+        )
+    
+    project = await project_dal.update_project(project_id, name=request.name, public=request.is_public)
+    return GetProjectResponse(project_id=project.id, name=project.name, is_public=project.public)
+
 
 @router.post("/{project_id}/edit", status_code=200)
 async def edit_project(

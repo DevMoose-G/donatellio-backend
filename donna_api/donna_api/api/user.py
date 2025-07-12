@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.consts import CREDITS_BY_TIER, PRICE_BY_TIER, REVERSED_TIER_MAP, TIER_FEATURES, TIER_MAP
+from donna_api.consts import CARD_BRAND_LOGOS, CREDITS_BY_TIER, PRICE_BY_TIER, REVERSED_TIER_MAP, TIER_FEATURES, TIER_MAP
 from donna_api.types import GetAssetsResponse, GetProjectsResponse
 from donna_common.settings import settings
 from donna_common.orm import Project, ProjectDAL, UserDAL, get_project_dal, get_user_dal
@@ -29,31 +29,32 @@ stripe.api_key = settings.stripe_secret_key
 @router.post("/subscribe")
 async def webhook(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
     raw_body: bytes = await request.body()
-    event = stripe.Webhook.construct_event(
-        raw_body, request.headers["Stripe-Signature"], settings.stripe_websocket_secret
-    )
-    
-    assert event is not None
 
+    event = json.loads(raw_body)
     # When a recurring invoice is successfully paid…
-    if event.type == "invoice.paid":
-        invoice = event.data.object       # The Invoice object
-        customer_id = invoice.customer    # Stripe Customer ID
+    if event['type'] == "invoice.payment_succeeded":
+        # todo filter if this is recurring or one type (additional credits)
+
+        invoice = event['data']['object']       # The Invoice object
+        customer_id = invoice['customer']    # Stripe Customer ID
         
-        user: User = await user_dal.get_user_by(filter=(User.stripe_customer_id == customer_id))
-        
-        if user is None:
-            print("User not found. This should not happen.")
-            return
-        
-        subscription = stripe.Subscription.retrieve(user.subscription_id)
+        # i think there should only be one source of truth
+        subscription_id = invoice['parent']['subscription_details']['subscription']
+        user_id = invoice['parent']['subscription_details']['metadata']['user_id']
+        user = await user_dal.get_user_by(filter=(User.id == user_id))
+
+        subscription = stripe.Subscription.retrieve(subscription_id)
         product_id = subscription['items']['data'][0].price.product
         user_tier = TIER_MAP[product_id]
-        breakpoint()
         
         # TODO: find some way to get the # of remaining monthly credits (not the additional credits)
         added_credits = CREDITS_BY_TIER[user_tier] - user.credit_balance
-        user = await user_dal.update_user(user.id, credit_balance=CREDITS_BY_TIER[user_tier])
+        user = await user_dal.update_user(
+            user.id, 
+            credit_balance=CREDITS_BY_TIER[user_tier], 
+            stripe_customer_id=customer_id, 
+            subscription_id=subscription_id
+        )
         
         # record credit transaction
         credit_dal = await get_credit_transaction_dal(user_dal.session)
@@ -89,6 +90,10 @@ async def subscribe_user(
     price = None
     for p in prices.auto_paging_iter():
         interval = p.recurring.interval 
+        # TODO: this is a hack (tmp solution)
+        if interval == "day" and request.monthly:
+            price = p
+            break
         if interval == "month" and request.monthly:
             price = p
         elif interval == "year" and not request.monthly:
@@ -100,6 +105,13 @@ async def subscribe_user(
             "quantity": 1
         }],
         submit_type="subscribe",
+        subscription_data={
+            "metadata": {
+                "user_id": current_user.id,
+                "tier": request.tier,
+                "price_id": price.id
+            }
+        },
         metadata={
             "user_id": current_user.id,
             "tier": request.tier,
@@ -131,6 +143,7 @@ async def subscribe_user_complete(
 ):
     session = stripe.checkout.Session.retrieve(request.session_id)
     
+    # this should trigger before the webhook
     await user_dal.update_user(
         current_user.id, 
         stripe_customer_id=session.customer, 
@@ -140,10 +153,17 @@ async def subscribe_user_complete(
     subscription = stripe.Subscription.retrieve(session.subscription)
     product_id = subscription['items']['data'][0].price.product
     
-    subscription_tier = TIER_MAP[product_id]
+    user_tier = TIER_MAP[product_id]
+
+    # added_credits = CREDITS_BY_TIER[user_tier] - current_user.credit_balance
+    # user = await user_dal.update_user(current_user.id, credit_balance=CREDITS_BY_TIER[user_tier])
+    
+    # # record credit transaction
+    # credit_dal = await get_credit_transaction_dal(user_dal.session)
+    # await credit_dal.create_credit_transaction(user_id=user.id, delta=added_credits, reason="monthly subscription refill")
     
     return {
-        "tier": subscription_tier
+        "tier": user_tier
     }
     
 
@@ -343,4 +363,41 @@ async def get_user_transactions(
             )
             for transaction in transactions
         ],
+    )
+
+class BillingResponse(BaseModel):
+    last_4_digits: str
+    expiry_month: int
+    expiry_year: int
+    brand_name: str
+    card_logo_url: str = ""
+
+@router.get("/billing", status_code=200)
+async def get_billing_info(
+    current_user: User = Depends(get_current_user),
+) -> Optional[BillingResponse]:
+    stripe.api_key = settings.stripe_secret_key
+
+    if current_user.subscription_id == '':
+        return None
+
+    sub = stripe.Subscription.retrieve(
+        current_user.subscription_id,
+        expand=['default_payment_method']
+    )
+    pm = sub.default_payment_method
+    if not pm or pm.type != "card":
+        # no payment method/card
+        return None
+
+    card = pm.card
+
+    card_logo_url = CARD_BRAND_LOGOS[card.brand]
+    
+    return BillingResponse(
+        brand_name=card.brand,
+        last_4_digits=card.last4,
+        expiry_month=card.exp_month,
+        expiry_year=card.exp_year,
+        card_logo_url=card_logo_url
     )

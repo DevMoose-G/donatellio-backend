@@ -82,6 +82,8 @@ class RequestCreateImage(BaseModel):
     quality: str
     image_model: str
 
+    style_image_storage_url: Optional[str] = None
+
 
 class RequestEditImage(BaseModel):
     project_id: str

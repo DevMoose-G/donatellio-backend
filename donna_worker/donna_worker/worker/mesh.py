@@ -154,6 +154,25 @@ async def generate_mesh(
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
+    await completed_meshes_stream.send_msg(
+        MeshAction(
+            type="mesh",
+            params={
+                "image_id": image_id,
+                "mesh_ids": mesh_ids,
+                "project_id": project_id,
+                "mesh_model": mesh_model,
+                "n_meshes": n_meshes,
+                "quality": quality,
+                "seed": seed,
+                "labels": labels,
+                "max_polygon_count": max_polygon_count
+            },
+            project_id=project_id,
+            function_name="generate_mesh",
+            mesh_ids=mesh_ids,
+        )
+    )
     mesh_ids = await runpod_service.generate_untextured_mesh(
         project_id,
         image_id,
@@ -228,6 +247,23 @@ async def generate_texture(
     seed: int,
     completed_meshes_stream
 ) -> str:
+    await completed_meshes_stream.send_msg(
+        TexturedMeshAction(
+            type="textured_mesh",
+            project_id=project_id,
+            function_name="generate_texture",
+            params={
+                "texture_id": texture_id,
+                "image_id": image_id,
+                "project_id": project_id,
+                "mesh_id": mesh_id,
+                "prompt": prompt,
+                "texture_quality": texture_quality,
+                "seed": seed
+            },
+            texture_id=texture_id,
+        )
+    )
     runpod_service = RunpodProvider()
     texture_id = await runpod_service.generate_texture_on_mesh(
         texture_id=texture_id,
@@ -272,7 +308,7 @@ async def generate_texture(
 
 async def regenerate_from_latents(
     project_id, old_mesh_id, mesh_id, mc_level, octree_resolution, 
-    completed_meshes_stream, max_facenum=None, do_shade_smooth=True
+    completed_meshes_stream, job_stream, max_facenum=None, do_shade_smooth=True, n_faces=None
 ) -> str:
     runpod_service = RunpodProvider()
     mesh_id = await runpod_service.regenerate_mesh_from_latents(
@@ -284,6 +320,24 @@ async def regenerate_from_latents(
         max_facenum=max_facenum,
         do_shade_smooth=do_shade_smooth
     )
+
+    total_n_faces = 0
+    async with AsyncSessionLocal() as session:
+        mesh_dal = MeshDAL(session)
+        mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+        total_n_faces = mesh.face_count
+
+    if n_faces is not None:
+        simplify_ratio = min(n_faces/total_n_faces, 1)
+        params = {"simplify_ratio": simplify_ratio, "mesh_id": mesh_id, "new_mesh_id": mesh_id, "project_id": project_id}
+        # send job to simplify mesh after regen
+        await job_stream.send_msg(
+            MeshAction(
+                project_id=project_id,
+                function_name="simplify_mesh",
+                params=params,
+            )
+        )
     
     os.makedirs(MESH_DIR, exist_ok=True)
 

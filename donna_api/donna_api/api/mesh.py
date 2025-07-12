@@ -300,7 +300,7 @@ async def regenerate_mesh(
         author_id=current_user.id,
         version_message=version_msg
     )
-    
+
     actions_performed = []
     if req.level_of_detail != None and req.surface_thickness != None: # temp
         # create a new mesh (copy of the old one?) do it here or in worker (not in both)
@@ -334,7 +334,20 @@ async def regenerate_mesh(
                 "mc_level": -1 * req.surface_thickness,
                 "octree_resolution": octree_resolution,
                 "old_mesh_id": old_mesh.id,
+                "n_faces": None
             }
+
+            if req.face_count != None and req.face_count != old_mesh.face_count:
+                simplify_ratio = req.face_count / old_mesh.face_count
+                    
+                if simplify_ratio >= 1 or simplify_ratio <= 0:
+                    await project_version_dal.hard_delete_version(version_id=version.id)
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error_msg": "Invalid face count"},
+                    )
+                
+                params["n_faces"] = req.face_count
             
             await stream.send_msg(
                 MeshAction(
@@ -354,10 +367,24 @@ async def regenerate_mesh(
                 parameters=params,
                 version_id=version.id,
             ))
+
+            actions_performed.append(await project_branch_dal.perform_action(
+                branch_id=main_branch.id,
+                author_id=current_user.id,
+                new_asset=new_mesh,
+                action_type="simplify_mesh",
+                parameters=params,
+                version_id=version.id,
+            ))
             
         else:
             print("Mesh does not need to be regenerated")
-    if req.face_count != None and req.face_count != old_mesh.face_count:
+    
+    # need to decide if i want to have two separate jobs for this or one after the other
+    # if i do 2 sep jobs, need some way to keep delaying the job until the first one is done
+    # if i do 1 job after the other, i need to change the mesh regenerate_mesh worker func to take in another param
+    #   and need to send both actions to the version
+    elif req.face_count != None and req.face_count != old_mesh.face_count:
         simplify_ratio = req.face_count / old_mesh.face_count
             
         if simplify_ratio >= 1 or simplify_ratio <= 0:
@@ -367,7 +394,8 @@ async def regenerate_mesh(
                 content={"error_msg": "Invalid face count"},
             )
         
-        params = {"simplify_ratio": simplify_ratio, "new_mesh_id": new_mesh.id, "mesh_id": old_mesh.id, "project_id": project.id}
+        params = {"simplify_faces": simplify_ratio, "mesh_id": old_mesh.id, "new_mesh_id": new_mesh.id, "project_id": project.id}
+
         await stream.send_msg(
             MeshAction(
                 project_id=req.project_id,

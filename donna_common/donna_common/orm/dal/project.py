@@ -217,8 +217,8 @@ class ProjectDAL:
         projects = await self.session.execute(select(Project))
         return projects.scalars().all()
 
-    async def create_project(self, id: str, name: str, user_id: str, public: bool = False) -> Project:
-        project = Project(id=id, name=name, user_id=user_id, public=public)
+    async def create_project(self, id: str, user_id: str, **kwargs) -> Project:
+        project = Project(id=id, user_id=user_id, **kwargs)
         self.session.add(project)
         
         branch = await ProjectBranchDAL(self.session).create_branch(project_id=id, author_id=user_id, name="main")
@@ -232,17 +232,13 @@ class ProjectDAL:
         exec = await self.session.execute(select(ProjectBranch).where(ProjectBranch.project_id == project_id, ProjectBranch.name == "main"))
         return exec.scalars().first()
 
-    async def update_project(
-        self, id: str, name: str = None, user_id: str = None
-    ) -> Project:
+    async def update_project(self, id: str, **kwargs) -> Project:
         project = await self.get_project_by_id(id)
         if project is None:
-            raise RuntimeError(400, detail="Invalid Project")
-
-        if name is not None:
-            project.name = name
-        if user_id is not None:
-            project.user_id = user_id
+            raise RuntimeError("Project not found")
+        for key, value in kwargs.items():
+            if hasattr(project, key) and value is not None:
+                setattr(project, key, value)
         self.session.add(project)
         await self.session.commit()
         await self.session.refresh(project)

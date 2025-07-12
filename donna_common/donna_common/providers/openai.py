@@ -8,6 +8,7 @@ import requests
 from openai import OpenAI
 
 from donna_common.orm.dal.image import ImageDAL
+from donna_common.orm.dal.styleboard import StyleBoardDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
 from donna_common.prompts import (
@@ -381,9 +382,9 @@ class OpenAIProvider:
 
         return key
     
-    def generate_style_description(
+    async def generate_style_description(
         self,
-        image_id: str,
+        styleboard_id: str,
         image_storage_key: str
     ):
         res = self.client.responses.create(
@@ -393,12 +394,20 @@ class OpenAIProvider:
                 {
                     "role": "user",
                     "content": [
-                        {"type":"input_text", "text":"Use the following image(s)."}
+                        {"type":"input_text", "text":"Use the following image(s)."},
+                        {"type":"input_image", "image_url": self.storage_provider.generate_get_url(image_storage_key)}
                     ]
                 }
             ],
             max_output_tokens=256
         )
+
+        async with AsyncSessionLocal() as session:
+            await StyleBoardDAL(session).update_styleboard(
+                id=styleboard_id, description=res.output_text
+            )
+        
+        return res.output_text  
 
     def get_elaborating_questions(
         self,

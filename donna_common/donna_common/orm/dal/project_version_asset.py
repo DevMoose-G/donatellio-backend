@@ -47,6 +47,7 @@ class ProjectVersionAssetDAL:
         for action in actions:
             
             # delete the links to old assets
+            
             # For now, all images shown no matter what project version
             # if action.asset_stage == "image" and action.asset_id in image_ids:
             #     continue

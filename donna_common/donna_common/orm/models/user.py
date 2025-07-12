@@ -27,7 +27,7 @@ class User(Base):
     subscription_id = Column(String(128), nullable=False, default="")
     stripe_customer_id = Column(String(128), nullable=True)
     google_auth_id = Column(String(128), nullable=True)
-    # is_verified = Column(Boolean, nullable=False, default=False)
+    is_verified = Column(Boolean, nullable=False, default=False)
 
     credit_balance = Column(Integer, nullable=False, default=0)
 
@@ -50,6 +50,9 @@ class User(Base):
 
     projects = relationship("Project", back_populates="owner")
     transactions = relationship("CreditTransaction", back_populates="user")
+    
     collections = relationship("Collection", back_populates="owner")
+    styleboards = relationship("StyleBoard", back_populates="owner")
+
     project_actions = relationship("ProjectAction", back_populates="author")
     project_versions = relationship("ProjectVersion", back_populates="author")

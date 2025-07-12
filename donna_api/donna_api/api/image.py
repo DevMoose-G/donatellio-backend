@@ -22,6 +22,7 @@ from donna_common.orm import (
     get_user_dal,
 )
 from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
+from donna_common.orm.dal.styleboard import StyleBoardDAL, get_styleboard_dal
 from donna_common.orm.models.user import User
 from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider, extract_s3_key
@@ -45,6 +46,7 @@ async def create_image(
     project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     user_dal: UserDAL = Depends(get_user_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
+    styleboard_dal: StyleBoardDAL = Depends(get_styleboard_dal),
     current_user: User = Depends(get_current_user),
 ):
     project_id = str(uuid.uuid4())
@@ -53,7 +55,7 @@ async def create_image(
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
 
-    cost = image_cost(req.image_model, req.quality)
+    cost = image_cost(req.image_model, req.quality, req.style_image_storage_url)
     response = await user_dal.charge_credit(
         current_user, cost, "user_action:generate_image"
     )
@@ -62,9 +64,29 @@ async def create_image(
             status_code=400,
             content={"error_msg": "Not enough credits"},
         )
+    
+    # create a new StyleBoard if style_image_storage_url is provided
+    styleboard_id = None
+    if req.style_image_storage_url:
+        
+        styleboard = await styleboard_dal.create_styleboard(
+            id=project_id,
+            name="Unnamed StyleBoard",
+            user_id=current_user.id,
+            public=False
+        )
 
+        await styleboard_dal.add_image(styleboard_id=styleboard.id, image_storage_key=extract_s3_key(req.style_image_storage_url))
+        styleboard_id = styleboard.id
+    
+    # then create a new project with that board linked to it
+    user_on_free_tier = current_user.subscription_id == ""
     project = await project_dal.create_project(
-        id=project_id, name="Unnamed Project", user_id=current_user.id, public=True # temp public
+        id=project_id, 
+        name="Unnamed Project", 
+        user_id=current_user.id, 
+        public=user_on_free_tier,
+        styleboard_id=styleboard_id
     )
     
     try:
@@ -81,13 +103,15 @@ async def create_image(
             version_message="Image created",
         )
 
+        req_params = req.model_dump()
+        req_params.pop("style_image_storage_url")
         await stream.send_msg(
             ImageAction(
                 type="image",
                 image_id=image_id,
                 project_id=project_id,
                 function_name="generate_image",
-                params={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+                params={**req_params, "project_id": project_id, "image_id": image_id},
             )
         )
     except:
@@ -166,6 +190,7 @@ async def edit_image(
 class RequestImageCost(BaseModel):
     image_model: str
     quality: str
+    has_style_image: bool
 
 
 @router.post("/cost", status_code=200)
@@ -173,7 +198,7 @@ async def get_image_cost(
     req: RequestImageCost,
     current_user: User = Depends(get_current_user),
 ):
-    cost = image_cost(req.image_model, req.quality)
+    cost = image_cost(req.image_model, req.quality, req.has_style_image)
     return {"cost": cost}
 
 
