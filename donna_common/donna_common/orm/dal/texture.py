@@ -2,10 +2,8 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from donna_api.types import MeshFormat
 from donna_common.orm.main import get_db
 from donna_common.orm.models.texture import Texture
-from donna_common.providers.storage import StorageProvider
 
 
 class TextureDAL:

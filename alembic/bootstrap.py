@@ -1,11 +1,10 @@
 # bootstrap.py
+from sqlalchemy import URL, create_engine
 from sqlalchemy_utils import create_database, database_exists
-from sqlalchemy import URL
 
 from alembic import command
 from alembic.config import Config
 from donna_common.settings import settings
-from sqlalchemy import create_engine
 
 # grab the same URL you used in Alembic
 url_object = URL.create(
@@ -17,10 +16,7 @@ url_object = URL.create(
     database=settings.database_name,
 )
 
-engine = create_engine(
-    url_object,
-    connect_args={"sslmode": "require"}
-)
+engine = create_engine(url_object, connect_args={"sslmode": "require"})
 
 # 1) ensure the database exists
 if not database_exists(engine.url):

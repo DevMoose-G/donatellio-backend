@@ -61,4 +61,6 @@ class Texture(Base):
     mesh = relationship("Mesh", back_populates="textures", passive_deletes=True)
     image = relationship("Image", back_populates="textures", passive_deletes=True)
 
-    parent_texture = relationship("Texture", remote_side=id, foreign_keys=[parent_texture_id])
+    parent_texture = relationship(
+        "Texture", remote_side=id, foreign_keys=[parent_texture_id]
+    )

@@ -3,7 +3,7 @@ from typing import List
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy.orm import Mapped, relationship
 
 from donna_common.orm.base import Base
 from donna_common.orm.models.image import Image
@@ -48,17 +48,21 @@ class Project(Base):
     )
 
     assoc_collections = relationship(
-        "ProjectCollection", back_populates="project", lazy="selectin", passive_deletes=True, cascade="all, delete-orphan"
+        "ProjectCollection",
+        back_populates="project",
+        lazy="selectin",
+        passive_deletes=True,
+        cascade="all, delete-orphan",
     )
     collections = association_proxy("assoc_collections", "collection")
-    
+
     branches = relationship(
         "ProjectBranch",
         back_populates="project",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    
+
     versions = relationship(
         "ProjectVersion",
         back_populates="project",

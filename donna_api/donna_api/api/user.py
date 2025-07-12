@@ -1,16 +1,22 @@
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from typing import List, Optional
-import uuid
 
+import stripe
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.consts import CARD_BRAND_LOGOS, CREDITS_BY_TIER, PRICE_BY_TIER, REVERSED_TIER_MAP, TIER_FEATURES, TIER_MAP
+from donna_api.consts import (
+    CARD_BRAND_LOGOS,
+    CREDITS_BY_TIER,
+    PRICE_BY_TIER,
+    REVERSED_TIER_MAP,
+    TIER_FEATURES,
+    TIER_MAP,
+)
 from donna_api.types import GetAssetsResponse, GetProjectsResponse
-from donna_common.settings import settings
 from donna_common.orm import Project, ProjectDAL, UserDAL, get_project_dal, get_user_dal
 from donna_common.orm.dal.credit_transaction import (
     CreditTransactionDAL,
@@ -18,7 +24,7 @@ from donna_common.orm.dal.credit_transaction import (
 )
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
-import stripe
+from donna_common.settings import settings
 
 load_dotenv()  # reads .env from cwd
 
@@ -26,48 +32,53 @@ router = APIRouter(prefix="/user")
 
 stripe.api_key = settings.stripe_secret_key
 
+
 @router.post("/subscribe")
 async def webhook(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
     raw_body: bytes = await request.body()
 
     event = json.loads(raw_body)
     # When a recurring invoice is successfully paid…
-    if event['type'] == "invoice.payment_succeeded":
+    if event["type"] == "invoice.payment_succeeded":
         # todo filter if this is recurring or one type (additional credits)
 
-        invoice = event['data']['object']       # The Invoice object
-        customer_id = invoice['customer']    # Stripe Customer ID
-        
+        invoice = event["data"]["object"]  # The Invoice object
+        customer_id = invoice["customer"]  # Stripe Customer ID
+
         # i think there should only be one source of truth
-        subscription_id = invoice['parent']['subscription_details']['subscription']
-        user_id = invoice['parent']['subscription_details']['metadata']['user_id']
+        subscription_id = invoice["parent"]["subscription_details"]["subscription"]
+        user_id = invoice["parent"]["subscription_details"]["metadata"]["user_id"]
         user = await user_dal.get_user_by(filter=(User.id == user_id))
 
         subscription = stripe.Subscription.retrieve(subscription_id)
-        product_id = subscription['items']['data'][0].price.product
+        product_id = subscription["items"]["data"][0].price.product
         user_tier = TIER_MAP[product_id]
-        
+
         # TODO: find some way to get the # of remaining monthly credits (not the additional credits)
         added_credits = CREDITS_BY_TIER[user_tier] - user.credit_balance
         user = await user_dal.update_user(
-            user.id, 
-            credit_balance=CREDITS_BY_TIER[user_tier], 
-            stripe_customer_id=customer_id, 
-            subscription_id=subscription_id
+            user.id,
+            credit_balance=CREDITS_BY_TIER[user_tier],
+            stripe_customer_id=customer_id,
+            subscription_id=subscription_id,
         )
-        
+
         # record credit transaction
         credit_dal = await get_credit_transaction_dal(user_dal.session)
-        await credit_dal.create_credit_transaction(user_id=user.id, delta=added_credits, reason="monthly subscription refill")
+        await credit_dal.create_credit_transaction(
+            user_id=user.id, delta=added_credits, reason="monthly subscription refill"
+        )
 
 
 class RequestSubscribe(BaseModel):
     tier: str
     monthly: bool
 
+
 def make_idempotency_key(user_id: str) -> str:
     # e.g. "user_1234:2025-07-05T11:23:45Z:550e8400-e29b-41d4-a716-446655440000"
     return f"{user_id}:{datetime.now(timezone.utc).isoformat()}"
+
 
 @router.post("/subscribe/pay", status_code=200)
 async def subscribe_user(
@@ -75,21 +86,18 @@ async def subscribe_user(
     current_user: User = Depends(get_current_user),
 ) -> None:
     stripe.api_key = settings.stripe_secret_key
-    
+
     # TODO: check if user has a stripe customer id before creating a new one
     # check for existing ones by email or your user_id metadata
-    
+
     idempotency_key = make_idempotency_key(current_user.id)
     prices = stripe.Price.list(
-        product=REVERSED_TIER_MAP[request.tier],
-        active=True,
-        type="recurring",
-        limit=8
+        product=REVERSED_TIER_MAP[request.tier], active=True, type="recurring", limit=8
     )
 
     price = None
     for p in prices.auto_paging_iter():
-        interval = p.recurring.interval 
+        interval = p.recurring.interval
         # TODO: this is a hack (tmp solution)
         if interval == "day" and request.monthly:
             price = p
@@ -98,42 +106,40 @@ async def subscribe_user(
             price = p
         elif interval == "year" and not request.monthly:
             price = p
-    
+
     payment_link = stripe.PaymentLink.create(
-        line_items=[{
-            "price": price.id,
-            "quantity": 1
-        }],
+        line_items=[{"price": price.id, "quantity": 1}],
         submit_type="subscribe",
         subscription_data={
             "metadata": {
                 "user_id": current_user.id,
                 "tier": request.tier,
-                "price_id": price.id
+                "price_id": price.id,
             }
         },
         metadata={
             "user_id": current_user.id,
             "tier": request.tier,
-            "price_id": price.id
+            "price_id": price.id,
         },
         after_completion={
             "type": "redirect",
             "redirect": {
-                "url": settings.frontend_url+"/subscribe/complete?session_id={CHECKOUT_SESSION_ID}"
-            }
+                "url": settings.frontend_url
+                + "/subscribe/complete?session_id={CHECKOUT_SESSION_ID}"
+            },
         },
-        idempotency_key=idempotency_key
+        idempotency_key=idempotency_key,
     )
-    
-    return {
-        "payment_link": payment_link.url
-    }
-    
+
+    return {"payment_link": payment_link.url}
+
     # await credit_transaction_dal.create_credit_transaction(user.id, 5000, "subscription")
+
 
 class RequestSubscriptionComplete(BaseModel):
     session_id: str
+
 
 @router.post("/subscribe/complete", status_code=200)
 async def subscribe_user_complete(
@@ -142,30 +148,28 @@ async def subscribe_user_complete(
     user_dal: UserDAL = Depends(get_user_dal),
 ):
     session = stripe.checkout.Session.retrieve(request.session_id)
-    
+
     # this should trigger before the webhook
     await user_dal.update_user(
-        current_user.id, 
-        stripe_customer_id=session.customer, 
-        subscription_id=session.subscription
+        current_user.id,
+        stripe_customer_id=session.customer,
+        subscription_id=session.subscription,
     )
-    
+
     subscription = stripe.Subscription.retrieve(session.subscription)
-    product_id = subscription['items']['data'][0].price.product
-    
+    product_id = subscription["items"]["data"][0].price.product
+
     user_tier = TIER_MAP[product_id]
 
     # added_credits = CREDITS_BY_TIER[user_tier] - current_user.credit_balance
     # user = await user_dal.update_user(current_user.id, credit_balance=CREDITS_BY_TIER[user_tier])
-    
+
     # # record credit transaction
     # credit_dal = await get_credit_transaction_dal(user_dal.session)
     # await credit_dal.create_credit_transaction(user_id=user.id, delta=added_credits, reason="monthly subscription refill")
-    
-    return {
-        "tier": user_tier
-    }
-    
+
+    return {"tier": user_tier}
+
 
 @router.get("/projects", status_code=200)
 async def get_users_projects(
@@ -305,27 +309,29 @@ async def get_user_info(
             finished_projs.append(project)
 
     storage_provider = StorageProvider()
-    
+
     image_url = None
-    
+
     if current_user.profile_image_storage_key == None:
         image_url = None
     elif current_user.profile_image_storage_key.startswith("http"):
         image_url = current_user.profile_image_storage_key
     elif current_user.profile_image_storage_key:
-        image_url = storage_provider.generate_get_url(current_user.profile_image_storage_key)
-    
-    if current_user.subscription_id != '':
+        image_url = storage_provider.generate_get_url(
+            current_user.profile_image_storage_key
+        )
+
+    if current_user.subscription_id != "":
         subscription = stripe.Subscription.retrieve(current_user.subscription_id)
-        product_id = subscription['items']['data'][0].price.product
-        
+        product_id = subscription["items"]["data"][0].price.product
+
         subscription_tier = TIER_MAP[product_id]
     else:
         subscription_tier = "free"
 
     return GetUserInfoResponse(
         username=current_user.username,
-        subscription_tier=subscription_tier, # TEMP: current_user.subscription_id
+        subscription_tier=subscription_tier,  # TEMP: current_user.subscription_id
         credit_balance=current_user.credit_balance,
         n_projects=len(finished_projs),
         tier_features=TIER_FEATURES[subscription_tier],
@@ -365,6 +371,7 @@ async def get_user_transactions(
         ],
     )
 
+
 class BillingResponse(BaseModel):
     last_4_digits: str
     expiry_month: int
@@ -372,18 +379,18 @@ class BillingResponse(BaseModel):
     brand_name: str
     card_logo_url: str = ""
 
+
 @router.get("/billing", status_code=200)
 async def get_billing_info(
     current_user: User = Depends(get_current_user),
 ) -> Optional[BillingResponse]:
     stripe.api_key = settings.stripe_secret_key
 
-    if current_user.subscription_id == '':
+    if current_user.subscription_id == "":
         return None
 
     sub = stripe.Subscription.retrieve(
-        current_user.subscription_id,
-        expand=['default_payment_method']
+        current_user.subscription_id, expand=["default_payment_method"]
     )
     pm = sub.default_payment_method
     if not pm or pm.type != "card":
@@ -393,11 +400,11 @@ async def get_billing_info(
     card = pm.card
 
     card_logo_url = CARD_BRAND_LOGOS[card.brand]
-    
+
     return BillingResponse(
         brand_name=card.brand,
         last_4_digits=card.last4,
         expiry_month=card.exp_month,
         expiry_year=card.exp_year,
-        card_logo_url=card_logo_url
+        card_logo_url=card_logo_url,
     )

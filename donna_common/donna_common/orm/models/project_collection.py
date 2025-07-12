@@ -22,8 +22,14 @@ class ProjectCollection(Base):
     )
 
     project = relationship(
-        "Project", back_populates="assoc_collections", lazy="selectin", passive_deletes=True
+        "Project",
+        back_populates="assoc_collections",
+        lazy="selectin",
+        passive_deletes=True,
     )
     collection = relationship(
-        "Collection", back_populates="assoc_projects", lazy="selectin", passive_deletes=True
+        "Collection",
+        back_populates="assoc_projects",
+        lazy="selectin",
+        passive_deletes=True,
     )

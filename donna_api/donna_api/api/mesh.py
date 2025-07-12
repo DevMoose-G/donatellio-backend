@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
@@ -17,7 +17,11 @@ from donna_api.types import (
     ResponseGenerateTextureInfo,
     step1x_labels,
 )
-from donna_api.utils import calculate_mesh_gen_cost, calculate_texture_gen_cost, regen_mesh_cost
+from donna_api.utils import (
+    calculate_mesh_gen_cost,
+    calculate_texture_gen_cost,
+    regen_mesh_cost,
+)
 from donna_common.orm import (
     ImageDAL,
     ProjectDAL,
@@ -29,8 +33,14 @@ from donna_common.orm import (
 from donna_common.orm.base import AssetStage
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
 from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
-from donna_common.orm.dal.project_version import ProjectVersionDAL, get_project_version_dal
-from donna_common.orm.dal.project_version_asset import ProjectVersionAssetDAL, get_project_version_asset_dal
+from donna_common.orm.dal.project_version import (
+    ProjectVersionDAL,
+    get_project_version_dal,
+)
+from donna_common.orm.dal.project_version_asset import (
+    ProjectVersionAssetDAL,
+    get_project_version_asset_dal,
+)
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
@@ -102,19 +112,17 @@ async def create_mesh(
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
-    
+
     main_branch = await project_dal.get_main_branch(project_id=project_id)
-    
-    
-    
+
     version = await project_branch_dal.create_version(
         branch_id=main_branch.id,
         author_id=current_user.id,
         version_message=f"{req.n_meshes} mesh{'' if req.n_meshes == 1 else 'es'} created",
     )
-    
+
     mesh_ids = [str(uuid4()) for _ in range(req.n_meshes)]
-    
+
     params = {
         **req.model_dump(),
         "mesh_ids": mesh_ids,
@@ -127,14 +135,14 @@ async def create_mesh(
             storage_key=None,
             status="PENDING",
         )
-        
+
         await project_branch_dal.perform_action(
             branch_id=main_branch.id,
             author_id=current_user.id,
             new_asset=mesh,
             action_type="generate_mesh",
             parameters=params,
-            version_id=version.id
+            version_id=version.id,
         )
 
     await stream.send_msg(
@@ -204,18 +212,18 @@ async def create_texture(
         storage_key=None,
         status="PENDING",
     )
-    
+
     main_branch = await project_dal.get_main_branch(project_id=project_id)
-    
+
     params = {**req.model_dump(), "texture_id": texture_id}
-    
+
     await project_branch_dal.perform_action(
         branch_id=main_branch.id,
         author_id=current_user.id,
         new_asset=texture,
         action_type="generate_texture",
         parameters=params,
-        version_message="Texture generated"
+        version_message="Texture generated",
     )
 
     await stream.send_msg(
@@ -228,12 +236,14 @@ async def create_texture(
 
     return {"image_id": req.image_id, "project_id": project_id}
 
+
 class RequestRegenerateMesh(BaseModel):
     project_id: str
     mesh_id: str
     face_count: float = None
     level_of_detail: int = None
     surface_thickness: float = None
+
 
 @router.post("/{project_id}/regen", status_code=202)
 async def regenerate_mesh(
@@ -246,7 +256,6 @@ async def regenerate_mesh(
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     current_user: User = Depends(get_current_user),
 ):
-    
     project = await project_dal.get_project_by_id(req.project_id)
     if current_user.id != project.user_id:
         return JSONResponse(
@@ -262,13 +271,12 @@ async def regenerate_mesh(
             status_code=400,
             content={"error_msg": "Mesh not found"},
         )
-    
-    
+
     if current_user.credit_balance < 1:
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
-    
+
     new_mesh_id = str(uuid4())
     # copy old mesh (except octree_res, mc_level, face_count, & storage_key)
     new_mesh = await mesh_dal.create_mesh(
@@ -282,37 +290,35 @@ async def regenerate_mesh(
         label=old_mesh.label,
         caption=old_mesh.caption,
         latents_storage_key=old_mesh.latents_storage_key,
-        status="PENDING"
+        status="PENDING",
     )
-    
+
     stream = RedisStream("requested-jobs")
     await stream.setup_group(new_only=False)
-    
+
     main_branch = await project_dal.get_main_branch(project_id=project_id)
-    
+
     version_msg = "Regenerate mesh and/or Reduce face count of mesh"
     # if req.level_of_detail != None and req.surface_thickness != None:
     #     version_msg += "Regenerate mesh from latents with updated options"
     # elif req.simplify_ratio != None:
     #     version_msg += "Reduce the face count of mesh"
     version = await project_branch_dal.create_version(
-        branch_id=main_branch.id,
-        author_id=current_user.id,
-        version_message=version_msg
+        branch_id=main_branch.id, author_id=current_user.id, version_message=version_msg
     )
 
     actions_performed = []
-    if req.level_of_detail != None and req.surface_thickness != None: # temp
+    if req.level_of_detail != None and req.surface_thickness != None:  # temp
         # create a new mesh (copy of the old one?) do it here or in worker (not in both)
         # await mesh_dal.update_mesh(id=req.mesh_id, status="PENDING")
-        
+
         if req.level_of_detail < 1 or req.level_of_detail > 5:
             await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(
                 status_code=400,
                 content={"error_msg": "Invalid level of detail"},
             )
-        
+
         octree_resolution = ""
         if req.level_of_detail == 1:
             octree_resolution = 128
@@ -324,31 +330,33 @@ async def regenerate_mesh(
             octree_resolution = 512
         elif req.level_of_detail == 5:
             octree_resolution = 768
-        
+
         # check if mesh needs to be regenerated
-        if old_mesh.octree_resolution != str(octree_resolution) or old_mesh.mc_level != req.surface_thickness:
-        
+        if (
+            old_mesh.octree_resolution != str(octree_resolution)
+            or old_mesh.mc_level != req.surface_thickness
+        ):
             params = {
                 "project_id": project.id,
                 "mesh_id": new_mesh.id,
                 "mc_level": -1 * req.surface_thickness,
                 "octree_resolution": octree_resolution,
                 "old_mesh_id": old_mesh.id,
-                "n_faces": None
+                "n_faces": None,
             }
 
             if req.face_count != None and req.face_count != old_mesh.face_count:
                 simplify_ratio = req.face_count / old_mesh.face_count
-                    
+
                 if simplify_ratio >= 1 or simplify_ratio <= 0:
                     await project_version_dal.hard_delete_version(version_id=version.id)
                     return JSONResponse(
                         status_code=400,
                         content={"error_msg": "Invalid face count"},
                     )
-                
+
                 params["n_faces"] = req.face_count
-            
+
             await stream.send_msg(
                 MeshAction(
                     project_id=req.project_id,
@@ -356,45 +364,54 @@ async def regenerate_mesh(
                     params=params,
                 )
             )
-            
-            main_branch = await project_dal.get_main_branch(project_id=project_id)
-            
-            actions_performed.append(await project_branch_dal.perform_action(
-                branch_id=main_branch.id,
-                author_id=current_user.id,
-                new_asset=new_mesh,
-                action_type="regenerate_from_latents",
-                parameters=params,
-                version_id=version.id,
-            ))
 
-            actions_performed.append(await project_branch_dal.perform_action(
-                branch_id=main_branch.id,
-                author_id=current_user.id,
-                new_asset=new_mesh,
-                action_type="simplify_mesh",
-                parameters=params,
-                version_id=version.id,
-            ))
-            
+            main_branch = await project_dal.get_main_branch(project_id=project_id)
+
+            actions_performed.append(
+                await project_branch_dal.perform_action(
+                    branch_id=main_branch.id,
+                    author_id=current_user.id,
+                    new_asset=new_mesh,
+                    action_type="regenerate_from_latents",
+                    parameters=params,
+                    version_id=version.id,
+                )
+            )
+
+            actions_performed.append(
+                await project_branch_dal.perform_action(
+                    branch_id=main_branch.id,
+                    author_id=current_user.id,
+                    new_asset=new_mesh,
+                    action_type="simplify_mesh",
+                    parameters=params,
+                    version_id=version.id,
+                )
+            )
+
         else:
             print("Mesh does not need to be regenerated")
-    
+
     # need to decide if i want to have two separate jobs for this or one after the other
     # if i do 2 sep jobs, need some way to keep delaying the job until the first one is done
     # if i do 1 job after the other, i need to change the mesh regenerate_mesh worker func to take in another param
     #   and need to send both actions to the version
     elif req.face_count != None and req.face_count != old_mesh.face_count:
         simplify_ratio = req.face_count / old_mesh.face_count
-            
+
         if simplify_ratio >= 1 or simplify_ratio <= 0:
             await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(
                 status_code=400,
                 content={"error_msg": "Invalid face count"},
             )
-        
-        params = {"simplify_faces": simplify_ratio, "mesh_id": old_mesh.id, "new_mesh_id": new_mesh.id, "project_id": project.id}
+
+        params = {
+            "simplify_faces": simplify_ratio,
+            "mesh_id": old_mesh.id,
+            "new_mesh_id": new_mesh.id,
+            "project_id": project.id,
+        }
 
         await stream.send_msg(
             MeshAction(
@@ -403,9 +420,9 @@ async def regenerate_mesh(
                 params=params,
             )
         )
-        
+
         main_branch = await project_dal.get_main_branch(project_id=project_id)
-        
+
         if len(actions_performed) == 0:
             # mesh is not being regenerated from latents, so copy over old_mesh's stats
             new_mesh = await mesh_dal.update_mesh(
@@ -413,16 +430,18 @@ async def regenerate_mesh(
                 mc_level=old_mesh.mc_level,
                 octree_resolution=old_mesh.octree_resolution,
             )
-        
-        actions_performed.append(await project_branch_dal.perform_action(
-            branch_id=main_branch.id,
-            author_id=current_user.id,
-            new_asset=new_mesh,
-            action_type="simplify_mesh",
-            parameters=params,
-            version_id=version.id,
-        ))
-    
+
+        actions_performed.append(
+            await project_branch_dal.perform_action(
+                branch_id=main_branch.id,
+                author_id=current_user.id,
+                new_asset=new_mesh,
+                action_type="simplify_mesh",
+                parameters=params,
+                version_id=version.id,
+            )
+        )
+
     if len(actions_performed) == 0:
         await mesh_dal.delete_mesh(new_mesh)
         await project_version_dal.hard_delete_version(version_id=version.id)
@@ -435,8 +454,14 @@ async def regenerate_mesh(
         response = await user_dal.charge_credit(
             current_user, regen_mesh_cost, "user_action:regenerate_mesh"
         )
+        if response.success == False:
+            return JSONResponse(
+                status_code=400,
+                content={"error_msg": "User does not have enough credit"},
+            )
 
     return {"project_id": req.project_id, "mesh_id": new_mesh.id}
+
 
 class GetMeshInfo(BaseModel):
     project_id: str
@@ -447,15 +472,15 @@ class GetMeshInfo(BaseModel):
     mc_level: Optional[float] = None
     num_faces: Optional[int] = None
 
+
 @router.get("/{mesh_id}")
 async def get_mesh_info(
-    mesh_id: str, 
-    mesh_dal: MeshDAL = Depends(get_mesh_dal), 
+    mesh_id: str,
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
-    image_dal: ImageDAL = Depends(get_image_dal), 
-    current_user: User = Depends(get_current_user)
+    image_dal: ImageDAL = Depends(get_image_dal),
+    current_user: User = Depends(get_current_user),
 ):
-    
     mesh = await mesh_dal.get_mesh_by_id(mesh_id)
     if not mesh:
         return JSONResponse(
@@ -463,17 +488,17 @@ async def get_mesh_info(
             content={"error_msg": "Mesh not found"},
         )
     project = await project_dal.get_project_by_id(mesh.project_id)
-    
+
     if current_user.id != project.user_id:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "You don't have permission to view this mesh"},
         )
-    
+
     storage_provider = StorageProvider()
     image = await image_dal.get_image_by_id(mesh.image_id)
     image_url = storage_provider.generate_get_url(image.storage_key)
-    
+
     mesh_quality = ""
     if mesh.num_inference_steps == 30:
         mesh_quality = "low"
@@ -481,10 +506,10 @@ async def get_mesh_info(
         mesh_quality = "medium"
     elif mesh.num_inference_steps == 70:
         mesh_quality = "high"
-    
+
     lod = None
     if mesh.octree_resolution == None:
-        lod = 0 # TEMP
+        lod = 0  # TEMP
     elif int(mesh.octree_resolution) == 128:
         lod = 1
     elif int(mesh.octree_resolution) == 256:
@@ -504,18 +529,19 @@ async def get_mesh_info(
         mesh_quality=mesh_quality,
         level_of_detail=lod,
         mc_level=0 if mesh.mc_level == None else mesh.mc_level,
-        created_at=mesh.created_at
+        created_at=mesh.created_at,
     )
+
 
 @router.get("/{asset_id}/download")
 async def get_mesh_format_download(
-    asset_id: str, 
+    asset_id: str,
     format: str,
     textured: Optional[bool] = False,
-    mesh_dal: MeshDAL = Depends(get_mesh_dal), 
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
     texture_dal: TextureDAL = Depends(get_texture_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     if textured:
         asset = await texture_dal.get_texture_by_id(asset_id)
@@ -527,14 +553,14 @@ async def get_mesh_format_download(
             status_code=400,
             content={"error_msg": "You don't have permission to view this mesh"},
         )
-    
+
     format = format.lower()
-    if format not in ['glb', 'fbx', 'obj', 'blend', 'stl']:
+    if format not in ["glb", "fbx", "obj", "blend", "stl"]:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Invalid format"},
         )
-    
+
     storage_provider = StorageProvider()
     mesh_path = f"{MESH_DIR}/{asset_id}.{format}"
     mesh_type = ""
@@ -544,22 +570,21 @@ async def get_mesh_format_download(
         # mesh_url = storage_provider.generate_get_url(mesh.storage_key)
     else:
         storage_provider.download_file(asset.format_storage_keys[format], mesh_path)
-        
-        if (format == "blend"):
+
+        if format == "blend":
             mesh_type = "application/octet-stream"
-        elif (format == "fbx"):
+        elif format == "fbx":
             mesh_type = "application/octet-stream"
-        elif (format == "obj"):
+        elif format == "obj":
             mesh_type = "model/obj"
-        elif (format == "stl"):
+        elif format == "stl":
             mesh_type = "model/stl"
         # mesh_url = storage_provider.generate_get_url(mesh.format_storage_keys[format])
-    
+
     return FileResponse(
-        path=mesh_path,
-        media_type=mesh_type,
-        filename=f"export.{format}"
+        path=mesh_path, media_type=mesh_type, filename=f"export.{format}"
     )
+
 
 @router.delete("/{mesh_id}", status_code=200)
 async def delete_mesh(
@@ -567,9 +592,11 @@ async def delete_mesh(
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
     project_version_dal: ProjectVersionDAL = Depends(get_project_version_dal),
-    project_version_asset_dal: ProjectVersionAssetDAL = Depends(get_project_version_asset_dal),
+    project_version_asset_dal: ProjectVersionAssetDAL = Depends(
+        get_project_version_asset_dal
+    ),
     texture_dal: TextureDAL = Depends(get_texture_dal),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     mesh = await mesh_dal.get_mesh_by_id(mesh_id)
     if not mesh:
@@ -594,10 +621,16 @@ async def delete_mesh(
         assets = version.assets
         for asset in assets:
             if asset.asset_id == mesh_id and asset.asset_type == AssetStage.mesh:
-                await project_version_asset_dal.unlink_asset(version.id, "mesh", asset.asset_id)
-            elif asset.asset_id in texture_ids and asset.asset_type == AssetStage.texture:
-                await project_version_asset_dal.unlink_asset(version.id, "texture", asset.asset_id)
-    
+                await project_version_asset_dal.unlink_asset(
+                    version.id, "mesh", asset.asset_id
+                )
+            elif (
+                asset.asset_id in texture_ids and asset.asset_type == AssetStage.texture
+            ):
+                await project_version_asset_dal.unlink_asset(
+                    version.id, "texture", asset.asset_id
+                )
+
     # delete all textures
     for texture_id in texture_ids:
         await texture_dal.delete_texture(texture_id)

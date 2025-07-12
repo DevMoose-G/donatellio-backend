@@ -25,7 +25,7 @@ class Mesh(Base):
     format_storage_keys = Column(MutableDict.as_mutable(JSONB), nullable=True)
 
     status = Column(String(32), nullable=False, default="PENDING")
-    
+
     parent_mesh_id = Column(
         String(128), ForeignKey("meshes.id", ondelete="CASCADE"), nullable=True
     )
@@ -64,7 +64,7 @@ class Mesh(Base):
 
     project = relationship("Project", back_populates="meshes", passive_deletes=True)
     image = relationship("Image", back_populates="meshes", passive_deletes=True)
-    
+
     parent_mesh = relationship(
         "Mesh", remote_side=[id], foreign_keys=[parent_mesh_id], lazy="selectin"
     )

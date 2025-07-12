@@ -1,30 +1,32 @@
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
-from donna_api.auth import authenticate_jwt, get_current_user
+from donna_api.auth import authenticate_jwt
 from donna_api.types import (
     WSImageEditsResponse,
     WSImageItem,
     WSMeshItem,
-    WSTextureItem,
+    WSModelItem,
     WSModelResponse,
-    WSModelItem
+    WSTextureItem,
 )
-from donna_api.utils import calculate_texture_gen_cost, expected_mesh_gen_time, expected_texture_gen_time
+from donna_api.utils import (
+    expected_mesh_gen_time,
+    expected_texture_gen_time,
+)
 from donna_common.orm import ImageDAL, ProjectDAL
 from donna_common.orm.base import AssetStage
 from donna_common.orm.dal.mesh import MeshDAL
-from donna_common.orm.dal.project import get_project_dal
 from donna_common.orm.dal.project_action import ProjectActionDAL
-from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
-from donna_common.orm.dal.project_version import ProjectVersionDAL, get_project_version_dal
-from donna_common.orm.dal.project_version_asset import ProjectVersionAssetDAL
+from donna_common.orm.dal.project_version import (
+    ProjectVersionDAL,
+)
 from donna_common.orm.dal.texture import TextureDAL
-from donna_common.orm.dal.user import UserDAL, get_user_dal
+from donna_common.orm.dal.user import UserDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.project import Project
 from donna_common.orm.models.project_action import ProjectAction
@@ -58,9 +60,11 @@ async def image_updates(
     try:
         async with AsyncSessionLocal() as session:
             current_user = await authenticate_ws(websocket, UserDAL(session))
-        
+
         async with AsyncSessionLocal() as session:
-            project = await ProjectDAL(session).get_project_by((Project.id == project_id))
+            project = await ProjectDAL(session).get_project_by(
+                (Project.id == project_id)
+            )
         if current_user.id != project.user_id:
             raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -118,7 +122,9 @@ async def image_updates(
                             )
 
                         async with AsyncSessionLocal() as session:
-                            chats = await ProjectDAL(session).get_image_prompt_chats(project_id)
+                            chats = await ProjectDAL(session).get_image_prompt_chats(
+                                project_id
+                            )
                         await websocket.send_json(
                             WSImageEditsResponse(
                                 images=[
@@ -133,17 +139,22 @@ async def image_updates(
                         )
                         await stream.ack_msg(msg.id)
                     else:
-                        print(f"got a message that won't be send for project_id={project_id} images {action}")
+                        print(
+                            f"got a message that won't be send for project_id={project_id} images {action}"
+                        )
     except WebSocketDisconnect:
         print("Client disconnected, WebSocket closed")
 
-async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Optional[WSMeshItem]:
+
+async def get_mesh_item(
+    storage_provider: StorageProvider, mesh_id: str
+) -> Optional[WSMeshItem]:
     mesh_storage_key = None
     mesh_image_storage_key = None
     mesh_item = None
     async with AsyncSessionLocal() as session:
         mesh_dal = MeshDAL(session)
-        
+
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
         if mesh is None:
             print(f"Mesh {mesh_id} not found")
@@ -151,24 +162,33 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
         mesh_storage_key = mesh.storage_key
 
         mesh_image_storage_key = mesh.static_render_storage_key
-        
+
         expected_time = None
         if mesh.status == "PENDING":
-
             # find the action that generated this mesh, then count # of other meshes generated in this version
             async with AsyncSessionLocal() as session:
                 project_action_dal = ProjectActionDAL(session)
-                actions = await project_action_dal.get_actions_by_asset(asset_id=mesh_id, asset_type=AssetStage.mesh)
+                actions = await project_action_dal.get_actions_by_asset(
+                    asset_id=mesh_id, asset_type=AssetStage.mesh
+                )
                 mesh_action = None
                 for action in actions:
-                    if (action.action_type == "generate_mesh") or (action.action_type == "regenerate_mesh"):
+                    if (action.action_type == "generate_mesh") or (
+                        action.action_type == "regenerate_mesh"
+                    ):
                         mesh_action = action
                         break
-                
+
                 mesh_quality = action.parameters.get("quality", None)
-                
-                all_actions_in_version = await project_action_dal.get_all_actions_in_project_version(version_id=mesh_action.project_version_id)
-                sorted_actions: List[ProjectAction] = sorted(all_actions_in_version, key=lambda action: action.created_at)
+
+                all_actions_in_version = (
+                    await project_action_dal.get_all_actions_in_project_version(
+                        version_id=mesh_action.project_version_id
+                    )
+                )
+                sorted_actions: List[ProjectAction] = sorted(
+                    all_actions_in_version, key=lambda action: action.created_at
+                )
                 # figure out how many meshes being generated are before this one in the queue
                 num_of_meshes_before = 0
                 for action in sorted_actions:
@@ -176,15 +196,23 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
                         num_of_meshes_before += 1
                         if action.id == mesh_action.id:
                             break
-            
-            if (mesh_quality == None):
+
+            if mesh_quality == None:
                 estimated_total_time = 30
             else:
-                estimated_total_time = num_of_meshes_before * expected_mesh_gen_time(mesh_quality)
+                estimated_total_time = num_of_meshes_before * expected_mesh_gen_time(
+                    mesh_quality
+                )
             expected_time = mesh.created_at + timedelta(seconds=estimated_total_time)
-        
-        mesh_item = WSMeshItem(mesh_id=mesh.id, status=mesh.status, created_at=mesh.created_at, parent_mesh_id=mesh.parent_mesh_id, expected_completion_date=expected_time)
-    
+
+        mesh_item = WSMeshItem(
+            mesh_id=mesh.id,
+            status=mesh.status,
+            created_at=mesh.created_at,
+            parent_mesh_id=mesh.parent_mesh_id,
+            expected_completion_date=expected_time,
+        )
+
     mesh_url = (
         storage_provider.generate_get_url(mesh_storage_key)
         if mesh_storage_key
@@ -198,16 +226,19 @@ async def get_mesh_item(storage_provider: StorageProvider, mesh_id: str) -> Opti
 
     mesh_item.mesh_url = mesh_url
     mesh_item.mesh_image_url = mesh_image_url
-        
+
     return mesh_item
 
-async def get_texture_item(storage_provider: StorageProvider, texture_id: str) -> WSTextureItem:
+
+async def get_texture_item(
+    storage_provider: StorageProvider, texture_id: str
+) -> WSTextureItem:
     texture_storage_key = None
     texture_image_storage_key = None
     texture_item = None
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)
-        
+
         texture = await texture_dal.get_texture_by_id(texture_id)
         texture_storage_key = texture.storage_key
 
@@ -215,24 +246,30 @@ async def get_texture_item(storage_provider: StorageProvider, texture_id: str) -
 
         expected_time = None
         if texture.status == "PENDING":
-
             # find the action that generated this texture and get the quality of texture
             async with AsyncSessionLocal() as session:
                 project_action_dal = ProjectActionDAL(session)
-                actions = await project_action_dal.get_actions_by_asset(asset_id=texture_id, asset_type=AssetStage.texture)
+                actions = await project_action_dal.get_actions_by_asset(
+                    asset_id=texture_id, asset_type=AssetStage.texture
+                )
                 texture_action = None
                 for action in actions:
-                    if (action.action_type == "generate_texture"):
+                    if action.action_type == "generate_texture":
                         texture_action = action
                         break
-                
-                texture_quality = action.parameters['texture_quality']
-            
+
+                texture_quality = texture_action.parameters["texture_quality"]
+
             estimated_total_time = expected_texture_gen_time(texture_quality)
             expected_time = texture.created_at + timedelta(seconds=estimated_total_time)
 
-        texture_item = WSTextureItem(texture_id=texture.id,  status=texture.status, created_at=texture.created_at, expected_completion_date=expected_time)
-    
+        texture_item = WSTextureItem(
+            texture_id=texture.id,
+            status=texture.status,
+            created_at=texture.created_at,
+            expected_completion_date=expected_time,
+        )
+
     texture_url = (
         storage_provider.generate_get_url(texture_storage_key)
         if texture_storage_key
@@ -246,67 +283,81 @@ async def get_texture_item(storage_provider: StorageProvider, texture_id: str) -
 
     texture_item.texture_url = texture_url
     texture_item.texture_image_url = texture_image_url
-        
+
     return texture_item
 
+
 async def get_model_items(
-    project_version_id, storage_provider: StorageProvider, 
+    project_version_id,
+    storage_provider: StorageProvider,
 ) -> List[WSModelItem]:
     model_items: List[WSModelItem] = []
     mesh_items = {}
     mesh_id_to_image_id = {}
     already_textured_meshes_ids = set()
-    
+
     parent_mesh_ids = []
 
     async with AsyncSessionLocal() as session:
         project_version_dal = ProjectVersionDAL(session)
         texture_dal = TextureDAL(session)
         mesh_dal = MeshDAL(session)
-        project_version = await project_version_dal.get_version_by_id(project_version_id)
+        project_version = await project_version_dal.get_version_by_id(
+            project_version_id
+        )
         assets = project_version.assets
-        
-        mesh_ids = [asset.asset_id for asset in assets if asset.asset_type == AssetStage.mesh]
-        
+
+        mesh_ids = [
+            asset.asset_id for asset in assets if asset.asset_type == AssetStage.mesh
+        ]
+
         for mesh_id in mesh_ids:
             mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-            
-            if (mesh != None and mesh.parent_mesh_id != None):
+
+            if mesh != None and mesh.parent_mesh_id != None:
                 parent_mesh_ids.append(mesh.parent_mesh_id)
-            
+
             mesh_item = await get_mesh_item(storage_provider, mesh_id)
             if mesh_item != None:
                 mesh_items[mesh_id] = mesh_item
                 mesh_id_to_image_id[mesh_id] = mesh.image_id
-        
-        texture_ids = [asset.asset_id for asset in assets if asset.asset_type == AssetStage.texture]
-        
+
+        texture_ids = [
+            asset.asset_id for asset in assets if asset.asset_type == AssetStage.texture
+        ]
+
         for texture_id in texture_ids:
             texture = await texture_dal.get_texture_by_id(texture_id)
             if texture is None:
                 breakpoint()
             texture_item = await get_texture_item(storage_provider, texture_id)
-            
+
             mesh_item = mesh_items[texture.mesh_id]
-            
+
             already_textured_meshes_ids.add(texture.mesh_id)
-            model_items.append(WSModelItem(
-                texture=texture_item, 
-                image_id=texture.image_id, 
-                mesh=mesh_item, 
-            ))
-        
+            model_items.append(
+                WSModelItem(
+                    texture=texture_item,
+                    image_id=texture.image_id,
+                    mesh=mesh_item,
+                )
+            )
+
     for mesh_id in mesh_items.keys():
         if mesh_id not in already_textured_meshes_ids:
             mesh_item = mesh_items[mesh_id]
-            model_items.append(WSModelItem(
-                mesh=mesh_item, 
-                image_id=mesh_id_to_image_id[mesh_id], 
-                texture=None, 
-            ))
-    
+            model_items.append(
+                WSModelItem(
+                    mesh=mesh_item,
+                    image_id=mesh_id_to_image_id[mesh_id],
+                    texture=None,
+                )
+            )
+
     # filter out parent meshes
-    model_items = [item for item in model_items if item.mesh.mesh_id not in parent_mesh_ids]
+    model_items = [
+        item for item in model_items if item.mesh.mesh_id not in parent_mesh_ids
+    ]
 
     return model_items
 
@@ -317,20 +368,28 @@ class MeshTextureIDPair:
     texture_id: Optional[str] = None
 
 
-async def get_all_models_items(storage_provider: StorageProvider, added_meshes: Set[MeshTextureIDPair], version_id: str) -> Tuple[List[WSModelItem], Set]:
+async def get_all_models_items(
+    storage_provider: StorageProvider,
+    added_meshes: Set[MeshTextureIDPair],
+    version_id: str,
+) -> Tuple[List[WSModelItem], Set]:
     model_items = await get_model_items(version_id, storage_provider)
     new_model_items = []
     for model_item in model_items:
-        if (model_item.texture is not None):
-            mesh_texture_pair = MeshTextureIDPair(mesh_id=model_item.mesh.mesh_id, texture_id=model_item.texture.texture_id)
+        if model_item.texture is not None:
+            mesh_texture_pair = MeshTextureIDPair(
+                mesh_id=model_item.mesh.mesh_id,
+                texture_id=model_item.texture.texture_id,
+            )
         else:
             mesh_texture_pair = MeshTextureIDPair(mesh_id=model_item.mesh.mesh_id)
-            
+
         if mesh_texture_pair not in added_meshes:
             new_model_items.append(model_item)
             added_meshes.add(mesh_texture_pair)
 
     return new_model_items, added_meshes
+
 
 @router.websocket("/ws/projects/{project_id}/mesh")
 async def mesh_updates(
@@ -346,7 +405,7 @@ async def mesh_updates(
 
     stream = RedisStream("completed-jobs", group_name="mesh")
     await stream.setup_group(new_only=False)
-    
+
     storage_provider = StorageProvider()
 
     first_run = True
@@ -356,10 +415,12 @@ async def mesh_updates(
         added_meshes = set()
         async with AsyncSessionLocal() as session:
             current_branch = await ProjectDAL(session).get_main_branch(project_id)
-        
+
         while True:
             # getting what's in the database
-            new_model_items, added_meshes = await get_all_models_items(storage_provider, added_meshes, current_branch.head_version_id)
+            new_model_items, added_meshes = await get_all_models_items(
+                storage_provider, added_meshes, current_branch.head_version_id
+            )
 
             if new_model_items != [] or first_run:
                 await websocket.send_json(
@@ -377,19 +438,26 @@ async def mesh_updates(
                     if action.project_id == project_id:
                         print(f"got a message: {action}")
                         if (
-                            (action.function_name == "generate_mesh" or action.function_name == "regenerate_from_latents" or action.function_name == "simplify_mesh")
-                            and action.type == "mesh"
-                        ):
+                            action.function_name == "generate_mesh"
+                            or action.function_name == "regenerate_from_latents"
+                            or action.function_name == "simplify_mesh"
+                        ) and action.type == "mesh":
                             model_items = []
                             for mesh_id in action.mesh_ids:
                                 async with AsyncSessionLocal() as session:
-                                    image = await MeshDAL(session).get_mesh_by_id(mesh_id)
+                                    image = await MeshDAL(session).get_mesh_by_id(
+                                        mesh_id
+                                    )
                                     image_id = image.image_id
-                                model_items.append(WSModelItem(
-                                    mesh=await get_mesh_item(storage_provider, mesh_id),
-                                    image_id=image_id
-                                ))
-                                
+                                model_items.append(
+                                    WSModelItem(
+                                        mesh=await get_mesh_item(
+                                            storage_provider, mesh_id
+                                        ),
+                                        image_id=image_id,
+                                    )
+                                )
+
                             await websocket.send_json(
                                 WSModelResponse(models=model_items).model_dump(
                                     mode="json"
@@ -404,9 +472,13 @@ async def mesh_updates(
 
                             try:
                                 model_item = WSModelItem(
-                                    mesh=await get_mesh_item(storage_provider, action.params['mesh_id']),
-                                    texture=await get_texture_item(storage_provider, action.texture_id),
-                                    image_id=action.params['image_id']
+                                    mesh=await get_mesh_item(
+                                        storage_provider, action.params["mesh_id"]
+                                    ),
+                                    texture=await get_texture_item(
+                                        storage_provider, action.texture_id
+                                    ),
+                                    image_id=action.params["image_id"],
                                 )
                             except Exception as e:
                                 print(e)

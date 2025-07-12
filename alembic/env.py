@@ -1,12 +1,9 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy import URL
+from sqlalchemy import URL, engine_from_config, pool
 
 from alembic import context
-from alembic.config import Config
 from donna_common.settings import settings
-from configparser import RawConfigParser
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -58,6 +55,7 @@ def include_object(obj, name, type_, reflected, compare_to):
     if type_ == "type" and name == "asset_stage_enum":
         return False
     return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

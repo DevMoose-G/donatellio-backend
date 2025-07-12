@@ -11,7 +11,6 @@ from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.texture import Texture
-from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.types import MeshAction, TexturedMeshAction
@@ -49,16 +48,22 @@ def crop_transparent(im):
         # Entire image is fully transparent—return as-is (or handle differently)
         return im.copy()
 
-async def render_mesh_preview_image(storage_key: str, asset_id: str, mesh_dal: MeshDAL = None, texture_dal: TextureDAL = None):
+
+async def render_mesh_preview_image(
+    storage_key: str,
+    asset_id: str,
+    mesh_dal: MeshDAL = None,
+    texture_dal: TextureDAL = None,
+):
     storage_provider = StorageProvider()
 
     # download glb file
     glb_path = f"{MESH_DIR}/{asset_id}.glb"
     storage_provider.download_file(storage_key, glb_path)
     out_dir = f"{MESH_DIR}/{asset_id}"
-    
+
     render_dict = run_blender_render(glb_path, out_dir)
-    
+
     # crop image
     image = PIL.Image.open(render_dict["png"])
     image = crop_transparent(image)
@@ -67,9 +72,8 @@ async def render_mesh_preview_image(storage_key: str, asset_id: str, mesh_dal: M
     png_storage_key = storage_provider.upload_image(
         f"{asset_id}/render.png", render_dict["png"]
     )
-    
+
     if mesh_dal != None:
-        
         asset = await mesh_dal.update_mesh(
             asset_id,
             static_render_storage_key=png_storage_key,
@@ -81,14 +85,19 @@ async def render_mesh_preview_image(storage_key: str, asset_id: str, mesh_dal: M
         )
     return asset
 
-async def generate_mesh_formats(asset_id: str, storage_key: str, mesh_dal: MeshDAL = None, texture_dal: TextureDAL = None):
+
+async def generate_mesh_formats(
+    asset_id: str,
+    storage_key: str,
+    mesh_dal: MeshDAL = None,
+    texture_dal: TextureDAL = None,
+):
     storage_provider = StorageProvider()
 
     # download glb file
     glb_path = f"{MESH_DIR}/{asset_id}.glb"
     storage_provider.download_file(storage_key, glb_path)
     out_dir = f"{MESH_DIR}/{asset_id}"
-    
 
     convert_dict = run_blender_convert(glb_path, out_dir)
 
@@ -109,13 +118,11 @@ async def generate_mesh_formats(asset_id: str, storage_key: str, mesh_dal: MeshD
     blend_storage_key = storage_provider.upload_mesh(
         asset_id, f"{asset_id}.blend", convert_dict["blend"]
     )
-    
+
     print(convert_dict["glb"])
     # breakpoint()
-    
 
     if mesh_dal != None:
-        
         asset = await mesh_dal.update_mesh(
             asset_id,
             storage_key=glb_storage_key,
@@ -139,6 +146,7 @@ async def generate_mesh_formats(asset_id: str, storage_key: str, mesh_dal: MeshD
         )
     return asset
 
+
 async def generate_mesh(
     image_id,
     project_id,
@@ -150,7 +158,7 @@ async def generate_mesh(
     labels: List[str],
     max_polygon_count: int,
     completed_meshes_stream,
-    job_stream
+    job_stream,
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
@@ -166,7 +174,7 @@ async def generate_mesh(
                 "quality": quality,
                 "seed": seed,
                 "labels": labels,
-                "max_polygon_count": max_polygon_count
+                "max_polygon_count": max_polygon_count,
             },
             project_id=project_id,
             function_name="generate_mesh",
@@ -200,7 +208,7 @@ async def generate_mesh(
                 "quality": quality,
                 "seed": seed,
                 "labels": labels,
-                "max_polygon_count": max_polygon_count
+                "max_polygon_count": max_polygon_count,
             },
             project_id=project_id,
             function_name="generate_mesh",
@@ -208,31 +216,26 @@ async def generate_mesh(
         )
     )
 
-    async with AsyncSessionLocal() as session:
-        mesh_dal = MeshDAL(session)
-
-        for mesh_id in mesh_ids:
-            mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-
-            # perform auto-retopology on generated mesh
-            # should this be a new mesh or just replace the existing mesh?
-            await job_stream.send_msg(
-                MeshAction(
-                    type="mesh",
-                    params={
-                        "mesh_id": mesh_id,
-                        "new_mesh_id": mesh_id,
-                        'project_id': project_id
-                    },
-                    project_id=project_id,
-                    function_name="simplify_mesh",
-                    mesh_ids=[mesh_id],
-                )
+    for mesh_id in mesh_ids:
+        # perform auto-retopology on generated mesh
+        # should this be a new mesh or just replace the existing mesh?
+        await job_stream.send_msg(
+            MeshAction(
+                type="mesh",
+                params={
+                    "mesh_id": mesh_id,
+                    "new_mesh_id": mesh_id,
+                    "project_id": project_id,
+                },
+                project_id=project_id,
+                function_name="simplify_mesh",
+                mesh_ids=[mesh_id],
             )
-            
-            # do i need to generate formats and render if the mesh will be simplified anyways
-            # await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
-            # await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
+        )
+
+        # do i need to generate formats and render if the mesh will be simplified anyways
+        # await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
+        # await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
 
     return mesh_ids
 
@@ -245,7 +248,7 @@ async def generate_texture(
     prompt: str,
     texture_quality: str,
     seed: int,
-    completed_meshes_stream
+    completed_meshes_stream,
 ) -> str:
     await completed_meshes_stream.send_msg(
         TexturedMeshAction(
@@ -259,7 +262,7 @@ async def generate_texture(
                 "mesh_id": mesh_id,
                 "prompt": prompt,
                 "texture_quality": texture_quality,
-                "seed": seed
+                "seed": seed,
             },
             texture_id=texture_id,
         )
@@ -289,7 +292,7 @@ async def generate_texture(
                 "mesh_id": mesh_id,
                 "prompt": prompt,
                 "texture_quality": texture_quality,
-                "seed": seed
+                "seed": seed,
             },
             texture_id=texture_id,
         )
@@ -300,15 +303,28 @@ async def generate_texture(
 
         texture = await texture_dal.get_texture_by_id(texture_id)
         # TODO: send message through websocket before converting stuff to show the user progress
-        
-        await generate_mesh_formats(texture_id, texture.storage_key, texture_dal=texture_dal)
-        await render_mesh_preview_image(texture.storage_key, texture_id, texture_dal=texture_dal)
+
+        await generate_mesh_formats(
+            texture_id, texture.storage_key, texture_dal=texture_dal
+        )
+        await render_mesh_preview_image(
+            texture.storage_key, texture_id, texture_dal=texture_dal
+        )
 
     return texture_id
 
+
 async def regenerate_from_latents(
-    project_id, old_mesh_id, mesh_id, mc_level, octree_resolution, 
-    completed_meshes_stream, job_stream, max_facenum=None, do_shade_smooth=True, n_faces=None
+    project_id,
+    old_mesh_id,
+    mesh_id,
+    mc_level,
+    octree_resolution,
+    completed_meshes_stream,
+    job_stream,
+    max_facenum=None,
+    do_shade_smooth=True,
+    n_faces=None,
 ) -> str:
     runpod_service = RunpodProvider()
     mesh_id = await runpod_service.regenerate_mesh_from_latents(
@@ -318,7 +334,7 @@ async def regenerate_from_latents(
         mc_level=mc_level,
         octree_resolution=octree_resolution,
         max_facenum=max_facenum,
-        do_shade_smooth=do_shade_smooth
+        do_shade_smooth=do_shade_smooth,
     )
 
     total_n_faces = 0
@@ -328,8 +344,13 @@ async def regenerate_from_latents(
         total_n_faces = mesh.face_count
 
     if n_faces is not None:
-        simplify_ratio = min(n_faces/total_n_faces, 1)
-        params = {"simplify_ratio": simplify_ratio, "mesh_id": mesh_id, "new_mesh_id": mesh_id, "project_id": project_id}
+        simplify_ratio = min(n_faces / total_n_faces, 1)
+        params = {
+            "simplify_ratio": simplify_ratio,
+            "mesh_id": mesh_id,
+            "new_mesh_id": mesh_id,
+            "project_id": project_id,
+        }
         # send job to simplify mesh after regen
         await job_stream.send_msg(
             MeshAction(
@@ -338,7 +359,7 @@ async def regenerate_from_latents(
                 params=params,
             )
         )
-    
+
     os.makedirs(MESH_DIR, exist_ok=True)
 
     async with AsyncSessionLocal() as session:
@@ -366,12 +387,15 @@ async def regenerate_from_latents(
         await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
     return mesh.id
 
-async def simplify_mesh(project_id, mesh_id, new_mesh_id, completed_meshes_stream, simplify_ratio=None):
+
+async def simplify_mesh(
+    project_id, mesh_id, new_mesh_id, completed_meshes_stream, simplify_ratio=None
+):
     runpod_service = RunpodProvider()
     await runpod_service.simplify_mesh(
         mesh_id, new_mesh_id, simplify_ratio=simplify_ratio
     )
-    
+
     os.makedirs(MESH_DIR, exist_ok=True)
 
     async with AsyncSessionLocal() as session:
@@ -395,15 +419,19 @@ async def simplify_mesh(project_id, mesh_id, new_mesh_id, completed_meshes_strea
             )
         )
 
-        await generate_mesh_formats(new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal)
-        await render_mesh_preview_image(new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal)
+        await generate_mesh_formats(
+            new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal
+        )
+        await render_mesh_preview_image(
+            new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal
+        )
     return new_mesh.id
+
 
 async def fill_static_render_images():
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)
         mesh_dal = MeshDAL(session)
-        storage_provider = StorageProvider()
 
         textures = await texture_dal.get_textures_by(
             filter=(Texture.static_render_storage_key == None)
@@ -412,7 +440,9 @@ async def fill_static_render_images():
         for texture in textures:
             if texture.storage_key == None:
                 continue
-            await render_mesh_preview_image(texture.storage_key, texture.id, texture_dal=texture_dal)
+            await render_mesh_preview_image(
+                texture.storage_key, texture.id, texture_dal=texture_dal
+            )
 
         meshes = await mesh_dal.get_meshes_by(
             filter=(Mesh.static_render_storage_key == None) & (Mesh.storage_key != None)
@@ -420,14 +450,15 @@ async def fill_static_render_images():
         for mesh in meshes:
             if mesh.storage_key == None:
                 continue
-            await render_mesh_preview_image(mesh.storage_key, mesh.id, mesh_dal=mesh_dal)
+            await render_mesh_preview_image(
+                mesh.storage_key, mesh.id, mesh_dal=mesh_dal
+            )
 
 
 async def fill_other_formats():
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)
         mesh_dal = MeshDAL(session)
-        storage_provider = StorageProvider()
 
         textures = await texture_dal.get_textures_by(
             Texture.format_storage_keys == None
@@ -435,7 +466,9 @@ async def fill_other_formats():
         for texture in textures:
             if texture.storage_key == None:
                 continue
-            await generate_mesh_formats(texture.id, texture.storage_key, texture_dal=texture_dal)
+            await generate_mesh_formats(
+                texture.id, texture.storage_key, texture_dal=texture_dal
+            )
 
         meshes = await mesh_dal.get_meshes_by(Mesh.format_storage_keys == None)
         for mesh in meshes:
@@ -497,7 +530,7 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
             result["stl"] = line.split("STL:")[1].strip()
         elif line.strip().startswith("Blend:"):
             result["blend"] = line.split("Blend:")[1].strip()
-    
+
     if result == {}:
         err = proc.stderr
         raise RuntimeError(f"Blender export failed: {err}")
@@ -507,7 +540,7 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
         if not os.path.isfile(path):
             breakpoint()
             raise RuntimeError(f"Expected output {key} was not created: {path}")
-    
+
     return result
 
 
@@ -551,7 +584,7 @@ def run_blender_render(glb_path, out_dir, clear_texture=False) -> Dict[str, str]
     if proc.returncode != 0:
         err = proc.stderr or proc.stdout
         raise RuntimeError(f"Blender export failed: {err}")
-    
+
     # On success, our script prints the output paths to stdout
     # For simplicity, parse the printed lines:
     result = {"png": None}
@@ -562,6 +595,8 @@ def run_blender_render(glb_path, out_dir, clear_texture=False) -> Dict[str, str]
     # Validate that each file actually exists
     for key, path in result.items():
         if path is None or not os.path.isfile(path):
-            raise RuntimeError(f"Output: \n{proc.stdout}\n\nExpected output {key} was not created: {path}")
+            raise RuntimeError(
+                f"Output: \n{proc.stdout}\n\nExpected output {key} was not created: {path}"
+            )
 
     return result

@@ -226,8 +226,7 @@ class OpenAIProvider:
 
         original_image = await self.dal.image_dal.get_image_by_id(parent_image_id)
         while (
-            original_image.error != None
-            and original_image.parent_image_id is not None
+            original_image.error != None and original_image.parent_image_id is not None
         ):
             original_image = await self.dal.image_dal.get_image_by_id(
                 original_image.parent_image_id
@@ -276,7 +275,7 @@ class OpenAIProvider:
         completed_images_stream = RedisStream("completed-jobs", group_name="image")
 
         key = None
-        
+
         events_debug = []
         for event in stream:
             events_debug.append(event)
@@ -348,15 +347,15 @@ class OpenAIProvider:
                         for content in output.content:
                             if content.type == "output_text":
                                 error_msg += f"{content.text} "
-                    
+
                     if error_msg.find("safety system") != -1:
                         error_msg = "Image was blocked by safety system. Try a different prompt or a less restrictive image model."
-                    
+
                     async with AsyncSessionLocal() as session:
                         await ImageDAL(session).update_image(
                             id=image_id, error=error_msg, storage_key=None
                         )
-                    
+
                     await completed_images_stream.send_msg(
                         ImageAction(
                             type="image",
@@ -373,19 +372,17 @@ class OpenAIProvider:
                                 "size": size,
                                 "quality": quality,
                             },
-                            successful=False
+                            successful=False,
                         )
                     )
-                
+
         if key != None:
             await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
-    
+
     async def generate_style_description(
-        self,
-        styleboard_id: str,
-        image_storage_key: str
+        self, styleboard_id: str, image_storage_key: str
     ):
         res = self.client.responses.create(
             model="gpt-4.1",
@@ -394,20 +391,25 @@ class OpenAIProvider:
                 {
                     "role": "user",
                     "content": [
-                        {"type":"input_text", "text":"Use the following image(s)."},
-                        {"type":"input_image", "image_url": self.storage_provider.generate_get_url(image_storage_key)}
-                    ]
+                        {"type": "input_text", "text": "Use the following image(s)."},
+                        {
+                            "type": "input_image",
+                            "image_url": self.storage_provider.generate_get_url(
+                                image_storage_key
+                            ),
+                        },
+                    ],
                 }
             ],
-            max_output_tokens=256
+            max_output_tokens=256,
         )
 
         async with AsyncSessionLocal() as session:
             await StyleBoardDAL(session).update_styleboard(
                 id=styleboard_id, description=res.output_text
             )
-        
-        return res.output_text  
+
+        return res.output_text
 
     def get_elaborating_questions(
         self,

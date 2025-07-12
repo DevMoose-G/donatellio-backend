@@ -2,9 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from random import randint
 from typing import Any
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
-from pydantic import BaseModel
 import redis
 from fastapi import (
     APIRouter,
@@ -15,14 +13,16 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from jose import JWTError, jwt
+from pydantic import BaseModel
 
 from donna_api.consts import CREDITS_BY_TIER
 from donna_api.email import send_verification_email
 from donna_api.types import JWTToken, RequestCreateUser, RequestLoginUser
-from donna_common.settings import settings
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
+from donna_common.settings import settings
 from donna_common.utils.hashing import get_password_hash, verify_password
 from donna_common.utils.profile_image import ICON_STORAGE_KEYS, PALETTES
 
@@ -33,19 +33,23 @@ redis_client = redis.Redis(host="localhost", port=6379, db=0)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # this should be an environment variable. should this be regenerated on restart?
-SECRET_KEY = settings.auth_secret_key  # should be high-entropy (at least 256 bits). change this
+SECRET_KEY = (
+    settings.auth_secret_key
+)  # should be high-entropy (at least 256 bits). change this
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15  # e.g. tokens valid for 15 mins
 REFRESH_TOKEN_EXPIRE_DAYS = 5
 SECURITY_SALT = "email-confirm-salt"
 
-EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES=30
+EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter()
+
 
 def generate_email_verification_token(user_id: str) -> str:
     serializer = URLSafeTimedSerializer(SECRET_KEY, salt=SECURITY_SALT)
     return serializer.dumps(user_id)
+
 
 def blacklist_jwt(jti: str) -> None:
     redis_client.set(jti, "revoked", ex=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
@@ -196,24 +200,27 @@ async def register(
         password=hashed_pw,
         username=user.username,
         profile_image_storage_key=profile_img_storage_key,
-        credit_balance=CREDITS_BY_TIER['free'],
-        is_verified=False
+        credit_balance=CREDITS_BY_TIER["free"],
+        is_verified=False,
     )
     new_user = await user_dal.create_user(new_user)
 
     verification_token = generate_email_verification_token(new_user.id)
     await send_verification_email(user.email, verification_token)
 
-    return {
+    return {}
 
-    }
 
 @router.get("/verify")
-async def verify(token: str, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+async def verify(
+    token: str, response: Response, user_dal: UserDAL = Depends(get_user_dal)
+):
     serializer = URLSafeTimedSerializer(SECRET_KEY, salt=SECURITY_SALT)
     try:
         user_id = serializer.loads(
-            token, salt=SECURITY_SALT, max_age=EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES * 60
+            token,
+            salt=SECURITY_SALT,
+            max_age=EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES * 60,
         )
     except SignatureExpired:
         raise HTTPException(400, "Verification link expired")
@@ -249,6 +256,7 @@ async def verify(token: str, response: Response, user_dal: UserDAL = Depends(get
         token_type="bearer",
         expires_in=expires_in,
     ).model_dump()
+
 
 @router.post("/login")
 async def login(
@@ -346,41 +354,52 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
         pass
     return JSONResponse(status_code=200, content={"success": True})
 
-from google.oauth2 import id_token
+
 from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+
 
 class RequestGoogleAuth(BaseModel):
     access_token: str
 
+
 @router.post("/auth/google")
-async def google_auth(request: RequestGoogleAuth, response: Response, user_dal: UserDAL = Depends(get_user_dal)):
+async def google_auth(
+    request: RequestGoogleAuth,
+    response: Response,
+    user_dal: UserDAL = Depends(get_user_dal),
+):
     try:
         payload = id_token.verify_oauth2_token(
             request.access_token,
             google_requests.Request(),
-            settings.oid_google_client_id  # from your env vars
+            settings.oid_google_client_id,  # from your env vars
         )
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid Google token")
-    
+
     google_id = payload["sub"]
     email = payload["email"]
     user_name = payload["name"]
-    profile_pic_url = payload['picture']
-    if (payload['email_verified'] != True):
+    profile_pic_url = payload["picture"]
+    if payload["email_verified"] != True:
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
     # check if there is account with that google id, if so login
-    existing_user = await user_dal.get_user_by(filter=(User.google_auth_id == google_id))
+    existing_user = await user_dal.get_user_by(
+        filter=(User.google_auth_id == google_id)
+    )
     if existing_user is not None:
         # login
         user = existing_user
-    
+
     else:
         user_by_email = await user_dal.get_user_by_email(email)
         if user_by_email is not None:
-            raise HTTPException(status_code=400, detail="Email already in use, but not with Google Auth")
-        
+            raise HTTPException(
+                status_code=400, detail="Email already in use, but not with Google Auth"
+            )
+
         # create new user with google id
         # check if an account has that username
         db_user = await user_dal.get_user_by(filter=(User.username == user_name))
@@ -394,10 +413,10 @@ async def google_auth(request: RequestGoogleAuth, response: Response, user_dal: 
             username=user_name,
             profile_image_storage_key=profile_pic_url,
             password="",
-            credit_balance=CREDITS_BY_TIER['free'],
-            is_verified=True
+            credit_balance=CREDITS_BY_TIER["free"],
+            is_verified=True,
         )
-    
+
         user = await user_dal.create_user(user)
 
     expires_in = datetime.now(timezone.utc) + timedelta(

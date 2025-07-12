@@ -1,8 +1,7 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import os
 
 import openai
-import os
 
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.dal.project import ProjectDAL
@@ -14,20 +13,22 @@ from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.registry import HANDLERS, on_action
-from donna_common.redis.types import ImageAction, MeshAction, RedisMessage, TexturedMeshAction
-from donna_common.utils.profile_image import generate_profile_image_urls
+from donna_common.redis.types import (
+    ImageAction,
+    MeshAction,
+    RedisMessage,
+    TexturedMeshAction,
+)
+from donna_common.settings import settings
 from donna_worker.worker.mesh import (
-    fill_other_formats,
-    fill_static_render_images,
     generate_mesh,
     generate_texture,
     regenerate_from_latents,
     simplify_mesh,
 )
-from donna_worker.worker.setup import initialize_branches
-from donna_common.settings import settings
 
 MESH_PATH = f"{settings.static_dir}/meshes"
+
 
 class DonnaWorker:
     def __init__(self):
@@ -51,25 +52,28 @@ class DonnaWorker:
     @on_action("image")
     async def handle_image(self, action: ImageAction):
         func_params = action.params
-        
+
         image_model = func_params.pop("image_model", None)
         if action.function_name == "generate_image":
-
             async with AsyncSessionLocal() as session:
                 project = await ProjectDAL(session).get_project_by_id(action.project_id)
                 # check if styleboard is attached to project if so, generate description for styleboard, update it
                 if project.styleboard_id:
-                    styleboard = await StyleBoardDAL(session).get_styleboard_by_id(project.styleboard_id)
-                    image_storage_key = styleboard.assets['images'][0]['storage_key']
-                    func_params['prompt'] += "\nStyle description: "+ await self.openai_provider.generate_style_description(
-                        project.styleboard_id, image_storage_key
+                    styleboard = await StyleBoardDAL(session).get_styleboard_by_id(
+                        project.styleboard_id
+                    )
+                    image_storage_key = styleboard.assets["images"][0]["storage_key"]
+                    func_params["prompt"] += (
+                        "\nStyle description: "
+                        + await self.openai_provider.generate_style_description(
+                            project.styleboard_id, image_storage_key
+                        )
                     )
 
             project_name = self.openai_provider.name_project(action.project_id)
             # wake up geometry pipeline
             await self.runpod_service.wake_up_geometry()
 
-            
             if image_model == "gpt4o":
                 await self.openai_provider.generate_image(**func_params)
             else:
@@ -77,7 +81,7 @@ class DonnaWorker:
                     image_id=func_params["image_id"],
                     model=image_model,
                     quality=func_params["quality"],
-                    prompt=func_params['prompt'],
+                    prompt=func_params["prompt"],
                 )
 
             await project_name
@@ -125,17 +129,27 @@ class DonnaWorker:
     async def handle_mesh(self, action: MeshAction):
         print("Got mesh action:", action)
         if action.function_name == "generate_mesh":
-            mesh_ids = await generate_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream, job_stream=self.stream)
+            mesh_ids = await generate_mesh(
+                **action.params,
+                completed_meshes_stream=self.completed_meshes_stream,
+                job_stream=self.stream,
+            )
 
         elif action.function_name == "regenerate_from_latents":
-            mesh_id = await regenerate_from_latents(**action.params, completed_meshes_stream=self.completed_meshes_stream, job_stream=self.stream)
+            mesh_id = await regenerate_from_latents(
+                **action.params,
+                completed_meshes_stream=self.completed_meshes_stream,
+                job_stream=self.stream,
+            )
             mesh_ids = [mesh_id]
-            
+
         elif action.function_name == "simplify_mesh":
             print("Calling runpod deployment to simplify the mesh")
-            mesh_id = await simplify_mesh(**action.params, completed_meshes_stream=self.completed_meshes_stream)
+            mesh_id = await simplify_mesh(
+                **action.params, completed_meshes_stream=self.completed_meshes_stream
+            )
             mesh_ids = [mesh_id]
-        
+
         await self.completed_meshes_stream.send_msg(
             MeshAction(
                 type="mesh",
@@ -149,7 +163,9 @@ class DonnaWorker:
     @on_action("textured_mesh")
     async def handle_textured_mesh(self, action: TexturedMeshAction):
         if action.function_name == "generate_texture":
-            texture_id = await generate_texture(**action.params, completed_meshes_stream=self.completed_meshes_stream)
+            texture_id = await generate_texture(
+                **action.params, completed_meshes_stream=self.completed_meshes_stream
+            )
             await self.completed_meshes_stream.send_msg(
                 TexturedMeshAction(
                     type="textured_mesh",
@@ -159,8 +175,6 @@ class DonnaWorker:
                     texture_id=texture_id,
                 )
             )
-    
-    
 
     async def mainloop(self):
         # generate_profile_image_urls()
@@ -175,7 +189,7 @@ class DonnaWorker:
         for i in range(10):
             while True:
                 messages = await self.stream.consume_msg(
-                    f'consumer-{i}', new_only=True, n_msgs=10
+                    f"consumer-{i}", new_only=True, n_msgs=10
                 )
                 if messages == []:
                     print("No messages available")
@@ -185,12 +199,14 @@ class DonnaWorker:
                     handler = HANDLERS.get(msg.action.type)
                     if not handler:
                         raise RuntimeError(f"Unknown action type: {msg.action.type}")
-                    
+
                     async def process_message(msg: RedisMessage):
                         await handler(self, msg.action)
                         await self.stream.ack_msg(msg.id)
+
                     asyncio.create_task(process_message(msg))
-                        
+
+
 # TODO: increase # of concurrent workers
 async def mainloop():
     worker = await DonnaWorker.create()

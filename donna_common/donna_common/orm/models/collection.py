@@ -48,7 +48,10 @@ class Collection(Base):
     owner = relationship("User", back_populates="collections", lazy="selectin")
 
     assoc_projects = relationship(
-        "ProjectCollection", back_populates="collection", lazy="selectin", passive_deletes=True
+        "ProjectCollection",
+        back_populates="collection",
+        lazy="selectin",
+        passive_deletes=True,
     )
     # Many-to-many: which projects belong to this collection
     projects = association_proxy("assoc_projects", "project")

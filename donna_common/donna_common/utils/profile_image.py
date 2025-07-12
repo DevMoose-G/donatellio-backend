@@ -1,6 +1,8 @@
+import os
+
 import requests
 from PIL import Image
-import os
+
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
 

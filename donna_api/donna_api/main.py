@@ -19,7 +19,7 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "https://donatell.io",
         "https://www.donatell.io",
     ],  # CRA’s default
@@ -38,6 +38,7 @@ app.add_middleware(
 
 # Serve all files under ./static at the /static URL path
 # app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def health_check():

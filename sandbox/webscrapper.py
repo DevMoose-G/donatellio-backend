@@ -212,7 +212,7 @@ def main():
                     rename_latest_file(f"{name}.glb", filename)
                 except:
                     print(f"Failed to rename {name}.glb")
-                    
+
             # 9) NAVIGATE BACK TO THE PARENT PAGE (so you can continue the loop)
             driver.back()
             sleep_randomly(5)

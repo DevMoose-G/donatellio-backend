@@ -4,6 +4,7 @@ texture_quality_multiplier = {"normal": 3, "precise": 5, "stylized": 4}
 
 regen_mesh_cost = 2
 
+
 def image_cost(image_model, quality, has_style_image=False) -> int:
     if image_model == "gpt4o":
         if quality == "high":
@@ -21,11 +22,12 @@ def image_cost(image_model, quality, has_style_image=False) -> int:
             cost = 1
     elif image_model == "imagen4":
         cost = 1
-    
+
     if has_style_image:
         cost += 1
-    
+
     return cost
+
 
 def calculate_mesh_gen_cost(n_meshes, quality, labels):
     quality_multiplier = mesh_quality_multiplier[quality]
@@ -38,6 +40,7 @@ def calculate_texture_gen_cost(texture_quality):
     cost = quality_multiplier
     return cost
 
+
 def expected_mesh_gen_time(quality):
     if quality == "low":
         time = 35
@@ -45,8 +48,9 @@ def expected_mesh_gen_time(quality):
         time = 55
     elif quality == "high":
         time = 70
-    
+
     return time
+
 
 def expected_texture_gen_time(texture_quality):
     if texture_quality == "normal":
@@ -55,5 +59,5 @@ def expected_texture_gen_time(texture_quality):
         time = 75
     elif texture_quality == "stylized":
         time = 52
-    
+
     return time

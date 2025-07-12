@@ -64,42 +64,50 @@ async def create_image(
             status_code=400,
             content={"error_msg": "Not enough credits"},
         )
-    
+
     # create a new StyleBoard if style_image_storage_url is provided
     styleboard_id = None
     if req.style_image_storage_url:
-        
         styleboard = await styleboard_dal.create_styleboard(
             id=project_id,
             name="Unnamed StyleBoard",
             user_id=current_user.id,
-            public=False
+            public=False,
         )
 
-        await styleboard_dal.add_image(styleboard_id=styleboard.id, image_storage_key=extract_s3_key(req.style_image_storage_url))
+        await styleboard_dal.add_image(
+            styleboard_id=styleboard.id,
+            image_storage_key=extract_s3_key(req.style_image_storage_url),
+        )
         styleboard_id = styleboard.id
-    
+
     # then create a new project with that board linked to it
     user_on_free_tier = current_user.subscription_id == ""
     project = await project_dal.create_project(
-        id=project_id, 
-        name="Unnamed Project", 
-        user_id=current_user.id, 
+        id=project_id,
+        name="Unnamed Project",
+        user_id=current_user.id,
         public=user_on_free_tier,
-        styleboard_id=styleboard_id
+        styleboard_id=styleboard_id,
     )
-    
+
     try:
         main_branch = await project_dal.get_main_branch(project_id=project_id)
 
-        image = await image_dal.create_image(id=image_id, prompt=req.prompt, project_id=project_id)
-        
+        image = await image_dal.create_image(
+            id=image_id, prompt=req.prompt, project_id=project_id
+        )
+
         await project_branch_dal.perform_action(
             branch_id=main_branch.id,
             author_id=current_user.id,
             new_asset=image,
             action_type="generate_image",
-            parameters={**req.model_dump(), "project_id": project_id, "image_id": image_id},
+            parameters={
+                **req.model_dump(),
+                "project_id": project_id,
+                "image_id": image_id,
+            },
             version_message="Image created",
         )
 
@@ -133,13 +141,13 @@ async def edit_image(
     current_user: User = Depends(get_current_user),
 ):
     project = await project_dal.get_project_by_id(req.project_id)
-    
+
     if project is None:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Project doesn't exist"},
         )
-    
+
     if project.user_id != current_user.id:
         return JSONResponse(
             status_code=403,
@@ -151,7 +159,9 @@ async def edit_image(
     await stream.setup_group(new_only=False)
 
     cost = image_cost(req.image_model, req.quality)
-    response = await user_dal.charge_credit(current_user, cost, "user_action:edit_image")
+    response = await user_dal.charge_credit(
+        current_user, cost, "user_action:edit_image"
+    )
     if response.success == False:
         return JSONResponse(
             status_code=400, content={"error_msg": "Not enough credits"}
@@ -173,7 +183,7 @@ async def edit_image(
         project_id=project_id,
         parent_image_id=req.parent_image_id,
     )
-    
+
     main_branch = await project_dal.get_main_branch(project_id=project_id)
     await project_branch_dal.perform_action(
         branch_id=main_branch.id,
@@ -266,11 +276,14 @@ async def upload_image(
 ) -> ResponseImage:
     project_id = str(uuid.uuid4())
     project = await project_dal.create_project(
-        id=project_id, name="", user_id=current_user.id, public=True # temp public
+        id=project_id,
+        name="",
+        user_id=current_user.id,
+        public=True,  # temp public
     )
-    
+
     main_branch = await project_dal.get_main_branch(project_id=project_id)
-    
+
     storage_key = extract_s3_key(request.presigned_url)
 
     image = await image_dal.create_image(
@@ -281,13 +294,17 @@ async def upload_image(
     )
 
     # TODO: generate the thumbnail image
-    
+
     await project_branch_dal.perform_action(
         branch_id=main_branch.id,
         author_id=current_user.id,
         new_asset=image,
         action_type="upload_image",
-        parameters={"storage_key": storage_key, "image_id": image.id, "project_id": project.id},
+        parameters={
+            "storage_key": storage_key,
+            "image_id": image.id,
+            "project_id": project.id,
+        },
         version_message="Image uploaded",
     )
 
@@ -337,8 +354,7 @@ async def post_check_elaborating_questions(
 
     # free users only get the initial 3 questions
     if (
-        len(questions) <= 1
-        and len(req.prompt) < 512
+        len(questions) <= 1 and len(req.prompt) < 512
         # and current_user.subscription_tier != "free"
     ):
         questions = openai_provider.get_elaborating_questions(None, req.prompt, None, 2)

@@ -24,27 +24,19 @@ TIER_FEATURES = {
 }
 
 TIER_MAP = {
-    "":"free",
+    "": "free",
     # "prod_SfBenX57C9P5Gk": "pro",
     # "prod_SfBjjdd9eOeonR": "studio"
-    #test
+    # test
     "prod_SfCXpkM5MHwplv": "pro",
 }
 
 REVERSED_TIER_MAP = {v: k for k, v in TIER_MAP.items()}
 
-CREDITS_BY_TIER = {
-    "free": 15,
-    "pro": 200,
-    "studio": 1000
-}
+CREDITS_BY_TIER = {"free": 15, "pro": 200, "studio": 1000}
 
 # TODO: sync this to the stripe api
-PRICE_BY_TIER = {
-    "free": 0,
-    "pro": 24,
-    "studio": 99
-}
+PRICE_BY_TIER = {"free": 0, "pro": 24, "studio": 99}
 
 CARD_BRAND_LOGOS = {
     "visa": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/1200px-Visa_2021.svg.png",

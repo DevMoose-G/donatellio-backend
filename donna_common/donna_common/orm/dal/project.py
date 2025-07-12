@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 
 from fastapi import Depends
 from sqlalchemy import select
@@ -12,13 +12,11 @@ from donna_api.types import (
 )
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.dal.project_branch import ProjectBranchDAL
-from donna_common.orm.dal.project_version import ProjectVersionDAL
 from donna_common.orm.dal.user import UserDAL
-from donna_common.orm.main import AsyncSessionLocal, get_db
+from donna_common.orm.main import get_db
 from donna_common.orm.models.image import Image
 from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.project import Project
-from donna_common.orm.models.project_action import ProjectAction
 from donna_common.orm.models.project_branch import ProjectBranch
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.storage import StorageProvider
@@ -41,7 +39,7 @@ class ProjectDAL:
         for image in project.images:
             thumbnail_url = None
             image_url = None
-            
+
             if image.thumbnail_image_storage_key != None:
                 thumbnail_url = StorageProvider().generate_get_url(
                     image.thumbnail_image_storage_key
@@ -55,11 +53,15 @@ class ProjectDAL:
             displayed_error = None
             if image.error:
                 displayed_error = image.error
-            
+
             parent_image_url = None
             if image.parent_image_id != None:
-                parent_image = await ImageDAL(self.session).get_image_by_id(image.parent_image_id)
-                parent_image_url = StorageProvider().generate_get_url(parent_image.storage_key)
+                parent_image = await ImageDAL(self.session).get_image_by_id(
+                    image.parent_image_id
+                )
+                parent_image_url = StorageProvider().generate_get_url(
+                    parent_image.storage_key
+                )
             image_prompts.append(
                 ItemImagePromptChat(
                     image_id=image.id,
@@ -220,16 +222,22 @@ class ProjectDAL:
     async def create_project(self, id: str, user_id: str, **kwargs) -> Project:
         project = Project(id=id, user_id=user_id, **kwargs)
         self.session.add(project)
-        
-        branch = await ProjectBranchDAL(self.session).create_branch(project_id=id, author_id=user_id, name="main")
-        
+
+        await ProjectBranchDAL(self.session).create_branch(
+            project_id=id, author_id=user_id, name="main"
+        )
+
         await self.session.commit()
         await self.session.refresh(project)
         return project
-    
+
     async def get_main_branch(self, project_id: str) -> ProjectBranch:
         # TODO: handle case where main branch doesn't exist & if there are multiple main branches
-        exec = await self.session.execute(select(ProjectBranch).where(ProjectBranch.project_id == project_id, ProjectBranch.name == "main"))
+        exec = await self.session.execute(
+            select(ProjectBranch).where(
+                ProjectBranch.project_id == project_id, ProjectBranch.name == "main"
+            )
+        )
         return exec.scalars().first()
 
     async def update_project(self, id: str, **kwargs) -> Project:
@@ -254,14 +262,14 @@ class ProjectDAL:
 
     async def hard_delete_project(self, project_id: str) -> None:
         project = await self.get_project_by_id(project_id)
-        
+
         for branch in project.branches:
             await ProjectBranchDAL(self.session).hard_delete_branch(branch_id=branch.id)
         # for version in project.versions:
         #     for assets in version.assets:
         #         await self.session.delete(assets)
         #     await self.session.delete(version)
-        
+
         await self.session.delete(project)
         await self.session.commit()
 

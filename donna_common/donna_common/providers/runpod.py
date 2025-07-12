@@ -50,7 +50,6 @@ class RunpodProvider:
         #     asyncio.WindowsSelectorEventLoopPolicy()
         # )  # For Windows users.
 
-
     async def __wake_up(self, endpoint_id: str):
         async with aiohttp.ClientSession() as runpod_session:
             input_payload = {}
@@ -70,7 +69,7 @@ class RunpodProvider:
         if health.jobs.inQueue > 0:
             return
         await self.__wake_up(self.texture_endpoint_id)
-    
+
     async def wake_up_retopology(self):
         health = await self.health(self.retopology_endpoint_id)
         # don't send request if there are jobs in queue
@@ -88,7 +87,9 @@ class RunpodProvider:
 
             return EndpointHealth(**health_dict)
 
-    async def simplify_mesh(self, mesh_id: str, new_mesh_id: str, simplify_ratio: float=None):
+    async def simplify_mesh(
+        self, mesh_id: str, new_mesh_id: str, simplify_ratio: float = None
+    ):
         async with AsyncSessionLocal() as session:
             mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
             assert mesh is not None
@@ -100,7 +101,7 @@ class RunpodProvider:
                 id=new_mesh_id,
                 status="PENDING",
             )
-        
+
         # generate presigned url
         storage_provider = StorageProvider()
         mesh_url = storage_provider.generate_get_url(mesh.storage_key)
@@ -110,7 +111,7 @@ class RunpodProvider:
         input_payload = {
             "glb_url": mesh_url,
             "s3_url": new_mesh_put_url,
-            "ratio": simplify_ratio
+            "ratio": simplify_ratio,
         }
 
         async with aiohttp.ClientSession() as runpod_session:
@@ -128,7 +129,7 @@ class RunpodProvider:
             try:
                 async for output in job.stream():
                     presigned_url = output["url"]
-                    n_faces = output['n_faces']
+                    n_faces = output["n_faces"]
                     _ = output["process_time"]
                     _ = output["ratio"]
                     parsed_url = urlparse(presigned_url)
@@ -150,7 +151,6 @@ class RunpodProvider:
                         gpu_provider_response=str(e)[-1000:],
                     )
                 raise e
-        
 
     async def regenerate_mesh_from_latents(
         self,
@@ -159,7 +159,7 @@ class RunpodProvider:
         mesh_id: str,
         mc_level: float,
         octree_resolution: int,
-        max_facenum: int=None,
+        max_facenum: int = None,
         do_shade_smooth: bool = True,
         n_meshes: int = 1,
     ) -> str:
@@ -180,7 +180,7 @@ class RunpodProvider:
             "mc_level": mc_level,
             "octree_resolution": octree_resolution,
             "max_facenum": max_facenum,
-            "do_shade_smooth": do_shade_smooth
+            "do_shade_smooth": do_shade_smooth,
         }
 
         mesh_mapping = {}
@@ -193,14 +193,16 @@ class RunpodProvider:
                 do_shade_smooth=do_shade_smooth,
                 status="PENDING",
             )
-        
+
         # generate the presigned url to send to runpod
         old_mesh = await MeshDAL(session).get_mesh_by_id(old_mesh_id)
         if old_mesh.latents_storage_key is None:
             print("latents_storage_key is None")
             breakpoint()
             return
-        old_mesh_latents_url = storage_provider.generate_get_url(old_mesh.latents_storage_key)
+        old_mesh_latents_url = storage_provider.generate_get_url(
+            old_mesh.latents_storage_key
+        )
         presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
         mesh_mapping[mesh_id] = [old_mesh_latents_url, presigned_url]
 
@@ -221,7 +223,7 @@ class RunpodProvider:
             try:
                 async for output in job.stream():
                     presigned_url = output["mesh_presigned_url"]
-                    n_faces = output['face_count']
+                    n_faces = output["face_count"]
                     parsed_url = urlparse(presigned_url)
                     storage_key = parsed_url.path[1:]
                     async with AsyncSessionLocal() as session:
@@ -301,7 +303,7 @@ class RunpodProvider:
             dict_labels["symmetry"] = "x"
         elif "asymmetric" in labels:
             dict_labels["symmetry"] = "asymmetry"
-        
+
         if "sharp" in labels:
             dict_labels["geometry_type"] = ["sharp"]
         elif "normal" in labels:
@@ -333,7 +335,9 @@ class RunpodProvider:
                 )
             # generate the presigned url to send to runpod
             presigned_url = storage_provider.generate_put_url_for_mesh(mesh_id)
-            latents_presigned_url = storage_provider.generate_put_url_for_latents(mesh_id)
+            latents_presigned_url = storage_provider.generate_put_url_for_latents(
+                mesh_id
+            )
             mesh_mapping[mesh_id] = [latents_presigned_url, presigned_url]
 
         input_payload["mesh_presigned_urls_mapping"] = mesh_mapping
@@ -365,9 +369,9 @@ class RunpodProvider:
                 async for output in job.stream():
                     mesh_id = output["mesh_id"]
                     presigned_url = output["mesh_presigned_url"]
-                    latents_presigned_url = output['latents_presigned_url']
-                    
-                    n_faces = output['face_count']
+                    latents_presigned_url = output["latents_presigned_url"]
+
+                    n_faces = output["face_count"]
                     parsed_mesh_url = urlparse(presigned_url)
                     parsed_latents_url = urlparse(latents_presigned_url)
                     async with AsyncSessionLocal() as session:

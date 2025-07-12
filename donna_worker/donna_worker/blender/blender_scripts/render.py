@@ -53,7 +53,7 @@ def render(is_textured, input_path, output_path):
         obj = obj.children[0]
     except IndexError:
         pass
-    
+
     bb = get_world_bbox(obj)
     # print(bb)
     # print(bb[0].y)

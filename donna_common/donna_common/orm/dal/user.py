@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 from fastapi import Depends
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +62,9 @@ class UserDAL:
 
         if user.credit_balance < amount:
             return CreditResponse(
-                success=False, error_msg="Not enough credits", balance=user.credit_balance
+                success=False,
+                error_msg="Not enough credits",
+                balance=user.credit_balance,
             )
 
         updated_user = await self.update_user(

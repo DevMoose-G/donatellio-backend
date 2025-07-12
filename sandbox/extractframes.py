@@ -1,5 +1,7 @@
-import cv2
 import os
+
+import cv2
+
 
 def extract_frames(video_path: str, output_dir: str):
     # open the video file
@@ -29,6 +31,7 @@ def extract_frames(video_path: str, output_dir: str):
         print(f"Saved frame {i} (#{frame_no}) → {out_path}")
 
     cap.release()
+
 
 if __name__ == "__main__":
     extract_frames("golem-nobg-360.mp4", "frames_golem_nobg")

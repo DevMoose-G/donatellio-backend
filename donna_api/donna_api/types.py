@@ -42,7 +42,7 @@ step1x_labels = {
         "asymmetric",  # have to convert this to 'asymmetry' when inputted to model
     ],
     "geometry_type": ["sharp", "normal", "smooth"],
-    "pose": ["t-pose", "a-pose"]
+    "pose": ["t-pose", "a-pose"],
 }
 
 
@@ -139,6 +139,7 @@ class WSImageItem(BaseModel):
     url: Optional[str] = None
     is_partial: bool = False
 
+
 class GetImageInfo(BaseModel):
     id: str
     url: Optional[str] = None
@@ -155,6 +156,7 @@ class MeshFormat(BaseModel):
     stl_url: Optional[str] = None
     blend_url: Optional[str] = None
 
+
 class WSMeshItem(BaseModel):
     mesh_id: str
     parent_mesh_id: Optional[str] = None
@@ -164,6 +166,7 @@ class WSMeshItem(BaseModel):
     expected_completion_date: Optional[datetime] = None
     created_at: datetime
 
+
 class WSTextureItem(BaseModel):
     texture_id: str
     texture_url: Optional[str] = None
@@ -172,11 +175,11 @@ class WSTextureItem(BaseModel):
     expected_completion_date: Optional[datetime] = None
     created_at: datetime
 
+
 class WSModelItem(BaseModel):
     image_id: str
     mesh: WSMeshItem
     texture: Optional[WSTextureItem] = None
-    
 
 
 class WSModelResponse(BaseModel):

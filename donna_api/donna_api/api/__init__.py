@@ -73,6 +73,7 @@ class PricingResponse(BaseModel):
     studio: PricingTier
     enterprise: PricingTier
 
+
 @router.get("/pricing", status_code=200)
 async def get_pricing():
     return PricingResponse(

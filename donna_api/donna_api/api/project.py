@@ -19,10 +19,12 @@ from donna_common.orm.dal.project_collection import (
     ProjectCollectionDAL,
     get_project_collection_dal,
 )
-from donna_common.orm.dal.project_version import ProjectVersionDAL, get_project_version_dal
+from donna_common.orm.dal.project_version import (
+    ProjectVersionDAL,
+    get_project_version_dal,
+)
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
-from donna_common.orm.models.project_version import ProjectVersion
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 
@@ -101,10 +103,10 @@ class GetProjectInfoResponse(BaseModel):
     project_id: str
     name: str
     preview_url: Optional[str] = None
-    
+
     mesh_url: Optional[str] = None
     textured_url: Optional[str] = None
-    
+
     created_at: datetime
     is_public: bool
     user_info: UserInfo
@@ -112,7 +114,7 @@ class GetProjectInfoResponse(BaseModel):
     editable: bool
     collection_paths: List[CollectionPath]
     current_progress: Optional[ProjectProgress] = None
-    
+
     main_branch_id: Optional[str] = None
 
 
@@ -160,14 +162,16 @@ async def get_project_info(
             )
     else:
         if project.images[-1].storage_key != None:
-            preview_url = storage_provider.generate_get_url(project.images[-1].storage_key)
+            preview_url = storage_provider.generate_get_url(
+                project.images[-1].storage_key
+            )
 
     coll_paths = []
     proj_progress = None
     textured_url = None
     mesh_url = None
     main_branch_id = None
-    
+
     if current_user.id == project.user_id:
         # Get the full project info
         for collection in project.collections:
@@ -197,12 +201,12 @@ async def get_project_info(
             proj_progress = ProjectProgress.MESH_GENERATED
         if project.textures != []:
             proj_progress = ProjectProgress.TEXTURE_GENERATED
-            
+
         main_branch = await project_dal.get_main_branch(project_id=project_id)
         main_branch_id = main_branch.id
     else:
         # not the creator, just show the basic info
-        
+
         texture_key = project.textures[-1].storage_key if project.textures else None
         mesh_key = project.meshes[-1].storage_key if project.meshes else None
         if texture_key:
@@ -226,29 +230,41 @@ async def get_project_info(
         editable=current_user.id == project.user_id,
         textured_url=textured_url,
         mesh_url=mesh_url,
-        main_branch_id=main_branch_id
+        main_branch_id=main_branch_id,
     )
+
 
 class UpdateProjectRequest(BaseModel):
     name: str
     is_public: bool
+
 
 class GetProjectResponse(BaseModel):
     project_id: str
     name: str
     is_public: bool
 
+
 @router.post("/{project_id}/update", status_code=200)
-async def update_project(request: UpdateProjectRequest, project_id: str, project_dal: ProjectDAL = Depends(get_project_dal), current_user: User = Depends(get_current_user)):
+async def update_project(
+    request: UpdateProjectRequest,
+    project_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user),
+):
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "You don't have permission to update this project"},
         )
-    
-    project = await project_dal.update_project(project_id, name=request.name, public=request.is_public)
-    return GetProjectResponse(project_id=project.id, name=project.name, is_public=project.public)
+
+    project = await project_dal.update_project(
+        project_id, name=request.name, public=request.is_public
+    )
+    return GetProjectResponse(
+        project_id=project.id, name=project.name, is_public=project.public
+    )
 
 
 @router.post("/{project_id}/edit", status_code=200)
@@ -296,6 +312,7 @@ async def rename_project(
         name=project.name,
     )
 
+
 class ProjectVersionResponse(BaseModel):
     version_id: str
     version_number: int
@@ -303,12 +320,14 @@ class ProjectVersionResponse(BaseModel):
     author_name: str
     author_id: str
 
+
 class GetProjectHistoryResponse(BaseModel):
     project_id: str
     project_name: str
     branch_id: str
     branch_name: str
     versions: List[ProjectVersionResponse]
+
 
 @router.get("/{project_id}/history", status_code=200)
 async def get_project_history(
@@ -328,10 +347,10 @@ async def get_project_history(
             status_code=400,
             content={"error_msg": "You don't have permission to move this project"},
         )
-    
+
     branch = await project_branch_dal.get_branch_by_id(branch_id)
     head_version = await project_version_dal.get_version_by_id(branch.head_version_id)
-    
+
     mesh_ids = []
     if mesh_id is not None:
         mesh_ancestor_id = mesh_id
@@ -340,13 +359,12 @@ async def get_project_history(
             mesh_ids.append(mesh_ancestor_id)
             mesh_ancestor_id = mesh.parent_mesh_id
     # breakpoint()
-    
+
     versions = []
     curr_version = head_version
     while curr_version is not None:
-        
         add_version = False
-        
+
         if mesh_id is not None:
             if curr_version.mesh_ids != []:
                 for mesh_ancestor in mesh_ids:
@@ -363,24 +381,29 @@ async def get_project_history(
                         break
         else:
             add_version = True
-        
+
         if add_version:
-            versions.append(ProjectVersionResponse(
-                version_id=curr_version.id,
-                version_number=curr_version.version_number,
-                message=curr_version.message,
-                author_name=curr_version.author.username,
-                author_id=curr_version.author_id
-            ))
-        
-        curr_version = await project_version_dal.get_version_by_id(curr_version.parent_version_id)
+            versions.append(
+                ProjectVersionResponse(
+                    version_id=curr_version.id,
+                    version_number=curr_version.version_number,
+                    message=curr_version.message,
+                    author_name=curr_version.author.username,
+                    author_id=curr_version.author_id,
+                )
+            )
+
+        curr_version = await project_version_dal.get_version_by_id(
+            curr_version.parent_version_id
+        )
     return GetProjectHistoryResponse(
         project_id=project_id,
         project_name=project.name,
         branch_id=branch_id,
         branch_name=branch.name,
-        versions=reversed(versions)
+        versions=reversed(versions),
     )
+
 
 @router.post("/{project_id}/mesh/{project_version_id}")
 async def mesh_project_version_updates(
@@ -397,10 +420,13 @@ async def mesh_project_version_updates(
     storage_provider = StorageProvider()
 
     # getting what's in the database
-    new_model_items, _ = await get_all_models_items(storage_provider, set(), project_version_id)
+    new_model_items, _ = await get_all_models_items(
+        storage_provider, set(), project_version_id
+    )
 
     if new_model_items != []:
         return WSModelResponse(models=new_model_items).model_dump(mode="json")
+
 
 @router.get("/{project_id}/image", status_code=200)
 async def get_latest_image(
@@ -410,18 +436,19 @@ async def get_latest_image(
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ) -> GetImageInfo:
-    
     project = await project_dal.get_project_by_id(project_id)
-    if (current_user.id != project.user_id):
+    if current_user.id != project.user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    if (image_id == None):
+    if image_id == None:
         images = await project_dal.get_uploaded_images(project_id)
         image = images[-1]
     else:
         image = await image_dal.get_image_by_id(image_id)
-        if (project.id != image.project_id):
-            raise HTTPException(status_code=400, detail="Image doesn't exist on this project.")
+        if project.id != image.project_id:
+            raise HTTPException(
+                status_code=400, detail="Image doesn't exist on this project."
+            )
     storage_provider = StorageProvider()
     image_url = storage_provider.generate_get_url(image.storage_key)
     return GetImageInfo(id=image.id, url=image_url)

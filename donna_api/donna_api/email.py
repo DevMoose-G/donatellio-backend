@@ -1,6 +1,5 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
-from datetime import datetime
+from fastapi import FastAPI
+from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 
 from donna_common.settings import settings
 
@@ -14,8 +13,9 @@ conf = ConnectionConfig(
     MAIL_PORT=587,
     MAIL_SERVER="mail.privateemail.com",
     MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False
+    MAIL_SSL_TLS=False,
 )
+
 
 async def send_verification_email(email_to: str, token: str):
     verify_url = f"{settings.frontend_url}/verify?token={token}"
@@ -33,9 +33,7 @@ If you're having trouble, contact us at support@donatell.io.
 Best regards,
 Donatell.io team""",
         subtype="plain",
-        headers={
-            "Reply-To": settings.support_email
-        }
+        headers={"Reply-To": settings.support_email},
     )
     fm = FastMail(conf)
     await fm.send_message(message)

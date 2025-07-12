@@ -16,7 +16,9 @@ class Image(Base):
     )
     storage_key = Column(String(1024), nullable=True)
 
-    parent_image_id = Column(String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=True)
+    parent_image_id = Column(
+        String(128), ForeignKey("images.id", ondelete="CASCADE"), nullable=True
+    )
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

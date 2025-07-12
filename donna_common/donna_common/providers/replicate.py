@@ -1,11 +1,15 @@
-from urllib.parse import urlparse
 import PIL
 import replicate
 import requests
 
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.master import MasterDAL
-from donna_common.prompts import BASE_IMAGE_GEN_PROMPT, GEMINI_IMAGE_GEN_PROMPT, KLING_VIDEO_MV_NEGATIVE_PROMPT, KLING_VIDEO_MV_PROMPT, REPLICATE_IMAGE_EDIT_PROMPT
+from donna_common.prompts import (
+    GEMINI_IMAGE_GEN_PROMPT,
+    KLING_VIDEO_MV_NEGATIVE_PROMPT,
+    KLING_VIDEO_MV_PROMPT,
+    REPLICATE_IMAGE_EDIT_PROMPT,
+)
 from donna_common.providers.storage import StorageProvider
 from donna_common.settings import settings
 from donna_common.utils.multiview import extract_frames
@@ -17,10 +21,10 @@ class ReplicateProvider:
     def __init__(self):
         self.storage_provider = StorageProvider()
         self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
-        
+
         self.blackforest_headers = {
             "x-key": settings.black_forest_api_token,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     # copied from OpenAIProvider
@@ -36,7 +40,6 @@ class ReplicateProvider:
         await self.dal.image_dal.update_image(
             id=image_id, thumbnail_image_storage_key=key
         )
-
 
     async def generate_image(
         self, image_id: str, model: str, quality: str, prompt: str
@@ -183,27 +186,22 @@ class ReplicateProvider:
 
     async def generate_multiviews(self, image_id):
         image = await self.dal.image_dal.get_image_by_id(image_id)
-        image_url = self.storage_provider.generate_get_url(
-            image.storage_key
-        )
+        image_url = self.storage_provider.generate_get_url(image.storage_key)
         input_data = {
             "start_image": image_url,
-            "prompt":KLING_VIDEO_MV_PROMPT,
-            "negative_prompt":KLING_VIDEO_MV_NEGATIVE_PROMPT,
-            "duration": 5
+            "prompt": KLING_VIDEO_MV_PROMPT,
+            "negative_prompt": KLING_VIDEO_MV_NEGATIVE_PROMPT,
+            "duration": 5,
         }
-        
-        output = replicate.run(
-            "kwaivgi/kling-v2.1",
-            input=input_data
-        )
-        
+
+        output = replicate.run("kwaivgi/kling-v2.1", input=input_data)
+
         output_path = f"{STATIC_DIR}/{image_id}_mv.mp4"
         with open(output_path, "wb") as file:
             file.write(output.read())
-        
+
         frame_paths = extract_frames(output_path, f"{STATIC_DIR}/{image_id}_mv")
-        
+
         # upload all the frames in a single folder in s3 and save that folder's key in db
         mv_storage_key = f"{image_id}_mv"
         for i, frame_path in enumerate(frame_paths):

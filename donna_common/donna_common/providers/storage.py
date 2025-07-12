@@ -43,7 +43,7 @@ class StorageProvider:
             },
             3600,  # 1 hr
         )
-    
+
     def generate_put_url_for_latents(self, mesh_name) -> str:
         return self.__generate_presigned_url(
             "put_object",

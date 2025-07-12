@@ -1,6 +1,8 @@
-from typing import List
-import cv2
 import os
+from typing import List
+
+import cv2
+
 
 def extract_frames(video_path: str, output_dir: str) -> List[str]:
     # open the video file
@@ -28,5 +30,5 @@ def extract_frames(video_path: str, output_dir: str) -> List[str]:
         print(f"Saved frame {i} (#{frame_no}) → {out_path}")
 
     cap.release()
-    
+
     return paths
