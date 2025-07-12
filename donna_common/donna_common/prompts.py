@@ -20,3 +20,5 @@ NAME_PROJECT_BASED_ON_IMAGE = (
 
 KLING_VIDEO_MV_PROMPT="Pan diagonally (horizontally and vertically) around this object showing different perspectives with this object in the center until it shows the back of this object. This object is static and doesn't move or animate at all. Draw the background as a unique color not present in this image."
 KLING_VIDEO_MV_NEGATIVE_PROMPT="do not animate or move the object at all"
+
+STYLE_IMAGE_DESCRIPTION_PROMPT="Describe the art style and geometry to an 3d model generator in as much detail as possible. Compress this into a single paragraph, include as much detail as possible while keeping it under 12 sentences. Remove all mentions of characters or objects in the image, describe the overall art style. Include any influences from notable art movements or digital art trends you notice or any emotions or moods present in the style."

@@ -16,6 +16,7 @@ from donna_common.prompts import (
     GPT4O_IMAGE_GEN_PROMPT,
     NAME_PROJECT_BASED_ON_IMAGE,
     NAME_PROJECT_BASED_ON_PROMPT,
+    STYLE_IMAGE_DESCRIPTION_PROMPT,
 )
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
@@ -379,6 +380,25 @@ class OpenAIProvider:
             await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
+    
+    def generate_style_description(
+        self,
+        image_id: str,
+        image_storage_key: str
+    ):
+        res = self.client.responses.create(
+            model="gpt-4.1",
+            instructions=STYLE_IMAGE_DESCRIPTION_PROMPT,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type":"input_text", "text":"Use the following image(s)."}
+                    ]
+                }
+            ],
+            max_output_tokens=256
+        )
 
     def get_elaborating_questions(
         self,
