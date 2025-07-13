@@ -275,11 +275,12 @@ async def upload_image(
     current_user: User = Depends(get_current_user),
 ) -> ResponseImage:
     project_id = str(uuid.uuid4())
+    user_on_free_tier = current_user.subscription_id == ""
     project = await project_dal.create_project(
         id=project_id,
         name="",
         user_id=current_user.id,
-        public=True,  # temp public
+        public=user_on_free_tier,
     )
 
     main_branch = await project_dal.get_main_branch(project_id=project_id)

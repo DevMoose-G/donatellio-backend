@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from donna_common.orm.base import Base
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class User(Base):
@@ -47,6 +48,10 @@ class User(Base):
     )
 
     light_mode = Column(Boolean, nullable=False, default=True, server_default="True")
+
+    questionnaire = Column(JSONB, nullable=False, server_default="{}")
+
+    dob = Column(DateTime(timezone=True), nullable=True)
 
     projects = relationship("Project", back_populates="owner")
     transactions = relationship("CreditTransaction", back_populates="user")
