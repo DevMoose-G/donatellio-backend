@@ -1,3 +1,6 @@
+from donna_common.settings import settings
+
+
 BASE_URL = "http://localhost:8000"
 
 
@@ -23,11 +26,19 @@ TIER_FEATURES = {
     ],
 }
 
-TIER_MAP = {
-    "": "free",
-    "prod_SfBenX57C9P5Gk": "pro",
-    "prod_SfBjjdd9eOeonR": "studio",
-}
+
+
+if (settings.debug):
+    TIER_MAP = {
+        "": "free",
+        "prod_SfCXpkM5MHwplv": "pro",
+    }
+else:
+    TIER_MAP = {
+        "": "free",
+        "prod_SfBenX57C9P5Gk": "pro",
+        "prod_SfBjjdd9eOeonR": "studio",
+    }
 
 REVERSED_TIER_MAP = {v: k for k, v in TIER_MAP.items()}
 
