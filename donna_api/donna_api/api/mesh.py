@@ -388,7 +388,7 @@ async def regenerate_mesh(
                     version_id=version.id,
                 )
             )
-
+            req.face_count = None
         else:
             print("Mesh does not need to be regenerated")
 
@@ -396,7 +396,7 @@ async def regenerate_mesh(
     # if i do 2 sep jobs, need some way to keep delaying the job until the first one is done
     # if i do 1 job after the other, i need to change the mesh regenerate_mesh worker func to take in another param
     #   and need to send both actions to the version
-    elif req.face_count != None and req.face_count != old_mesh.face_count:
+    if req.face_count != None and req.face_count != old_mesh.face_count:
         simplify_ratio = req.face_count / old_mesh.face_count
 
         if simplify_ratio >= 1 or simplify_ratio <= 0:
@@ -407,7 +407,7 @@ async def regenerate_mesh(
             )
 
         params = {
-            "simplify_faces": simplify_ratio,
+            "simplify_ratio": simplify_ratio,
             "mesh_id": old_mesh.id,
             "new_mesh_id": new_mesh.id,
             "project_id": project.id,
