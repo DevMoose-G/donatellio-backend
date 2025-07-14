@@ -26,6 +26,7 @@ class User(Base):
     )
 
     subscription_id = Column(String(128), nullable=False, default="")
+    is_subscribed = Column(Boolean, nullable=False, default=False, server_default="False")
     stripe_customer_id = Column(String(128), nullable=True)
     google_auth_id = Column(String(128), nullable=True)
     is_verified = Column(Boolean, nullable=False, default=False)

@@ -61,6 +61,7 @@ async def webhook(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
             credit_balance=CREDITS_BY_TIER[user_tier],
             stripe_customer_id=customer_id,
             subscription_id=subscription_id,
+            is_subscribed=True,
         )
 
         # record credit transaction
@@ -154,6 +155,7 @@ async def subscribe_user_complete(
         current_user.id,
         stripe_customer_id=session.customer,
         subscription_id=session.subscription,
+        is_subscribed=True,
     )
 
     subscription = stripe.Subscription.retrieve(session.subscription)
@@ -161,15 +163,22 @@ async def subscribe_user_complete(
 
     user_tier = TIER_MAP[product_id]
 
-    # added_credits = CREDITS_BY_TIER[user_tier] - current_user.credit_balance
-    # user = await user_dal.update_user(current_user.id, credit_balance=CREDITS_BY_TIER[user_tier])
-
-    # # record credit transaction
-    # credit_dal = await get_credit_transaction_dal(user_dal.session)
-    # await credit_dal.create_credit_transaction(user_id=user.id, delta=added_credits, reason="monthly subscription refill")
 
     return {"tier": user_tier}
 
+@router.post("/unsubscribe", status_code=200)
+async def unsubscribe_user(
+    current_user: User = Depends(get_current_user),
+    user_dal: UserDAL = Depends(get_user_dal),
+):
+    updated_subscription = stripe.Subscription.modify(
+        current_user.subscription_id, cancel_at_period_end=True
+    )
+    await user_dal.update_user(
+        current_user.id,
+        is_subscribed=False,
+    )
+    return {"success": True}
 
 @router.get("/projects", status_code=200)
 async def get_users_projects(
@@ -321,7 +330,7 @@ async def get_user_info(
             current_user.profile_image_storage_key
         )
 
-    if current_user.subscription_id != "":
+    if current_user.is_subscribed:
         subscription = stripe.Subscription.retrieve(current_user.subscription_id)
         product_id = subscription["items"]["data"][0].price.product
 
@@ -331,7 +340,7 @@ async def get_user_info(
 
     return GetUserInfoResponse(
         username=current_user.username,
-        subscription_tier=subscription_tier,  # TEMP: current_user.subscription_id
+        subscription_tier=subscription_tier,
         credit_balance=current_user.credit_balance,
         n_projects=len(finished_projs),
         tier_features=TIER_FEATURES[subscription_tier],
@@ -386,7 +395,7 @@ async def get_billing_info(
 ) -> Optional[BillingResponse]:
     stripe.api_key = settings.stripe_secret_key
 
-    if current_user.subscription_id == "":
+    if not current_user.is_subscribed:
         return None
 
     sub = stripe.Subscription.retrieve(
