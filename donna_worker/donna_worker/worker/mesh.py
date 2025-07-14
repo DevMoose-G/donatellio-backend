@@ -191,30 +191,11 @@ async def generate_mesh(
         seed,
         labels,
         max_polygon_count,
+        completed_meshes_stream,
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)
 
-    # send message through websocket before converting stuff to show the user progress
-    await completed_meshes_stream.send_msg(
-        MeshAction(
-            type="mesh",
-            params={
-                "image_id": image_id,
-                "mesh_ids": mesh_ids,
-                "project_id": project_id,
-                "mesh_model": mesh_model,
-                "n_meshes": n_meshes,
-                "quality": quality,
-                "seed": seed,
-                "labels": labels,
-                "max_polygon_count": max_polygon_count,
-            },
-            project_id=project_id,
-            function_name="generate_mesh",
-            mesh_ids=mesh_ids,
-        )
-    )
 
     for mesh_id in mesh_ids:
         # perform auto-retopology on generated mesh

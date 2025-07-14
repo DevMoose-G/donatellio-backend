@@ -14,6 +14,7 @@ from donna_common.orm.dal.project import ProjectDAL
 from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.providers.storage import StorageProvider
+from donna_common.redis.types import MeshAction
 from donna_common.settings import settings
 
 
@@ -249,7 +250,6 @@ class RunpodProvider:
 
         return list(mesh_mapping.keys())[0]
 
-    # TODO: test if streaming works
     async def generate_untextured_mesh(
         self,
         project_id: str,
@@ -261,6 +261,7 @@ class RunpodProvider:
         seed: int,
         labels: List[str],
         max_polygon_count: int,
+        completed_meshes_stream,
     ):
         async with AsyncSessionLocal() as session:
             image = await ImageDAL(session).get_image_by_id(image_id)
@@ -323,6 +324,7 @@ class RunpodProvider:
                 await MeshDAL(session).update_mesh(
                     id=mesh_id,
                     seed=seed,
+                    project_id=project_id,
                     octree_resolution=str(input_payload["octree_resolution"]),
                     num_inference_steps=input_payload["n_inference_steps"],
                     face_count=max_polygon_count,
@@ -364,6 +366,7 @@ class RunpodProvider:
                     print("Runpod Job failed")
                     break
                 await asyncio.sleep(3)
+            print("Runpod Job in progress")
             try:
                 async for output in job.stream():
                     mesh_id = output["mesh_id"]
@@ -382,6 +385,26 @@ class RunpodProvider:
                             face_count=n_faces,
                             gpu_provider_response=str(output)[-1000:],
                         )
+                    print(f"Sending mesh {mesh_id} of project {project_id} to completed queue")
+                    await completed_meshes_stream.send_msg(
+                        MeshAction(
+                            type="mesh",
+                            function_name="generate_mesh",
+                            params={
+                                "image_id": image_id,
+                                "mesh_id": mesh_id,
+                                "project_id": project_id,
+                                "mesh_model": mesh_model,
+                                "n_meshes": n_meshes,
+                                "quality": quality,
+                                "seed": seed,
+                                "labels": labels,
+                                "max_polygon_count": max_polygon_count,
+                            },
+                            project_id=project_id,
+                            mesh_ids=[mesh_id]
+                        )
+                    )
             except:
                 async with AsyncSessionLocal() as session:
                     for mesh_id in mesh_mapping.keys():
@@ -401,6 +424,7 @@ class RunpodProvider:
         texture_quality: str,  # normal, precise, or stylized
         seed: int,
         texture_id: str,
+        # completed_meshes_stream,
     ):
         # create mesh in database w/ status='PENDING'
         async with AsyncSessionLocal() as session:

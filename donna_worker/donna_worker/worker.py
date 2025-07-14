@@ -21,6 +21,8 @@ from donna_common.redis.types import (
 )
 from donna_common.settings import settings
 from donna_worker.worker.mesh import (
+    fill_other_formats,
+    fill_static_render_images,
     generate_mesh,
     generate_texture,
     regenerate_from_latents,
@@ -51,7 +53,7 @@ class DonnaWorker:
 
     @on_action("image")
     async def handle_image(self, action: ImageAction):
-        func_params = action.params
+        func_params = action.params.copy()
 
         image_model = func_params.pop("image_model", None)
         if action.function_name == "generate_image":
@@ -75,13 +77,15 @@ class DonnaWorker:
             await self.runpod_service.wake_up_geometry()
 
             if image_model == "gpt4o":
-                await self.openai_provider.generate_image(**func_params)
+                await self.openai_provider.generate_image(**func_params, completed_images_stream=self.completed_images_stream)
             else:
                 await self.replicate_provider.generate_image(
                     image_id=func_params["image_id"],
+                    project_id=action.project_id,
                     model=image_model,
                     quality=func_params["quality"],
                     prompt=func_params["prompt"],
+                    completed_images_stream=self.completed_images_stream,
                 )
 
             await project_name
@@ -181,8 +185,8 @@ class DonnaWorker:
 
         os.makedirs(MESH_PATH, exist_ok=True)
 
-        # await fill_other_formats()
-        # await fill_static_render_images()
+        await fill_other_formats()
+        await fill_static_render_images()
 
         await self.stream.setup_group(new_only=False)
 
@@ -201,7 +205,18 @@ class DonnaWorker:
                         raise RuntimeError(f"Unknown action type: {msg.action.type}")
 
                     async def process_message(msg: RedisMessage):
-                        await handler(self, msg.action)
+                        action = msg.action.model_copy()
+                        try:
+                            await handler(self, msg.action)
+                        except Exception as e:
+                            print(f"Error processing message: {e}. On attempt {action.attempts}.")
+                            # resend the message if attempt count < 3 and increase attempt count
+                            if action.attempts < 3:
+                                print("Resending message")
+                                action.attempts += 1
+                                await self.stream.send_msg(
+                                    action
+                                )
                         await self.stream.ack_msg(msg.id)
 
                     asyncio.create_task(process_message(msg))

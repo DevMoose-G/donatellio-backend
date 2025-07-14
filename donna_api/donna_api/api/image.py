@@ -68,8 +68,9 @@ async def create_image(
     # create a new StyleBoard if style_image_storage_url is provided
     styleboard_id = None
     if req.style_image_storage_url:
+        styleboard_id = str(uuid.uuid4())
         styleboard = await styleboard_dal.create_styleboard(
-            id=project_id,
+            id=styleboard_id,
             name="Unnamed StyleBoard",
             user_id=current_user.id,
             public=False,
@@ -79,7 +80,6 @@ async def create_image(
             styleboard_id=styleboard.id,
             image_storage_key=extract_s3_key(req.style_image_storage_url),
         )
-        styleboard_id = styleboard.id
 
     # then create a new project with that board linked to it
     user_on_free_tier = current_user.subscription_id == ""

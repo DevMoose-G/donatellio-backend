@@ -11,6 +11,7 @@ from donna_common.prompts import (
     REPLICATE_IMAGE_EDIT_PROMPT,
 )
 from donna_common.providers.storage import StorageProvider
+from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
 from donna_common.utils.multiview import extract_frames
 
@@ -42,7 +43,7 @@ class ReplicateProvider:
         )
 
     async def generate_image(
-        self, image_id: str, model: str, quality: str, prompt: str
+        self, project_id: str, image_id: str, model: str, quality: str, prompt: str, completed_images_stream
     ) -> str:
         image_name = f"{image_id}.png"
 
@@ -106,6 +107,23 @@ class ReplicateProvider:
         key = self.storage_provider.upload_image(image_name, output_path)
 
         # TODO: add the completed streams part
+        await completed_images_stream.send_msg(
+            ImageAction(
+                type="image",
+                function_name="generate_image",
+                project_id=project_id,
+                image_id=image_id,
+                is_partial=False,
+                params={
+                    "image_id": image_id,
+                    "project_id": project_id,
+                    "prompt": prompt,
+                    "n": 1,
+                    "size": '1024x1024',
+                    "quality": quality,
+                },
+            )
+        )
 
         await self.save_thumbnail(image_id, image_storage_key=key)
 

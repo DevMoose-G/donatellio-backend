@@ -9,6 +9,7 @@ class BaseAction(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     project_id: str
     function_name: str
+    attempts: int = 0
 
 
 class ImageAction(BaseAction):

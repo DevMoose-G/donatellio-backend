@@ -89,7 +89,7 @@ class OpenAIProvider:
         )
 
     async def generate_image(
-        self, image_id, project_id, prompt, n, size, quality
+        self, image_id, project_id, prompt, n, size, quality, completed_images_stream
     ) -> str:
         if n != 1:
             n = 1
@@ -114,8 +114,6 @@ class OpenAIProvider:
         )
 
         image = await self.dal.image_dal.get_image_by_id(image_id)
-
-        completed_images_stream = RedisStream("completed-jobs", group_name="image")
 
         try:
             for event in stream:
@@ -176,23 +174,6 @@ class OpenAIProvider:
             # set project to be inactive
             await self.dal.project_dal.update_project(id=project_id, active=False)
             raise e
-            await completed_images_stream.send_msg(
-                ImageAction(
-                    type="image",
-                    function_name="generate_image",
-                    project_id=project_id,
-                    image_id=image_id,
-                    is_partial=False,
-                    params={
-                        "image_id": image_id,
-                        "project_id": project_id,
-                        "prompt": prompt,
-                        "n": n,
-                        "size": size,
-                        "quality": quality,
-                    },
-                )
-            )
 
         await self.save_thumbnail(image_id, image_storage_key=key)
 

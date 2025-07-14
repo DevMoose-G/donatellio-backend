@@ -106,42 +106,43 @@ async def image_updates(
                 print("got a message")
                 for msg in messages:
                     action = msg.action
-                    if action.project_id == project_id and action.type == "image":
+                    if action.type == "image":
                         storage_provider = StorageProvider()
                         image_id = action.image_id
 
                         async with AsyncSessionLocal() as session:
                             image = await ImageDAL(session).get_image_by_id(image_id)
 
-                        image_url = None
-                        is_partial = True
-                        if image and image.storage_key != None:
-                            is_partial = action.is_partial
-                            image_url = storage_provider.generate_get_url(
-                                image.storage_key
-                            )
+                        if image.project_id == project_id:
+                            image_url = None
+                            is_partial = True
+                            if image and image.storage_key != None:
+                                is_partial = action.is_partial
+                                image_url = storage_provider.generate_get_url(
+                                    image.storage_key
+                                )
 
-                        async with AsyncSessionLocal() as session:
-                            chats = await ProjectDAL(session).get_image_prompt_chats(
-                                project_id
+                            async with AsyncSessionLocal() as session:
+                                chats = await ProjectDAL(session).get_image_prompt_chats(
+                                    project_id
+                                )
+                            await websocket.send_json(
+                                WSImageEditsResponse(
+                                    images=[
+                                        WSImageItem(
+                                            id=image_id,
+                                            url=image_url,
+                                            is_partial=is_partial,
+                                        )
+                                    ],
+                                    chats=chats.chats,
+                                ).model_dump(mode="json")
                             )
-                        await websocket.send_json(
-                            WSImageEditsResponse(
-                                images=[
-                                    WSImageItem(
-                                        id=image_id,
-                                        url=image_url,
-                                        is_partial=is_partial,
-                                    )
-                                ],
-                                chats=chats.chats,
-                            ).model_dump(mode="json")
-                        )
-                        await stream.ack_msg(msg.id)
-                    else:
-                        print(
-                            f"got a message that won't be send for project_id={project_id} images {action}"
-                        )
+                            await stream.ack_msg(msg.id)
+                        else:
+                            print(
+                                f"got a message that won't be send for project_id={project_id} images {action}"
+                            )
     except WebSocketDisconnect:
         print("Client disconnected, WebSocket closed")
 
@@ -397,6 +398,7 @@ async def mesh_updates(
     websocket: WebSocket,
     project_id: str,
 ):
+    print(f"Connected to project {project_id}")
     async with AsyncSessionLocal() as session:
         current_user = await authenticate_ws(websocket, UserDAL(session))
     async with AsyncSessionLocal() as session:
@@ -436,61 +438,77 @@ async def mesh_updates(
             else:
                 for msg in messages:
                     action = msg.action
-                    if action.project_id == project_id:
-                        print(f"got a message: {action}")
-                        if (
-                            action.function_name == "generate_mesh"
-                            or action.function_name == "regenerate_from_latents"
-                            or action.function_name == "simplify_mesh"
-                        ) and action.type == "mesh":
-                            model_items = []
-                            for mesh_id in action.mesh_ids:
-                                async with AsyncSessionLocal() as session:
-                                    image = await MeshDAL(session).get_mesh_by_id(
-                                        mesh_id
-                                    )
-                                    image_id = image.image_id
-                                model_items.append(
-                                    WSModelItem(
-                                        mesh=await get_mesh_item(
-                                            storage_provider, mesh_id
-                                        ),
-                                        image_id=image_id,
-                                    )
-                                )
+                    print(f"got a message: {action}")
+                    if (
+                        action.function_name == "generate_mesh"
+                        or action.function_name == "regenerate_from_latents"
+                        or action.function_name == "simplify_mesh"
+                    ) and action.type == "mesh":
+                        model_items = []
 
-                            await websocket.send_json(
-                                WSModelResponse(models=model_items).model_dump(
-                                    mode="json"
-                                )
+                        test_mesh_id = action.mesh_ids[0]
+                        async with AsyncSessionLocal() as session:
+                            test_mesh = await MeshDAL(session).get_mesh_by_id(
+                                test_mesh_id
                             )
-                            await stream.ack_msg(msg.id)
-                        elif (
-                            action.function_name == "generate_texture"
-                            and action.type == "textured_mesh"
-                        ):
-                            storage_provider = StorageProvider()
+                        if (test_mesh.project_id != project_id):
+                            print(f"mesh from project {test_mesh.project_id} doesn't belong to this project {project_id}")
+                            continue
 
-                            try:
-                                model_item = WSModelItem(
+                        for mesh_id in action.mesh_ids:
+                            async with AsyncSessionLocal() as session:
+                                mesh = await MeshDAL(session).get_mesh_by_id(
+                                    mesh_id
+                                )
+                                image_id = mesh.image_id
+                            model_items.append(
+                                WSModelItem(
                                     mesh=await get_mesh_item(
-                                        storage_provider, action.params["mesh_id"]
+                                        storage_provider, mesh_id
                                     ),
-                                    texture=await get_texture_item(
-                                        storage_provider, action.texture_id
-                                    ),
-                                    image_id=action.params["image_id"],
-                                )
-                            except Exception as e:
-                                print(e)
-                            await websocket.send_json(
-                                WSModelResponse(models=[model_item]).model_dump(
-                                    mode="json"
+                                    image_id=image_id,
                                 )
                             )
-                            await stream.ack_msg(msg.id)
-                        else:
-                            print("did not send message")
+
+                        await websocket.send_json(
+                            WSModelResponse(models=model_items).model_dump(
+                                mode="json"
+                            )
+                        )
+                        await stream.ack_msg(msg.id)
+                    elif (
+                        action.function_name == "generate_texture"
+                        and action.type == "textured_mesh"
+                    ):
+                        storage_provider = StorageProvider()
+                        texture_id = action.texture_id
+                        async with AsyncSessionLocal() as session:
+                            texture = await TextureDAL(session).get_texture_by_id(
+                                texture_id
+                            )
+                        if texture.project_id != project_id:
+                            print("texture doesn't belong to this project")
+                            continue
+                        try:
+                            model_item = WSModelItem(
+                                mesh=await get_mesh_item(
+                                    storage_provider, action.params["mesh_id"]
+                                ),
+                                texture=await get_texture_item(
+                                    storage_provider, action.texture_id
+                                ),
+                                image_id=action.params["image_id"],
+                            )
+                        except Exception as e:
+                            print(e)
+                        await websocket.send_json(
+                            WSModelResponse(models=[model_item]).model_dump(
+                                mode="json"
+                            )
+                        )
+                        await stream.ack_msg(msg.id)
+                    else:
+                        print("did not send message")
 
     except WebSocketDisconnect:
         print("Client disconnected, WebSocket closed")

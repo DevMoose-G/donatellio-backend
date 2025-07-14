@@ -37,12 +37,6 @@ class RedisStream:
             self.stream_key,
             {
                 "data": action.model_dump_json().encode("utf-8")
-                # "function_name": payload.function_name,
-                # "project_id": payload.project_id,
-                # "type": payload_dc.__name__,
-                # "payload": json.dumps(
-                #     payload
-                # ),  # temporary (find some way to auto convert to JSON)
             },
         )
 
