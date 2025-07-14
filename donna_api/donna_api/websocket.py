@@ -481,12 +481,12 @@ async def mesh_updates(
                         and action.type == "textured_mesh"
                     ):
                         storage_provider = StorageProvider()
-                        texture_id = action.texture_id
+                        test_mesh_id = action.params.get("mesh_id")
                         async with AsyncSessionLocal() as session:
-                            texture = await TextureDAL(session).get_texture_by_id(
-                                texture_id
+                            test_mesh = await MeshDAL(session).get_mesh_by_id(
+                                test_mesh_id
                             )
-                        if texture.project_id != project_id:
+                        if test_mesh.project_id != project_id:
                             print("texture doesn't belong to this project")
                             continue
                         try:
