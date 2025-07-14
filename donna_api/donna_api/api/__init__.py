@@ -10,7 +10,7 @@ from donna_api.api.mesh import router as mesh_router
 from donna_api.api.project import router as project_router
 from donna_api.api.user import router as user_router
 from donna_api.auth import get_current_user
-from donna_api.consts import TIER_FEATURES
+from donna_api.consts import CREDITS_BY_TIER, TIER_FEATURES
 from donna_api.types import GetAssetsResponse
 from donna_common.orm import Project, ProjectDAL, get_project_dal
 from donna_common.orm.models.user import User
@@ -82,7 +82,7 @@ async def get_pricing():
             monthly_price=0,
             annual_price=0,
             description="Explore core features at no cost",
-            n_monthly_credits=15,
+            n_monthly_credits=CREDITS_BY_TIER['free'],
             features=TIER_FEATURES["free"],
         ),
         pro=PricingTier(
@@ -90,7 +90,7 @@ async def get_pricing():
             monthly_price=24,
             annual_price=240,
             description="Polished assets with advanced controls to match your style",
-            n_monthly_credits=200,
+            n_monthly_credits=CREDITS_BY_TIER['pro'],
             features=TIER_FEATURES["pro"],
             additional_credits_price=0.20,
         ),
@@ -99,7 +99,7 @@ async def get_pricing():
             monthly_price=99,
             annual_price=1080,
             description="High-volume pipeline with plugins and team collaboration tools",
-            n_monthly_credits=1000,
+            n_monthly_credits=CREDITS_BY_TIER['studio'],
             features=TIER_FEATURES["studio"],
             additional_credits_price=0.15,
         ),
