@@ -184,9 +184,11 @@ class DonnaWorker:
         # generate_profile_image_urls()
 
         os.makedirs(MESH_PATH, exist_ok=True)
-
-        await fill_other_formats()
-        await fill_static_render_images()
+        try:
+            await fill_other_formats()
+            await fill_static_render_images()
+        except:
+            pass
 
         await self.stream.setup_group(new_only=False)
 
