@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 from random import randint
-from typing import Any, List
+from typing import Any, List, Optional
 
 import redis
 from fastapi import (
@@ -390,6 +390,10 @@ from google.oauth2 import id_token
 class RequestGoogleAuth(BaseModel):
     access_token: str
 
+class ResponseGoogleAuth(BaseModel):
+    is_verified: bool
+    session_token: Optional[str] = None
+    jwt_token: Optional[JWTToken] = None
 
 @router.post("/auth/google")
 async def google_auth(
@@ -447,6 +451,14 @@ async def google_auth(
 
         user = await user_dal.create_user(user)
 
+    if user.is_verified == False:
+        verification_token = generate_email_verification_token(user.id)
+        return ResponseGoogleAuth(
+            is_verified=False,
+            jwt_token=None,
+            session_token=verification_token
+        )
+
     expires_in = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
@@ -464,8 +476,11 @@ async def google_auth(
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 5 days in seconds
         path="/",
     )
-    return JWTToken(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=expires_in,
+    return ResponseGoogleAuth(
+        jwt_token=JWTToken(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=expires_in,
+        ),
+        is_verified=user.is_verified
     ).model_dump()

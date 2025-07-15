@@ -334,7 +334,7 @@ async def regenerate_mesh(
         # check if mesh needs to be regenerated
         if (
             old_mesh.octree_resolution != str(octree_resolution)
-            or old_mesh.mc_level != req.surface_thickness
+            or old_mesh.mc_level != -1 * req.surface_thickness
         ):
             params = {
                 "project_id": project.id,
