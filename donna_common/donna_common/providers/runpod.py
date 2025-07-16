@@ -13,33 +13,12 @@ from donna_common.orm.dal.mesh import MeshDAL
 from donna_common.orm.dal.project import ProjectDAL
 from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
+from donna_common.providers.base import BaseProvider, EndpointHealth
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.types import MeshAction
 from donna_common.settings import settings
 
-
-class JobsStatus(BaseModel):
-    completed: int
-    failed: int
-    inProgress: int
-    inQueue: int
-    retried: int
-
-
-class WorkersStatus(BaseModel):
-    idle: int
-    initializing: int
-    ready: int
-    running: int
-    throttled: int
-
-
-class EndpointHealth(BaseModel):
-    jobs: JobsStatus
-    workers: WorkersStatus
-
-
-class RunpodProvider:
+class RunpodProvider(BaseProvider):
     def __init__(self):
         runpod.api_key = settings.runpod_api_key
         # TODO: move this to settings(.env file)

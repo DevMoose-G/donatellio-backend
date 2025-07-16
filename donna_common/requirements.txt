@@ -21,3 +21,4 @@ boto3
 replicate
 stripe
 opencv-python
+pybreaker==1.4.0

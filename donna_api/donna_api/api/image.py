@@ -1,3 +1,4 @@
+from typing import Optional
 import uuid
 
 from dotenv import load_dotenv
@@ -200,7 +201,7 @@ async def edit_image(
 class RequestImageCost(BaseModel):
     image_model: str
     quality: str
-    has_style_image: bool
+    has_style_image: Optional[bool] = None
 
 
 @router.post("/cost", status_code=200)
