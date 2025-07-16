@@ -12,6 +12,7 @@ from donna_api.types import (
     RequestCreateImage,
     RequestEditImage,
     RequestGetElaboratingQuestions,
+    WSImageItem,
 )
 from donna_api.utils import image_cost
 from donna_common.orm import (
@@ -27,8 +28,8 @@ from donna_common.orm.dal.styleboard import StyleBoardDAL, get_styleboard_dal
 from donna_common.orm.models.user import User
 from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider, extract_s3_key
-from donna_common.redis.redisstream import RedisStream
-from donna_common.redis.types import ImageAction
+from donna_common.redis.redisstream import RedisStream, redis
+from donna_common.redis.types import ImageAction, JobUpdate
 
 load_dotenv()  # reads .env from cwd
 
@@ -130,6 +131,38 @@ async def create_image(
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
+@router.get("/{project_id}", status_code=200)
+async def get_image(
+    project_id: str,
+    image_id: str,
+    image_dal: ImageDAL = Depends(get_image_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user),
+):
+    if not image_id:
+        image_id = project_dal.get_images(project_id)[0].id
+    image = await image_dal.get_image_by_id(image_id)
+
+    if image is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error_msg": "Image not found"},
+        )
+
+    if image.project.user_id != current_user.id:
+        return JSONResponse(
+            status_code=403,
+            content={"error_msg": "You don't have permission to view this image"},
+        )
+    
+    # incorporate all the chats and previous images?
+
+    storage_provider = StorageProvider()
+    img_url = storage_provider.generate_get_url(image.storage_key)
+    return WSImageItem(
+        id=image.id,
+        url=img_url
+    )
 
 @router.post("/{project_id}/edit", status_code=202)
 async def edit_image(
@@ -168,7 +201,7 @@ async def edit_image(
             status_code=400, content={"error_msg": "Not enough credits"}
         )
 
-    await stream.send_msg(
+    job_id = await stream.send_msg(
         ImageAction(
             type="image",
             project_id=project_id,
@@ -176,6 +209,12 @@ async def edit_image(
             function_name="edit_image",
             params={**req.model_dump(), "project_id": project_id, "image_id": image_id},
         )
+    )
+    
+    redis.set(
+        f"job:{job_id}", 
+        JobUpdate(job_id=job_id, status="pending", message="Editing image").model_dump_json(), 
+        ex=24 * 60 * 60
     )
 
     image = await image_dal.create_image(

@@ -52,7 +52,8 @@ class DonnaWorker:
         return self
 
     @on_action("image")
-    async def handle_image(self, action: ImageAction):
+    async def handle_image(self, msg: RedisMessage):
+        action: ImageAction = msg.action
         func_params = action.params.copy()
 
         image_model = func_params.pop("image_model", None)
@@ -130,13 +131,15 @@ class DonnaWorker:
             )
 
     @on_action("mesh")
-    async def handle_mesh(self, action: MeshAction):
+    async def handle_mesh(self, msg: RedisMessage):
+        action: MeshAction = msg.action
         print("Got mesh action:", action)
         if action.function_name == "generate_mesh":
             mesh_ids = await generate_mesh(
                 **action.params,
                 completed_meshes_stream=self.completed_meshes_stream,
                 job_stream=self.stream,
+                job_msg_id=msg.id
             )
 
         elif action.function_name == "regenerate_from_latents":
@@ -165,7 +168,8 @@ class DonnaWorker:
         )
 
     @on_action("textured_mesh")
-    async def handle_textured_mesh(self, action: TexturedMeshAction):
+    async def handle_textured_mesh(self, msg: RedisMessage):
+        action: TexturedMeshAction = msg.action
         if action.function_name == "generate_texture":
             texture_id = await generate_texture(
                 **action.params, completed_meshes_stream=self.completed_meshes_stream
@@ -209,7 +213,7 @@ class DonnaWorker:
                     async def process_message(msg: RedisMessage):
                         action = msg.action.model_copy()
                         try:
-                            await handler(self, msg.action)
+                            await handler(self, msg)
                         except Exception as e:
                             print(f"Error processing message: {e}. On attempt {action.attempts}.")
                             # resend the message if attempt count < 3 and increase attempt count

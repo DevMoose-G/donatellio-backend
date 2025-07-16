@@ -13,6 +13,7 @@ from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
+from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_common.settings import settings
 
@@ -48,6 +49,10 @@ def crop_transparent(im):
         # Entire image is fully transparent—return as-is (or handle differently)
         return im.copy()
 
+
+stream = RedisStream("requested-jobs")
+completed_images_stream = RedisStream("completed-jobs", group_name="image")
+completed_meshes_stream = RedisStream("completed-jobs", group_name="mesh")
 
 async def render_mesh_preview_image(
     storage_key: str,
@@ -147,7 +152,7 @@ async def generate_mesh_formats(
     return asset
 
 
-async def generate_mesh(
+async def generate_meshes(
     image_id,
     project_id,
     mesh_model: str,
@@ -157,8 +162,7 @@ async def generate_mesh(
     seed: int,
     labels: List[str],
     max_polygon_count: int,
-    completed_meshes_stream,
-    job_stream,
+    job_msg_id: str
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
@@ -191,7 +195,8 @@ async def generate_mesh(
         seed,
         labels,
         max_polygon_count,
-        completed_meshes_stream,
+        stream,
+        job_msg_id
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)
@@ -200,7 +205,7 @@ async def generate_mesh(
     for mesh_id in mesh_ids:
         # perform auto-retopology on generated mesh
         # should this be a new mesh or just replace the existing mesh?
-        await job_stream.send_msg(
+        await stream.send_msg(
             MeshAction(
                 type="mesh",
                 params={
@@ -229,7 +234,6 @@ async def generate_texture(
     prompt: str,
     texture_quality: str,
     seed: int,
-    completed_meshes_stream,
 ) -> str:
     await completed_meshes_stream.send_msg(
         TexturedMeshAction(
@@ -301,7 +305,6 @@ async def regenerate_from_latents(
     mesh_id,
     mc_level,
     octree_resolution,
-    completed_meshes_stream,
     job_stream,
     max_facenum=None,
     do_shade_smooth=True,

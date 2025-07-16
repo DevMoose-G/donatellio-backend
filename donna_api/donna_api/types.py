@@ -6,9 +6,9 @@ from pydantic import BaseModel
 
 class JWTToken(BaseModel):
     access_token: str
-    # refresh_token: str
     token_type: str
     expires_in: datetime  # access token expires in
+    refresh_token: Optional[str] = None
 
 
 class RequestCalculateMeshGenCost(BaseModel):
@@ -105,6 +105,7 @@ class RequestLoginUser(BaseModel):
     password: str
     username: Optional[str] = None
     email: Optional[str] = None
+    is_web: Optional[bool] = True
 
 
 class RequestGetElaboratingQuestions(BaseModel):

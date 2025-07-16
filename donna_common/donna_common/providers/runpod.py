@@ -240,7 +240,8 @@ class RunpodProvider(BaseProvider):
         seed: int,
         labels: List[str],
         max_polygon_count: int,
-        completed_meshes_stream,
+        job_stream,
+        job_msg_id: str
     ):
         async with AsyncSessionLocal() as session:
             image = await ImageDAL(session).get_image_by_id(image_id)
@@ -365,25 +366,28 @@ class RunpodProvider(BaseProvider):
                             gpu_provider_response=str(output)[-1000:],
                         )
                     print(f"Sending mesh {mesh_id} of project {project_id} to completed queue")
-                    await completed_meshes_stream.send_msg(
-                        MeshAction(
-                            type="mesh",
-                            function_name="generate_mesh",
-                            params={
-                                "image_id": image_id,
-                                "mesh_id": mesh_id,
-                                "project_id": project_id,
-                                "mesh_model": mesh_model,
-                                "n_meshes": n_meshes,
-                                "quality": quality,
-                                "seed": seed,
-                                "labels": labels,
-                                "max_polygon_count": max_polygon_count,
-                            },
-                            project_id=project_id,
-                            mesh_ids=[mesh_id]
-                        )
-                    )
+                    
+                    # await job_stream
+                    # await completed_meshes_stream.send_msg(
+                    #     MeshAction(
+                    #         type="mesh",
+                    #         function_name="generate_mesh",
+                    #         params={
+                    #             "image_id": image_id,
+                    #             "mesh_id": mesh_id,
+                    #             "project_id": project_id,
+                    #             "mesh_model": mesh_model,
+                    #             "n_meshes": n_meshes,
+                    #             "quality": quality,
+                    #             "seed": seed,
+                    #             "labels": labels,
+                    #             "max_polygon_count": max_polygon_count,
+                    #         },
+                    #         project_id=project_id,
+                    #         mesh_ids=[mesh_id]
+                    #     )
+                    # )
+                    job_stream
             except:
                 async with AsyncSessionLocal() as session:
                     for mesh_id in mesh_mapping.keys():

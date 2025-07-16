@@ -55,6 +55,7 @@ async def get_all_basic_model_infos(
         project_version = await project_version_dal.get_version_by_id(
             project_version_id
         )
+        # breakpoint()
         assets = project_version.assets
 
         texture_ids = [

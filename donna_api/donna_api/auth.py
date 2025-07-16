@@ -318,6 +318,14 @@ async def login(
     jti = str(uuid.uuid4())
     refresh_token = create_refresh_token(data={"sub": db_user.id, "jti": jti})
 
+    if not request.is_web:
+        return JWTToken(
+            access_token=access_token,
+            token_type="bearer",
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+        ).model_dump()
+
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,

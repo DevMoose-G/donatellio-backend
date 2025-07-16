@@ -47,6 +47,7 @@ from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.redisstream import RedisStream
+from donna_common.redis.rq import RedisQueue
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import MESH_DIR
 
@@ -103,6 +104,7 @@ async def create_mesh(
         )
 
     stream = RedisStream("requested-jobs")
+    queue = RedisQueue()
     await stream.setup_group(new_only=False)
 
     mesh_cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
@@ -146,13 +148,26 @@ async def create_mesh(
             version_id=version.id,
         )
 
-    await stream.send_msg(
-        MeshAction(
-            project_id=project_id,
-            function_name="generate_mesh",
-            params=params,
-        )
+    queue.queue_action(
+        "donna_worker.worker.mesh.generate_meshes",
+        mesh_ids=mesh_ids,
+        project_id=project_id,
+        image_id=req.image_id,
+        quality=req.quality,
+        labels=req.labels,
+        seed=req.seed,
+        max_polygon_count=req.max_polygon_count,
+        mesh_model=req.mesh_model,
+        n_meshes=req.n_meshes,
+        completed_meshes_stream=stream,
     )
+    # await stream.send_msg(
+    #     MeshAction(
+    #         project_id=project_id,
+    #         function_name="generate_mesh",
+    #         params=params,
+    #     )
+    # )
 
     return {"image_id": req.image_id, "project_id": project_id}
 
