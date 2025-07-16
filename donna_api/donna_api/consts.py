@@ -33,6 +33,11 @@ if (settings.debug):
         "": "free",
         "prod_SfCXpkM5MHwplv": "pro",
     }
+    PACKAGE_MAP = {
+        "prod_Sgvbdr4C4lpCvr": "starter",
+        "prod_SgvcdNFLJ1GOHq": "indie",
+        "prod_SgvcdYDH1LG6hj": 'studio'
+    }
 else:
     TIER_MAP = {
         "": "free",
@@ -40,9 +45,17 @@ else:
         "prod_SfBjjdd9eOeonR": "studio",
     }
 
+    PACKAGE_MAP = {
+        "prod_SguUoV0ZU9X3Gd": "starter",
+        "prod_SguVA1ZF7mPCCa": "indie",
+        "prod_SguWmIZH5x48cL": 'studio'
+    }
+
 REVERSED_TIER_MAP = {v: k for k, v in TIER_MAP.items()}
+REVERSED_PACKAGE_MAP = {v: k for k, v in PACKAGE_MAP.items()}
 
 CREDITS_BY_TIER = {"free": 20, "pro": 200, "studio": 1000}
+CREDITS_BY_PACKAGE = {"starter": 50, "indie": 250, "studio": 1000}
 
 # TODO: sync this to the stripe api
 PRICE_BY_TIER = {"free": 0, "pro": 24, "studio": 99}
