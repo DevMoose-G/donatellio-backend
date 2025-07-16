@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
+from donna_api.common.models import BasicModelInfo, get_all_basic_model_infos
 from donna_api.types import GetImageInfo, ItemCollection, WSModelResponse
 from donna_api.websocket import get_all_models_items
 from donna_common.orm import ProjectDAL, get_project_dal
@@ -404,6 +405,39 @@ async def get_project_history(
         versions=reversed(versions),
     )
 
+class ProjectModelsResponse(BaseModel):
+    project_id: str
+    project_name: str
+    models: List[BasicModelInfo]
+
+@router.get("/{project_id}/models")
+async def get_latest_models(
+    project_id: str,
+    project_version_id: Optional[str] = None,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user),
+):
+    project = await project_dal.get_project_by_id(project_id)
+    if current_user.id != project.user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if project_version_id is None:
+        main_branch = await project_dal.get_main_branch(project.id)
+        project_version_id = main_branch.head_version_id
+
+    storage_provider = StorageProvider()
+
+    # getting what's in the database
+    model_infos = await get_all_basic_model_infos(
+        project_version_id, storage_provider
+    )
+
+    return ProjectModelsResponse(
+        project_id=project_id,
+        project_name=project.name,
+        models=model_infos
+    )
+    
 
 @router.post("/{project_id}/mesh/{project_version_id}")
 async def mesh_project_version_updates(

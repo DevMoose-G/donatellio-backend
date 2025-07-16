@@ -196,6 +196,38 @@ class OpenAIProvider:
         )
 
         return key
+    
+    async def is_nsfw(self, image_id=None, image_storage_key=None):
+        if(image_id == None and image_storage_key == None):
+            raise Exception("Either image_id or image_storage_key must be provided")
+        
+        if(image_storage_key == None):
+            image = await self.dal.image_dal.get_image_by_id(image_id)
+            image_storage_key = image.storage_key
+        
+        response = self.client.moderations.create(
+            model="omni-moderation-latest",
+            input=[
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": self.storage_provider.generate_get_url(image_storage_key)
+                    }
+                }
+            ]
+        )
+
+        results = response.results[0]
+        flagged_categories = [results.categories[k] for k in results.categories if results.categories[k] == True]
+        if "sexual" in flagged_categories or "sexual/minors" in flagged_categories:
+            return True
+        if "self-harm" in flagged_categories or "self-harm/intent" in flagged_categories or "self-harm/instructions" in flagged_categories:
+            return True
+        if "violence/graphic" in flagged_categories:
+            # TODO: add flag to project, but allow it to be used
+            return True
+        
+        return False
 
     async def edit_image(
         self, image_id, project_id, parent_image_id, prompt, n, size, quality

@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
+from donna_api.common.models import get_mesh_info
 from donna_api.types import (
     RequestCalculateMeshGenCost,
     RequestCalculateTextureGenCost,
@@ -463,18 +464,8 @@ async def regenerate_mesh(
     return {"project_id": req.project_id, "mesh_id": new_mesh.id}
 
 
-class GetMeshInfo(BaseModel):
-    project_id: str
-    source_image_url: str
-    mesh_quality: str
-    created_at: datetime
-    level_of_detail: Optional[int] = None
-    mc_level: Optional[float] = None
-    num_faces: Optional[int] = None
-
-
 @router.get("/{mesh_id}")
-async def get_mesh_info(
+async def api_get_mesh_info(
     mesh_id: str,
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
@@ -495,42 +486,7 @@ async def get_mesh_info(
             content={"error_msg": "You don't have permission to view this mesh"},
         )
 
-    storage_provider = StorageProvider()
-    image = await image_dal.get_image_by_id(mesh.image_id)
-    image_url = storage_provider.generate_get_url(image.storage_key)
-
-    mesh_quality = ""
-    if mesh.num_inference_steps == 30:
-        mesh_quality = "low"
-    elif mesh.num_inference_steps == 50:
-        mesh_quality = "medium"
-    elif mesh.num_inference_steps == 70:
-        mesh_quality = "high"
-
-    lod = None
-    if mesh.octree_resolution == None:
-        lod = 0  # TEMP
-    elif int(mesh.octree_resolution) == 128:
-        lod = 1
-    elif int(mesh.octree_resolution) == 256:
-        lod = 2
-    elif int(mesh.octree_resolution) == 384:
-        lod = 3
-    elif int(mesh.octree_resolution) == 512:
-        lod = 4
-    elif int(mesh.octree_resolution) == 768:
-        lod = 5
-    else:
-        raise Exception(f"Invalid octree resolution for mesh {mesh_id}")
-    return GetMeshInfo(
-        project_id=mesh.project_id,
-        num_faces=mesh.face_count,
-        source_image_url=image_url,
-        mesh_quality=mesh_quality,
-        level_of_detail=lod,
-        mc_level=0 if mesh.mc_level == None else mesh.mc_level,
-        created_at=mesh.created_at,
-    )
+    return await get_mesh_info(mesh_id=mesh.id)
 
 
 @router.get("/{asset_id}/download")

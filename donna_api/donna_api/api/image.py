@@ -275,6 +275,16 @@ async def upload_image(
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
 ) -> ResponseImage:
+    storage_key = extract_s3_key(request.presigned_url)
+    # moderate it
+    openai_provider = OpenAIProvider()
+    is_nsfw = await openai_provider.is_nsfw(image_storage_key=storage_key)
+    if is_nsfw:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Image is blocked for NSFW content"},
+        )
+
     project_id = str(uuid.uuid4())
     user_on_free_tier = False
     project = await project_dal.create_project(
@@ -286,7 +296,6 @@ async def upload_image(
 
     main_branch = await project_dal.get_main_branch(project_id=project_id)
 
-    storage_key = extract_s3_key(request.presigned_url)
 
     image = await image_dal.create_image(
         id=request.image_id,
