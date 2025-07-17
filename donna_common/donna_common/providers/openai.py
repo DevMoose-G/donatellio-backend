@@ -20,7 +20,6 @@ from donna_common.prompts import (
     STYLE_IMAGE_DESCRIPTION_PROMPT,
 )
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -131,12 +130,12 @@ class OpenAIProvider:
                         await self.dal.image_dal.update_image(
                             id=image_id, project_id=project_id, storage_key=key
                         )
-                    
+
                 if event.type == "response.image_generation_call.completed":
                     await self.dal.image_dal.update_image(
                         id=image_id, external_id=event.item_id
                     )
-                    
+
         except openai.APIError as e:
             # set project to be inactive
             await self.dal.project_dal.update_project(id=project_id, active=False)
@@ -145,15 +144,15 @@ class OpenAIProvider:
         await self.save_thumbnail(image_id, image_storage_key=key)
 
         return key
-    
+
     async def is_nsfw(self, image_id=None, image_storage_key=None):
-        if(image_id == None and image_storage_key == None):
+        if image_id == None and image_storage_key == None:
             raise Exception("Either image_id or image_storage_key must be provided")
-        
-        if(image_storage_key == None):
+
+        if image_storage_key == None:
             image = await self.dal.image_dal.get_image_by_id(image_id)
             image_storage_key = image.storage_key
-        
+
         response = self.client.moderations.create(
             model="omni-moderation-latest",
             input=[
@@ -161,20 +160,24 @@ class OpenAIProvider:
                     "type": "image_url",
                     "image_url": {
                         "url": self.storage_provider.generate_get_url(image_storage_key)
-                    }
+                    },
                 }
-            ]
+            ],
         )
 
         results = response.results[0]
         if results.categories.sexual or results.categories.sexual_minors:
             return True
-        if results.categories.self_harm or results.categories.self_harm_intent or results.categories.self_harm_instructions:
+        if (
+            results.categories.self_harm
+            or results.categories.self_harm_intent
+            or results.categories.self_harm_instructions
+        ):
             return True
         if results.categories.violence_graphic:
             # TODO: add flag to project, but allow it to be used
             return True
-        
+
         return False
 
     async def edit_image(
@@ -196,7 +199,7 @@ class OpenAIProvider:
 
         # TODO: get directly with aws sdk python
         if original_image.storage_key == None:
-            return # bug
+            return  # bug
 
         prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 
@@ -233,7 +236,6 @@ class OpenAIProvider:
 
         image = await self.dal.image_dal.get_image_by_id(image_id)
 
-
         key = None
 
         events_debug = []
@@ -255,7 +257,7 @@ class OpenAIProvider:
                         await ImageDAL(session).update_image(
                             id=image_id, project_id=project_id, storage_key=key
                         )
-                
+
             elif event.type == "response.image_generation_call.completed":
                 if key != None:
                     async with AsyncSessionLocal() as session:
@@ -263,7 +265,6 @@ class OpenAIProvider:
                             id=image_id, external_id=event.item_id
                         )
 
-                    
             elif event.type == "response.completed":
                 if key == None:
                     # error likely happened
@@ -281,7 +282,6 @@ class OpenAIProvider:
                         await ImageDAL(session).update_image(
                             id=image_id, error=error_msg, storage_key=None
                         )
-
 
         if key != None:
             await self.save_thumbnail(image_id, image_storage_key=key)

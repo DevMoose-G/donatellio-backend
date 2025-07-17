@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-import time
 from typing import Optional
 from uuid import uuid4
 
@@ -50,7 +49,6 @@ from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.rq import RedisQueue
-from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import MESH_DIR
 
 load_dotenv()  # reads .env from cwd
@@ -151,7 +149,9 @@ async def create_mesh(
     job_ids = []
     seconds_offset = 0
     for mesh_id in mesh_ids:
-        seconds_offset += 30 if req.quality == None else expected_mesh_gen_time(req.quality)
+        seconds_offset += (
+            30 if req.quality == None else expected_mesh_gen_time(req.quality)
+        )
         job_id = queue.queue_mesh_action(
             "donna_worker.worker.mesh.generate_mesh",
             expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
@@ -319,7 +319,6 @@ async def regenerate_mesh(
 
     actions_performed = []
     if req.level_of_detail != None and req.surface_thickness != None:  # temp
-
         if req.level_of_detail < 1 or req.level_of_detail > 5:
             await project_version_dal.hard_delete_version(version_id=version.id)
             return JSONResponse(

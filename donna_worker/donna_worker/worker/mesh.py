@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
 import os
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List
 
@@ -15,7 +15,6 @@ from donna_common.orm.models.texture import Texture
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
 from donna_common.redis.rq import RedisQueue
-from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_common.settings import settings
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -148,6 +147,7 @@ async def generate_mesh_formats(
         )
     return asset
 
+
 # this should not be called anymore
 async def generate_meshes(
     image_id,
@@ -162,7 +162,7 @@ async def generate_meshes(
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
-    
+
     mesh_ids = await runpod_service.generate_untextured_mesh(
         project_id,
         image_id,
@@ -178,7 +178,7 @@ async def generate_meshes(
     os.makedirs(MESH_DIR, exist_ok=True)
 
     queue = RedisQueue()
-    
+
     seconds_offset = 0
     for mesh_id in mesh_ids:
         # perform auto-retopology on generated mesh
@@ -194,6 +194,7 @@ async def generate_meshes(
 
     return mesh_ids
 
+
 async def generate_mesh(
     image_id,
     project_id,
@@ -207,7 +208,7 @@ async def generate_mesh(
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
-    
+
     mesh_ids = await runpod_service.generate_untextured_mesh(
         project_id,
         image_id,
@@ -217,7 +218,7 @@ async def generate_mesh(
         quality,
         seed,
         labels,
-        max_polygon_count
+        max_polygon_count,
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)
@@ -245,7 +246,6 @@ async def generate_texture(
     texture_quality: str,
     seed: int,
 ) -> str:
-    
     runpod_service = RunpodProvider()
     texture_id = await runpod_service.generate_texture_on_mesh(
         texture_id=texture_id,
@@ -328,9 +328,7 @@ async def regenerate_from_latents(
     return mesh.id
 
 
-async def simplify_mesh(
-    project_id, mesh_id, new_mesh_id, simplify_ratio=None
-):
+async def simplify_mesh(project_id, mesh_id, new_mesh_id, simplify_ratio=None):
     runpod_service = RunpodProvider()
     await runpod_service.simplify_mesh(
         mesh_id, new_mesh_id, simplify_ratio=simplify_ratio

@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 
 import aiohttp
 import runpod
-from pydantic import BaseModel
 from runpod import AsyncioEndpoint, AsyncioJob
 
 from donna_common.orm.dal.image import ImageDAL
@@ -15,8 +14,8 @@ from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import AsyncSessionLocal
 from donna_common.providers.base import BaseProvider, EndpointHealth
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.types import MeshAction
 from donna_common.settings import settings
+
 
 class RunpodProvider(BaseProvider):
     def __init__(self):
@@ -364,8 +363,10 @@ class RunpodProvider(BaseProvider):
                             face_count=n_faces,
                             gpu_provider_response=str(output)[-1000:],
                         )
-                    print(f"Sending mesh {mesh_id} of project {project_id} to completed queue")
-                    
+                    print(
+                        f"Sending mesh {mesh_id} of project {project_id} to completed queue"
+                    )
+
             except:
                 async with AsyncSessionLocal() as session:
                     for mesh_id in mesh_mapping.keys():

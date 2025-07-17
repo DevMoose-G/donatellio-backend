@@ -1,4 +1,5 @@
 import openai
+
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.dal.project import ProjectDAL
 from donna_common.orm.dal.styleboard import StyleBoardDAL
@@ -7,10 +8,10 @@ from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.replicate import ReplicateProvider
 from donna_common.providers.runpod import RunpodProvider
 
-
 openai_provider = OpenAIProvider()
 runpod_service = RunpodProvider()
 replicate_provider = ReplicateProvider()
+
 
 async def generate_image(image_id, image_model, project_id, prompt, quality, size):
     async with AsyncSessionLocal() as session:
@@ -34,7 +35,12 @@ async def generate_image(image_id, image_model, project_id, prompt, quality, siz
 
     if image_model == "gpt4o":
         await openai_provider.generate_image(
-            image_id=image_id, project_id=project_id, prompt=prompt, quality=quality, n=1, size=size,
+            image_id=image_id,
+            project_id=project_id,
+            prompt=prompt,
+            quality=quality,
+            n=1,
+            size=size,
         )
     else:
         await replicate_provider.generate_image(
@@ -48,7 +54,9 @@ async def generate_image(image_id, image_model, project_id, prompt, quality, siz
     await project_name
 
 
-async def edit_image(image_model, image_id, project_id, parent_image_id, prompt, quality, size, n):
+async def edit_image(
+    image_model, image_id, project_id, parent_image_id, prompt, quality, size, n
+):
     await runpod_service.wake_up_geometry()
     if image_model == "gpt4o":
         try:
@@ -63,14 +71,10 @@ async def edit_image(image_model, image_id, project_id, parent_image_id, prompt,
             )
         except openai.APIError as e:
             async with AsyncSessionLocal() as session:
-                await ImageDAL(session).update_image(
-                    id=image_id, error=str(e)
-                )
+                await ImageDAL(session).update_image(id=image_id, error=str(e))
         except Exception as e:
             async with AsyncSessionLocal() as session:
-                await ImageDAL(session).update_image(
-                    id=image_id, error=str(e)
-                )
+                await ImageDAL(session).update_image(id=image_id, error=str(e))
     else:
         await replicate_provider.edit_image(
             model=image_model,

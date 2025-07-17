@@ -1,25 +1,19 @@
-import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Optional, Set, Tuple
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from donna_api.auth import authenticate_jwt
 from donna_api.types import (
-    WSImageEditsResponse,
-    WSImageItem,
     WSMeshItem,
     WSModelItem,
-    WSModelResponse,
     WSTextureItem,
 )
 from donna_api.utils import (
     expected_mesh_gen_time,
     expected_texture_gen_time,
 )
-from donna_common.orm import ImageDAL, ProjectDAL
+from donna_common.orm import ImageDAL
 from donna_common.orm.base import AssetStage
 from donna_common.orm.dal.mesh import MeshDAL
 from donna_common.orm.dal.project_action import ProjectActionDAL
@@ -27,18 +21,17 @@ from donna_common.orm.dal.project_version import (
     ProjectVersionDAL,
 )
 from donna_common.orm.dal.texture import TextureDAL
-from donna_common.orm.dal.user import UserDAL
 from donna_common.orm.main import AsyncSessionLocal
-from donna_common.orm.models.project import Project
 from donna_common.orm.models.project_action import ProjectAction
-from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
+
 
 class BasicModelInfo(BaseModel):
     image_id: str
     mesh_id: str
     texture_id: Optional[str] = None
     model_preview_url: Optional[str] = None
+
 
 async def get_all_basic_model_infos(
     project_version_id,
@@ -65,13 +58,17 @@ async def get_all_basic_model_infos(
             texture = await texture_dal.get_texture_by_id(texture_id)
             if texture is None:
                 return
-            
-            model_preview_storage_key = texture.static_render_storage_key or mesh.static_render_storage_key
+
+            model_preview_storage_key = (
+                texture.static_render_storage_key or mesh.static_render_storage_key
+            )
 
             preview_url = None
             if model_preview_storage_key is not None:
-                preview_url = storage_provider.generate_get_url(model_preview_storage_key)
-            
+                preview_url = storage_provider.generate_get_url(
+                    model_preview_storage_key
+                )
+
             already_sent_meshes_ids.add(texture.mesh_id)
 
             model_items.append(
@@ -94,8 +91,10 @@ async def get_all_basic_model_infos(
 
             preview_url = None
             if mesh.static_render_storage_key is not None:
-                preview_url = storage_provider.generate_get_url(mesh.static_render_storage_key)
-            
+                preview_url = storage_provider.generate_get_url(
+                    mesh.static_render_storage_key
+                )
+
             already_sent_meshes_ids.add(mesh_id)
 
             model_items.append(
@@ -107,6 +106,7 @@ async def get_all_basic_model_infos(
             )
 
     return model_items
+
 
 class GetMeshInfo(BaseModel):
     project_id: str
@@ -122,6 +122,7 @@ class GetMeshInfo(BaseModel):
     # do i need these
     # mesh_status: Optional[str] = None
     # texture_status: Optional[str] = None
+
 
 async def get_mesh_info(mesh_id: str):
     storage_provider = StorageProvider()
@@ -155,7 +156,7 @@ async def get_mesh_info(mesh_id: str):
         lod = 5
     else:
         raise Exception(f"Invalid octree resolution for mesh {mesh_id}")
-    
+
     mesh_url = None
     if mesh.storage_key:
         mesh_url = storage_provider.generate_get_url(mesh.storage_key)
@@ -171,6 +172,7 @@ async def get_mesh_info(mesh_id: str):
         created_at=mesh.created_at,
         mesh_url=mesh_url,
     )
+
 
 async def get_mesh_item(
     storage_provider: StorageProvider, mesh_id: str
@@ -387,6 +389,7 @@ async def get_model_items(
     ]
 
     return model_items
+
 
 @dataclass(frozen=True)
 class MeshTextureIDPair:

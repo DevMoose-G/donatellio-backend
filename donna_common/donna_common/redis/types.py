@@ -4,13 +4,17 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 from rq.job import JobStatus
 
+
 # do i need to make a meshjobupdate, imagejobupdate, etc.?
 # i don't think so, because job update is more about the job itself, not the action
 class JobUpdate(BaseModel):
     job_id: str
-    status: JobStatus | None # one of: queued, started, finished, failed
+    status: JobStatus | None  # one of: queued, started, finished, failed
     message: Optional[str] = None
-    expected_at: Optional[datetime] = Field(default_factory=lambda: (datetime.now(timezone.utc) + timedelta(seconds=15)))
+    expected_at: Optional[datetime] = Field(
+        default_factory=lambda: (datetime.now(timezone.utc) + timedelta(seconds=15))
+    )
+
 
 class BaseAction(BaseModel):
     type: str

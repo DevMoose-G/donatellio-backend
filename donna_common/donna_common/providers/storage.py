@@ -72,7 +72,7 @@ class StorageProvider:
             {"Bucket": self.bucket, "Key": storage_key},
             10 * 60,  # 10 mins
         )
-    
+
     def delete_file(self, storage_key: str) -> None:
         self.s3_client.delete_object(Bucket=self.bucket, Key=storage_key)
 

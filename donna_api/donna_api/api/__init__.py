@@ -6,13 +6,12 @@ from pydantic import BaseModel
 
 from donna_api.api.collections import router as collections_router
 from donna_api.api.image import router as image_router
+from donna_api.api.job import router as job_router
 from donna_api.api.mesh import router as mesh_router
 from donna_api.api.project import router as project_router
-from donna_api.api.user import router as user_router
 from donna_api.api.texture import router as texture_router
-from donna_api.api.job import router as job_router
+from donna_api.api.user import router as user_router
 from donna_api.auth import get_current_user
-from donna_api.consts import CREDITS_BY_TIER, TIER_FEATURES
 from donna_api.types import GetAssetsResponse
 from donna_common.orm import Project, ProjectDAL, get_project_dal
 from donna_common.orm.models.user import User
@@ -71,11 +70,13 @@ class PricingTier(BaseModel):
     features: List[str]
     additional_credits_price: Optional[float] = None
 
+
 class PricingPackage(BaseModel):
     name: str
     description: str
     price: float
     n_credits: int
+
 
 class PricingResponse(BaseModel):
     starter: PricingPackage
@@ -96,12 +97,12 @@ async def get_pricing():
             name="Indie",
             description="The community's favorite. For small teams",
             price=39,
-            n_credits=250
+            n_credits=250,
         ),
         studio=PricingPackage(
             name="Studio",
             description="Unleash your creativity at scale. For studios in active production",
             price=99,
-            n_credits=1000
+            n_credits=1000,
         ),
     )

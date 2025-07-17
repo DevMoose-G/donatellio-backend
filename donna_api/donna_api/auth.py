@@ -176,19 +176,26 @@ async def register(
     response: Response,
     user_dal: UserDAL = Depends(get_user_dal),
 ):
-    if (len(user.username) < 3):
+    if len(user.username) < 3:
         return JSONResponse(
-            status_code=400, content={"error_msg": "Username must be at least 3 characters long"}
+            status_code=400,
+            content={"error_msg": "Username must be at least 3 characters long"},
         )
     if (user.email.find("@") == -1) or (user.email.find(".") == -1):
         return JSONResponse(
             status_code=400, content={"error_msg": "Invalid email address"}
         )
-    if (len(user.password) < 8) or (len(user.password) > 32) \
-        or (any(ch.isdigit() for ch in user.password) == False) \
-        or (any(ch.isalpha() for ch in user.password) == False):
+    if (
+        (len(user.password) < 8)
+        or (len(user.password) > 32)
+        or (any(ch.isdigit() for ch in user.password) == False)
+        or (any(ch.isalpha() for ch in user.password) == False)
+    ):
         return JSONResponse(
-            status_code=400, content={"error_msg": "Password must be 8-32 characters long and contain at least one alphabet and one number."}
+            status_code=400,
+            content={
+                "error_msg": "Password must be 8-32 characters long and contain at least one alphabet and one number."
+            },
         )
 
     db_user = await user_dal.get_user_by(filter=(User.email == user.email))
@@ -222,6 +229,7 @@ async def register(
 
     return {}
 
+
 class VerifyRequest(BaseModel):
     token: str
     occupation: str
@@ -229,9 +237,12 @@ class VerifyRequest(BaseModel):
     company_size: str
     dob: datetime
 
+
 @router.post("/verify")
 async def verify(
-    request: VerifyRequest, response: Response, user_dal: UserDAL = Depends(get_user_dal)
+    request: VerifyRequest,
+    response: Response,
+    user_dal: UserDAL = Depends(get_user_dal),
 ):
     serializer = URLSafeTimedSerializer(SECRET_KEY, salt=SECURITY_SALT)
     try:
@@ -248,7 +259,7 @@ async def verify(
     user = await user_dal.get_user_by(filter=(User.id == user_id))
     if user is None:
         raise HTTPException(400, "Invalid verification link")
-    
+
     questionnaire = request.model_dump()
     questionnaire.pop("token")
     questionnaire.pop("dob")
@@ -256,10 +267,13 @@ async def verify(
     # check if 18 years old
     if (datetime.now(timezone.utc) - request.dob) < timedelta(days=18 * 365):
         return JSONResponse(
-            status_code=400, content={"detail": "You must be 18 years old to use Donatellio"}
+            status_code=400,
+            content={"detail": "You must be 18 years old to use Donatellio"},
         )
 
-    user = await user_dal.update_user(user_id, is_verified=True, questionnaire=questionnaire, dob=request.dob)
+    user = await user_dal.update_user(
+        user_id, is_verified=True, questionnaire=questionnaire, dob=request.dob
+    )
 
     expires_in = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -398,10 +412,12 @@ from google.oauth2 import id_token
 class RequestGoogleAuth(BaseModel):
     access_token: str
 
+
 class ResponseGoogleAuth(BaseModel):
     is_verified: bool
     session_token: Optional[str] = None
     jwt_token: Optional[JWTToken] = None
+
 
 @router.post("/auth/google")
 async def google_auth(
@@ -462,9 +478,7 @@ async def google_auth(
     if user.is_verified == False:
         verification_token = generate_email_verification_token(user.id)
         return ResponseGoogleAuth(
-            is_verified=False,
-            jwt_token=None,
-            session_token=verification_token
+            is_verified=False, jwt_token=None, session_token=verification_token
         )
 
     expires_in = datetime.now(timezone.utc) + timedelta(
@@ -490,5 +504,5 @@ async def google_auth(
             token_type="bearer",
             expires_in=expires_in,
         ),
-        is_verified=user.is_verified
+        is_verified=user.is_verified,
     ).model_dump()

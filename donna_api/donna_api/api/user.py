@@ -11,13 +11,8 @@ from donna_api.auth import get_current_user
 from donna_api.consts import (
     CARD_BRAND_LOGOS,
     CREDITS_BY_PACKAGE,
-    CREDITS_BY_TIER,
     PACKAGE_MAP,
-    PRICE_BY_TIER,
     REVERSED_PACKAGE_MAP,
-    REVERSED_TIER_MAP,
-    TIER_FEATURES,
-    TIER_MAP,
 )
 from donna_api.types import GetAssetsResponse, GetProjectsResponse
 from donna_common.orm import Project, ProjectDAL, UserDAL, get_project_dal, get_user_dal
@@ -46,13 +41,13 @@ async def webhook(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
 
         invoice = event["data"]["object"]  # The Invoice object
         customer_id = invoice["customer"]  # Stripe Customer ID
-        metadata = invoice['metadata']
+        metadata = invoice["metadata"]
 
         # i think there should only be one source of truth
         user_id = metadata["user_id"]
         user = await user_dal.get_user_by(filter=(User.id == user_id))
 
-        product_id = metadata['product_id']
+        product_id = metadata["product_id"]
         user_tier = PACKAGE_MAP[product_id]
         added_credits = CREDITS_BY_PACKAGE[user_tier]
 
@@ -88,15 +83,14 @@ async def purchase_credits(
 
     idempotency_key = make_idempotency_key(current_user.id)
     product_id = REVERSED_PACKAGE_MAP[request.tier]
-    prices = stripe.Price.list(
-        product=product_id, active=True, limit=1
-    )
+    prices = stripe.Price.list(product=product_id, active=True, limit=1)
 
     price = prices.data[0]
 
-    if (current_user.stripe_customer_id):
+    if current_user.stripe_customer_id:
         session = stripe.checkout.Session.create(
-            success_url=settings.frontend_url + "/subscribe/complete?session_id={CHECKOUT_SESSION_ID}",
+            success_url=settings.frontend_url
+            + "/subscribe/complete?session_id={CHECKOUT_SESSION_ID}",
             line_items=[{"price": price.id, "quantity": 1}],
             mode="payment",
             idempotency_key=idempotency_key,
@@ -109,7 +103,8 @@ async def purchase_credits(
         )
     else:
         session = stripe.checkout.Session.create(
-            success_url=settings.frontend_url + "/subscribe/complete?session_id={CHECKOUT_SESSION_ID}",
+            success_url=settings.frontend_url
+            + "/subscribe/complete?session_id={CHECKOUT_SESSION_ID}",
             line_items=[{"price": price.id, "quantity": 1}],
             idempotency_key=idempotency_key,
             mode="payment",
@@ -145,19 +140,19 @@ async def subscribe_user_complete(
 
     return {"success": True}
 
+
 @router.post("/unsubscribe", status_code=200)
 async def unsubscribe_user(
     current_user: User = Depends(get_current_user),
     user_dal: UserDAL = Depends(get_user_dal),
 ):
-    updated_subscription = stripe.Subscription.modify(
-        current_user.subscription_id, cancel_at_period_end=True
-    )
+    stripe.Subscription.modify(current_user.subscription_id, cancel_at_period_end=True)
     await user_dal.update_user(
         current_user.id,
         is_subscribed=False,
     )
     return {"success": True}
+
 
 @router.get("/projects", status_code=200)
 async def get_users_projects(
@@ -168,7 +163,8 @@ async def get_users_projects(
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=(Project.user_id == current_user.id), order_by=Project.created_at.desc()
+            filter=(Project.user_id == current_user.id),
+            order_by=Project.created_at.desc(),
         )
         if project.textures == []
     ]

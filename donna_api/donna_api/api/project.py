@@ -8,8 +8,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.common.models import BasicModelInfo, get_all_basic_model_infos, get_all_models_items
-from donna_api.types import GetImageInfo, ItemCollection, WSImageEditsResponse, WSImageItem, WSModelResponse
+from donna_api.common.models import (
+    BasicModelInfo,
+    get_all_basic_model_infos,
+    get_all_models_items,
+)
+from donna_api.types import (
+    ItemCollection,
+    WSImageEditsResponse,
+    WSImageItem,
+    WSModelResponse,
+)
 from donna_common.orm import ProjectDAL, get_project_dal
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.image import ImageDAL, get_image_dal
@@ -25,7 +34,6 @@ from donna_common.orm.dal.project_version import (
 )
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
-from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 
@@ -405,10 +413,12 @@ async def get_project_history(
         versions=reversed(versions),
     )
 
+
 class ProjectModelsResponse(BaseModel):
     project_id: str
     project_name: str
     models: List[BasicModelInfo]
+
 
 @router.get("/{project_id}/models")
 async def get_latest_models(
@@ -420,7 +430,7 @@ async def get_latest_models(
     project = await project_dal.get_project_by_id(project_id)
     if current_user.id != project.user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+
     if project_version_id is None:
         main_branch = await project_dal.get_main_branch(project.id)
         project_version_id = main_branch.head_version_id
@@ -428,16 +438,12 @@ async def get_latest_models(
     storage_provider = StorageProvider()
 
     # getting what's in the database
-    model_infos = await get_all_basic_model_infos(
-        project_version_id, storage_provider
-    )
+    model_infos = await get_all_basic_model_infos(project_version_id, storage_provider)
 
     return ProjectModelsResponse(
-        project_id=project_id,
-        project_name=project.name,
-        models=model_infos
+        project_id=project_id, project_name=project.name, models=model_infos
     )
-    
+
 
 @router.post("/{project_id}/mesh/{project_version_id}")
 async def mesh_project_version_updates(
@@ -482,7 +488,7 @@ async def get_images(
             status_code=403,
             content={"error_msg": "You don't have permission to view these images"},
         )
-    
+
     storage_provider = StorageProvider()
 
     images = await project_dal.get_images(project_id)
@@ -492,12 +498,10 @@ async def get_images(
 
         image_items = []
         for image in images:
-            if (image.storage_key and image.storage_key != None):
+            if image.storage_key and image.storage_key != None:
                 img_url = storage_provider.generate_get_url(image.storage_key)
                 image_items.append(WSImageItem(id=image.id, url=img_url))
 
-        return WSImageEditsResponse(
-            images=image_items, chats=chats.chats
-        )
+        return WSImageEditsResponse(images=image_items, chats=chats.chats)
 
     return WSImageEditsResponse(images=[], chats=[])

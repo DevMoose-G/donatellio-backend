@@ -1,6 +1,6 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import uuid
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
@@ -14,8 +14,6 @@ from donna_api.types import (
     RequestCreateImage,
     RequestEditImage,
     RequestGetElaboratingQuestions,
-    WSImageEditsResponse,
-    WSImageItem,
 )
 from donna_api.utils import image_cost
 from donna_common.orm import (
@@ -28,12 +26,10 @@ from donna_common.orm import (
 )
 from donna_common.orm.dal.project_branch import ProjectBranchDAL, get_project_branch_dal
 from donna_common.orm.dal.styleboard import StyleBoardDAL, get_styleboard_dal
-from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.user import User
 from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider, extract_s3_key
 from donna_common.redis.rq import RedisQueue
-from donna_common.redis.types import ImageAction, JobUpdate
 
 load_dotenv()  # reads .env from cwd
 
@@ -135,6 +131,7 @@ async def create_image(
 
     return ResponseImage(image_id=image_id, project_id=project_id)
 
+
 @router.get("/{image_id}", status_code=200)
 async def get_image(
     image_id: str,
@@ -143,13 +140,13 @@ async def get_image(
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ):
-    if image_id == 'null':
+    if image_id == "null":
         images = await project_dal.get_uploaded_images(project_id)
         image_id = images[-1].id
-    
+
     image = await image_dal.get_image_by_id(image_id)
     project = await project_dal.get_project_by_id(project_id)
-    
+
     if image is None:
         return JSONResponse(
             status_code=404,
@@ -161,10 +158,11 @@ async def get_image(
             status_code=403,
             content={"error_msg": "You don't have permission to view this image"},
         )
-    
+
     storage_provider = StorageProvider()
     image_url = storage_provider.generate_get_url(image.storage_key)
     return GetImageInfo(id=image.id, url=image_url)
+
 
 @router.post("/{project_id}/edit", status_code=202)
 async def edit_image(
@@ -334,7 +332,6 @@ async def upload_image(
     )
 
     main_branch = await project_dal.get_main_branch(project_id=project_id)
-
 
     image = await image_dal.create_image(
         id=request.image_id,

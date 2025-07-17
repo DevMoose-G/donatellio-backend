@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from donna_common.orm.base import Base
-from sqlalchemy.dialects.postgresql import JSONB
 
 
 class User(Base):

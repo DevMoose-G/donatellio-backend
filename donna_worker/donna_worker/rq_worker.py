@@ -1,10 +1,14 @@
-import os, signal, sys
+import signal
+import sys
+
 from redis import Redis
-from rq import Worker, Queue
+from rq import Queue, Worker
+
 from donna_common.settings import settings
 
 # maybe should separate one day
 listen_queues = ["jobs"]
+
 
 def main():
     # 1) Restore default Ctrl+C/TERM behavior
@@ -20,6 +24,7 @@ def main():
     # 5) Spin up the worker
     worker = Worker(queues)
     worker.work()
+
 
 if __name__ == "__main__":
     try:
