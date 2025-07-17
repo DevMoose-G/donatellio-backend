@@ -9,6 +9,11 @@ In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/ma
 /etc/systemd/system/worker.service 
 
 **Launch Worker**:
+
+   ```bash
+   rq worker jobs --url redis://localhost:6379  --worker-class rq.worker.SpawnWorker
+   ```
+
    ```bash
    python worker.py
    ```

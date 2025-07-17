@@ -4,14 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from donna_api.api import router as api_router
 from donna_api.auth import router as auth_router
-from donna_api.websocket import router as websocket_router
 
 load_dotenv()  # reads .env from cwd
 
 # Initialize FastAPI
 app = FastAPI()
 
-app.include_router(websocket_router)
 app.include_router(auth_router)
 app.include_router(api_router)
 

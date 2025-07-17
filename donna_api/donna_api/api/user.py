@@ -168,7 +168,7 @@ async def get_users_projects(
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=(Project.user_id == current_user.id)
+            filter=(Project.user_id == current_user.id), order_by=Project.created_at.desc()
         )
         if project.textures == []
     ]
@@ -178,6 +178,7 @@ async def get_users_projects(
         project_display = await project_dal.get_project_display(project)
         if project_display != None:  # skip finished projects (textured meshes)
             assets.append(project_display)
+
     return GetProjectsResponse(projects=assets, count=len(assets))
 
 

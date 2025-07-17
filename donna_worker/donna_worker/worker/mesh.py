@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 import os
 import subprocess
 from pathlib import Path
@@ -13,7 +14,7 @@ from donna_common.orm.models.mesh import Mesh
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.runpod import RunpodProvider
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
+from donna_common.redis.rq import RedisQueue
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_common.settings import settings
 
@@ -49,10 +50,6 @@ def crop_transparent(im):
         # Entire image is fully transparent—return as-is (or handle differently)
         return im.copy()
 
-
-stream = RedisStream("requested-jobs")
-completed_images_stream = RedisStream("completed-jobs", group_name="image")
-completed_meshes_stream = RedisStream("completed-jobs", group_name="mesh")
 
 async def render_mesh_preview_image(
     storage_key: str,
@@ -151,7 +148,7 @@ async def generate_mesh_formats(
         )
     return asset
 
-
+# this should not be called anymore
 async def generate_meshes(
     image_id,
     project_id,
@@ -162,29 +159,10 @@ async def generate_meshes(
     seed: int,
     labels: List[str],
     max_polygon_count: int,
-    job_msg_id: str
 ) -> List[str]:
     # call generate_mesh in runpod
     runpod_service = RunpodProvider()
-    await completed_meshes_stream.send_msg(
-        MeshAction(
-            type="mesh",
-            params={
-                "image_id": image_id,
-                "mesh_ids": mesh_ids,
-                "project_id": project_id,
-                "mesh_model": mesh_model,
-                "n_meshes": n_meshes,
-                "quality": quality,
-                "seed": seed,
-                "labels": labels,
-                "max_polygon_count": max_polygon_count,
-            },
-            project_id=project_id,
-            function_name="generate_mesh",
-            mesh_ids=mesh_ids,
-        )
-    )
+    
     mesh_ids = await runpod_service.generate_untextured_mesh(
         project_id,
         image_id,
@@ -195,33 +173,65 @@ async def generate_meshes(
         seed,
         labels,
         max_polygon_count,
-        stream,
-        job_msg_id
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)
 
-
+    queue = RedisQueue()
+    
+    seconds_offset = 0
     for mesh_id in mesh_ids:
         # perform auto-retopology on generated mesh
         # should this be a new mesh or just replace the existing mesh?
-        await stream.send_msg(
-            MeshAction(
-                type="mesh",
-                params={
-                    "mesh_id": mesh_id,
-                    "new_mesh_id": mesh_id,
-                    "project_id": project_id,
-                },
-                project_id=project_id,
-                function_name="simplify_mesh",
-                mesh_ids=[mesh_id],
-            )
+        seconds_offset += 15
+        queue.queue_mesh_action(
+            func_callback="donna_worker.worker.mesh.simplify_mesh",
+            expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
+            mesh_id=mesh_id,
+            project_id=project_id,
+            new_mesh_id=mesh_id,
         )
 
-        # do i need to generate formats and render if the mesh will be simplified anyways
-        # await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal)
-        # await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
+    return mesh_ids
+
+async def generate_mesh(
+    image_id,
+    project_id,
+    mesh_model: str,
+    n_meshes: int,
+    mesh_id: str,
+    quality: str,
+    seed: int,
+    labels: List[str],
+    max_polygon_count: int,
+) -> List[str]:
+    # call generate_mesh in runpod
+    runpod_service = RunpodProvider()
+    
+    mesh_ids = await runpod_service.generate_untextured_mesh(
+        project_id,
+        image_id,
+        [mesh_id],
+        mesh_model,
+        n_meshes,
+        quality,
+        seed,
+        labels,
+        max_polygon_count
+    )
+
+    os.makedirs(MESH_DIR, exist_ok=True)
+
+    # perform auto-retopology on generated mesh
+    # should this be a new mesh or just replace the existing mesh?
+    queue = RedisQueue()
+    queue.queue_mesh_action(
+        func_callback="donna_worker.worker.mesh.simplify_mesh",
+        expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
+        mesh_id=mesh_id,
+        project_id=project_id,
+        new_mesh_id=mesh_id,
+    )
 
     return mesh_ids
 
@@ -235,23 +245,7 @@ async def generate_texture(
     texture_quality: str,
     seed: int,
 ) -> str:
-    await completed_meshes_stream.send_msg(
-        TexturedMeshAction(
-            type="textured_mesh",
-            project_id=project_id,
-            function_name="generate_texture",
-            params={
-                "texture_id": texture_id,
-                "image_id": image_id,
-                "project_id": project_id,
-                "mesh_id": mesh_id,
-                "prompt": prompt,
-                "texture_quality": texture_quality,
-                "seed": seed,
-            },
-            texture_id=texture_id,
-        )
-    )
+    
     runpod_service = RunpodProvider()
     texture_id = await runpod_service.generate_texture_on_mesh(
         texture_id=texture_id,
@@ -264,24 +258,6 @@ async def generate_texture(
     )
 
     os.makedirs(TEXTURE_DIR, exist_ok=True)
-
-    await completed_meshes_stream.send_msg(
-        TexturedMeshAction(
-            type="textured_mesh",
-            project_id=project_id,
-            function_name="generate_texture",
-            params={
-                "texture_id": texture_id,
-                "image_id": image_id,
-                "project_id": project_id,
-                "mesh_id": mesh_id,
-                "prompt": prompt,
-                "texture_quality": texture_quality,
-                "seed": seed,
-            },
-            texture_id=texture_id,
-        )
-    )
 
     async with AsyncSessionLocal() as session:
         texture_dal = TextureDAL(session)
@@ -305,7 +281,6 @@ async def regenerate_from_latents(
     mesh_id,
     mc_level,
     octree_resolution,
-    job_stream,
     max_facenum=None,
     do_shade_smooth=True,
     n_faces=None,
@@ -327,22 +302,19 @@ async def regenerate_from_latents(
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
         total_n_faces = mesh.face_count
 
+    simplify_ratio = None
     if n_faces is not None:
         simplify_ratio = min(n_faces / total_n_faces, 1)
-        params = {
-            "simplify_ratio": simplify_ratio,
-            "mesh_id": mesh_id,
-            "new_mesh_id": mesh_id,
-            "project_id": project_id,
-        }
-        # send job to simplify mesh after regen
-        await job_stream.send_msg(
-            MeshAction(
-                project_id=project_id,
-                function_name="simplify_mesh",
-                params=params,
-            )
-        )
+
+    queue = RedisQueue()
+    queue.queue_mesh_action(
+        func_callback="donna_worker.worker.mesh.simplify_mesh",
+        expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
+        mesh_id=mesh_id,
+        project_id=project_id,
+        new_mesh_id=mesh_id,
+        simplify_ratio=simplify_ratio,
+    )
 
     os.makedirs(MESH_DIR, exist_ok=True)
 
@@ -350,22 +322,6 @@ async def regenerate_from_latents(
         mesh_dal = MeshDAL(session)
 
         mesh = await mesh_dal.get_mesh_by_id(mesh_id)
-        # send message through websocket before converting stuff to show the user progress
-        await completed_meshes_stream.send_msg(
-            MeshAction(
-                type="mesh",
-                params={
-                    "old_mesh_id": old_mesh_id,
-                    "mesh_id": mesh_id,
-                    "project_id": project_id,
-                    "mc_level": mc_level,
-                    "octree_resolution": octree_resolution,
-                },
-                project_id=project_id,
-                function_name="regenerate_from_latents",
-                mesh_ids=[mesh_id],
-            )
-        )
 
         await generate_mesh_formats(mesh_id, mesh.storage_key, mesh_dal=mesh_dal)
         await render_mesh_preview_image(mesh.storage_key, mesh_id, mesh_dal=mesh_dal)
@@ -373,7 +329,7 @@ async def regenerate_from_latents(
 
 
 async def simplify_mesh(
-    project_id, mesh_id, new_mesh_id, completed_meshes_stream, simplify_ratio=None
+    project_id, mesh_id, new_mesh_id, simplify_ratio=None
 ):
     runpod_service = RunpodProvider()
     await runpod_service.simplify_mesh(
@@ -386,22 +342,6 @@ async def simplify_mesh(
         mesh_dal = MeshDAL(session)
 
         new_mesh = await mesh_dal.get_mesh_by_id(new_mesh_id)
-
-        # send message through websocket before converting stuff to show the user progress
-        await completed_meshes_stream.send_msg(
-            MeshAction(
-                type="mesh",
-                params={
-                    "project_id": project_id,
-                    "new_mesh_id": new_mesh_id,
-                    "mesh_id": mesh_id,
-                    "simplify_ratio": simplify_ratio,
-                },
-                project_id=project_id,
-                function_name="simplify_mesh",
-                mesh_ids=[new_mesh_id],
-            )
-        )
 
         await generate_mesh_formats(
             new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal

@@ -205,13 +205,15 @@ class ProjectDAL:
         return [texture for texture in project.textures if texture.storage_key != None]
 
     async def get_all_projects_by(
-        self, filter, limit=None, offset=None
+        self, filter, limit=None, offset=None, order_by=None
     ) -> List[Project]:
         exec = select(Project).where(filter)
         if offset is not None:
             exec = exec.offset(offset)
         if limit is not None:
             exec = exec.limit(limit)
+        if order_by is not None:
+            exec = exec.order_by(order_by)
         projects = await self.session.execute(exec)
         return projects.scalars().all()
 

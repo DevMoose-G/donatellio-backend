@@ -106,25 +106,6 @@ class ReplicateProvider:
         # save to storage
         key = self.storage_provider.upload_image(image_name, output_path)
 
-        # TODO: add the completed streams part
-        await completed_images_stream.send_msg(
-            ImageAction(
-                type="image",
-                function_name="generate_image",
-                project_id=project_id,
-                image_id=image_id,
-                is_partial=False,
-                params={
-                    "image_id": image_id,
-                    "project_id": project_id,
-                    "prompt": prompt,
-                    "n": 1,
-                    "size": '1024x1024',
-                    "quality": quality,
-                },
-            )
-        )
-
         await self.save_thumbnail(image_id, image_storage_key=key)
 
         return output
@@ -136,7 +117,6 @@ class ReplicateProvider:
         quality: str,
         prompt: str,
         parent_image_id: str,
-        **kwargs,
     ):
         image_name = f"{image_id}.png"
 

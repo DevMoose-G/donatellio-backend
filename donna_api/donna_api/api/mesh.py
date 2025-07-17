@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import time
 from typing import Optional
 from uuid import uuid4
 
@@ -21,6 +22,8 @@ from donna_api.types import (
 from donna_api.utils import (
     calculate_mesh_gen_cost,
     calculate_texture_gen_cost,
+    expected_mesh_gen_time,
+    expected_texture_gen_time,
     regen_mesh_cost,
 )
 from donna_common.orm import (
@@ -46,7 +49,6 @@ from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.rq import RedisQueue
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import MESH_DIR
@@ -103,9 +105,7 @@ async def create_mesh(
             content={"error_msg": "Image not found"},
         )
 
-    stream = RedisStream("requested-jobs")
     queue = RedisQueue()
-    await stream.setup_group(new_only=False)
 
     mesh_cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
     response = await user_dal.charge_credit(
@@ -148,28 +148,26 @@ async def create_mesh(
             version_id=version.id,
         )
 
-    queue.queue_action(
-        "donna_worker.worker.mesh.generate_meshes",
-        mesh_ids=mesh_ids,
-        project_id=project_id,
-        image_id=req.image_id,
-        quality=req.quality,
-        labels=req.labels,
-        seed=req.seed,
-        max_polygon_count=req.max_polygon_count,
-        mesh_model=req.mesh_model,
-        n_meshes=req.n_meshes,
-        completed_meshes_stream=stream,
-    )
-    # await stream.send_msg(
-    #     MeshAction(
-    #         project_id=project_id,
-    #         function_name="generate_mesh",
-    #         params=params,
-    #     )
-    # )
+    job_ids = []
+    seconds_offset = 0
+    for mesh_id in mesh_ids:
+        seconds_offset += 30 if req.quality == None else expected_mesh_gen_time(req.quality)
+        job_id = queue.queue_mesh_action(
+            "donna_worker.worker.mesh.generate_mesh",
+            expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
+            mesh_id=mesh_id,
+            project_id=project_id,
+            image_id=req.image_id,
+            quality=req.quality,
+            labels=req.labels,
+            seed=req.seed,
+            max_polygon_count=req.max_polygon_count,
+            mesh_model=req.mesh_model,
+            n_meshes=req.n_meshes,
+        )
+        job_ids.append(job_id)
 
-    return {"image_id": req.image_id, "project_id": project_id}
+    return {"image_id": req.image_id, "project_id": project_id, "job_ids": job_ids}
 
 
 @router.post("/{project_id}/texture", status_code=202)
@@ -192,9 +190,6 @@ async def create_texture(
                 "error_msg": "You don't have permission to create a texture in this project"
             },
         )
-
-    stream = RedisStream("requested-jobs")
-    await stream.setup_group(new_only=False)
 
     texture_cost = calculate_texture_gen_cost(req.texture_quality)
     response = await user_dal.charge_credit(
@@ -242,15 +237,21 @@ async def create_texture(
         version_message="Texture generated",
     )
 
-    await stream.send_msg(
-        TexturedMeshAction(
-            project_id=project_id,
-            function_name="generate_texture",
-            params=params,
-        )
+    queue = RedisQueue()
+    seconds_offset = expected_texture_gen_time(req.texture_quality)
+    queue.queue_texture_action(
+        func_callback="donna_worker.worker.mesh.generate_texture",
+        expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
+        project_id=project_id,
+        texture_id=texture_id,
+        mesh_id=mesh.id,
+        image_id=image.id,
+        prompt=req.prompt,
+        texture_quality=req.texture_quality,
+        seed=req.seed,
     )
 
-    return {"image_id": req.image_id, "project_id": project_id}
+    return {"image_id": req.image_id, "project_id": project_id, "job_id": job_id}
 
 
 class RequestRegenerateMesh(BaseModel):
@@ -309,24 +310,15 @@ async def regenerate_mesh(
         status="PENDING",
     )
 
-    stream = RedisStream("requested-jobs")
-    await stream.setup_group(new_only=False)
-
     main_branch = await project_dal.get_main_branch(project_id=project_id)
 
     version_msg = "Regenerate mesh and/or Reduce face count of mesh"
-    # if req.level_of_detail != None and req.surface_thickness != None:
-    #     version_msg += "Regenerate mesh from latents with updated options"
-    # elif req.simplify_ratio != None:
-    #     version_msg += "Reduce the face count of mesh"
     version = await project_branch_dal.create_version(
         branch_id=main_branch.id, author_id=current_user.id, version_message=version_msg
     )
 
     actions_performed = []
     if req.level_of_detail != None and req.surface_thickness != None:  # temp
-        # create a new mesh (copy of the old one?) do it here or in worker (not in both)
-        # await mesh_dal.update_mesh(id=req.mesh_id, status="PENDING")
 
         if req.level_of_detail < 1 or req.level_of_detail > 5:
             await project_version_dal.hard_delete_version(version_id=version.id)
@@ -373,12 +365,12 @@ async def regenerate_mesh(
 
                 params["n_faces"] = req.face_count
 
-            await stream.send_msg(
-                MeshAction(
-                    project_id=req.project_id,
-                    function_name="regenerate_from_latents",
-                    params=params,
-                )
+            queue = RedisQueue()
+            queue.queue_mesh_action(
+                func_callback="donna_worker.worker.mesh.regenerate_from_latents",
+                expected_at=datetime.now(),
+                mesh_id=new_mesh.id,
+                **params,
             )
 
             main_branch = await project_dal.get_main_branch(project_id=project_id)
@@ -429,12 +421,13 @@ async def regenerate_mesh(
             "project_id": project.id,
         }
 
-        await stream.send_msg(
-            MeshAction(
-                project_id=req.project_id,
-                function_name="simplify_mesh",
-                params=params,
-            )
+        queue = RedisQueue()
+        queue.queue_mesh_action(
+            func_callback="donna_worker.worker.mesh.simplify_mesh",
+            expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
+            mesh_id=old_mesh.id,
+            new_mesh_id=new_mesh.id,
+            simplify_ratio=simplify_ratio,
         )
 
         main_branch = await project_dal.get_main_branch(project_id=project_id)

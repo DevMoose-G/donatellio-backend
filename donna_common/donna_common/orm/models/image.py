@@ -43,7 +43,7 @@ class Image(Base):
 
     # TODO: should keep track of openai/replicate parameters
 
-    project = relationship("Project", back_populates="images", passive_deletes=True)
+    project = relationship("Project", back_populates="images", lazy="selectin", passive_deletes=True)
     meshes = relationship(
         "Mesh", back_populates="image", lazy="selectin", cascade="all, delete-orphan"
     )

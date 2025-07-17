@@ -14,7 +14,7 @@ def extract_s3_key(presigned_url):
 class StorageProvider:
     def __init__(self):
         self.s3_client = boto3.client("s3", region_name="us-east-1")
-        self.bucket = "donatellio"
+        self.bucket = "donatell-io"
 
     def __generate_presigned_url(
         self, client_method, method_parameters, expires_in
@@ -72,6 +72,9 @@ class StorageProvider:
             {"Bucket": self.bucket, "Key": storage_key},
             10 * 60,  # 10 mins
         )
+    
+    def delete_file(self, storage_key: str) -> None:
+        self.s3_client.delete_object(Bucket=self.bucket, Key=storage_key)
 
     def upload_image(self, image_filename, image_path):
         try:

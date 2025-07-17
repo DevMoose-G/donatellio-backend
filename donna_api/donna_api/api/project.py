@@ -8,9 +8,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from donna_api.auth import get_current_user
-from donna_api.common.models import BasicModelInfo, get_all_basic_model_infos
-from donna_api.types import GetImageInfo, ItemCollection, WSModelResponse
-from donna_api.websocket import get_all_models_items
+from donna_api.common.models import BasicModelInfo, get_all_basic_model_infos, get_all_models_items
+from donna_api.types import GetImageInfo, ItemCollection, WSImageEditsResponse, WSImageItem, WSModelResponse
 from donna_common.orm import ProjectDAL, get_project_dal
 from donna_common.orm.dal.collection import CollectionDAL, get_collection_dal
 from donna_common.orm.dal.image import ImageDAL, get_image_dal
@@ -26,6 +25,7 @@ from donna_common.orm.dal.project_version import (
 )
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
+from donna_common.orm.main import AsyncSessionLocal
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
 
@@ -462,27 +462,42 @@ async def mesh_project_version_updates(
         return WSModelResponse(models=new_model_items).model_dump(mode="json")
 
 
-@router.get("/{project_id}/image", status_code=200)
-async def get_latest_image(
+@router.get("/{project_id}/images", status_code=200)
+async def get_images(
     project_id: str,
-    image_id: Optional[str] = None,
     project_dal: ProjectDAL = Depends(get_project_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
-) -> GetImageInfo:
+) -> WSImageEditsResponse:
     project = await project_dal.get_project_by_id(project_id)
-    if current_user.id != project.user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
 
-    if image_id == None:
-        images = await project_dal.get_uploaded_images(project_id)
-        image = images[-1]
-    else:
-        image = await image_dal.get_image_by_id(image_id)
-        if project.id != image.project_id:
-            raise HTTPException(
-                status_code=400, detail="Image doesn't exist on this project."
-            )
+    if project is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error_msg": "Image not found"},
+        )
+
+    if project.user_id != current_user.id:
+        return JSONResponse(
+            status_code=403,
+            content={"error_msg": "You don't have permission to view these images"},
+        )
+    
     storage_provider = StorageProvider()
-    image_url = storage_provider.generate_get_url(image.storage_key)
-    return GetImageInfo(id=image.id, url=image_url)
+
+    images = await project_dal.get_images(project_id)
+
+    if images != []:
+        chats = await project_dal.get_image_prompt_chats(project_id)
+
+        image_items = []
+        for image in images:
+            if (image.storage_key and image.storage_key != None):
+                img_url = storage_provider.generate_get_url(image.storage_key)
+                image_items.append(WSImageItem(id=image.id, url=img_url))
+
+        return WSImageEditsResponse(
+            images=image_items, chats=chats.chats
+        )
+
+    return WSImageEditsResponse(images=[], chats=[])

@@ -20,7 +20,6 @@ from donna_common.prompts import (
     STYLE_IMAGE_DESCRIPTION_PROMPT,
 )
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
 
@@ -132,68 +131,18 @@ class OpenAIProvider:
                         await self.dal.image_dal.update_image(
                             id=image_id, project_id=project_id, storage_key=key
                         )
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="generate_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=True,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                        )
-                    )
+                    
                 if event.type == "response.image_generation_call.completed":
                     await self.dal.image_dal.update_image(
                         id=image_id, external_id=event.item_id
                     )
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="generate_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                        )
-                    )
+                    
         except openai.APIError as e:
             # set project to be inactive
             await self.dal.project_dal.update_project(id=project_id, active=False)
             raise e
 
         await self.save_thumbnail(image_id, image_storage_key=key)
-
-        await completed_images_stream.send_msg(
-            ImageAction(
-                type="image",
-                function_name="generate_image",
-                project_id=project_id,
-                image_id=image_id,
-                is_partial=False,
-                params={
-                    "image_id": image_id,
-                    "project_id": project_id,
-                    "prompt": prompt,
-                    "n": n,
-                    "size": size,
-                    "quality": quality,
-                },
-            )
-        )
 
         return key
     
@@ -218,12 +167,11 @@ class OpenAIProvider:
         )
 
         results = response.results[0]
-        flagged_categories = [results.categories[k] for k in results.categories if results.categories[k] == True]
-        if "sexual" in flagged_categories or "sexual/minors" in flagged_categories:
+        if results.categories.sexual or results.categories.sexual_minors:
             return True
-        if "self-harm" in flagged_categories or "self-harm/intent" in flagged_categories or "self-harm/instructions" in flagged_categories:
+        if results.categories.self_harm or results.categories.self_harm_intent or results.categories.self_harm_instructions:
             return True
-        if "violence/graphic" in flagged_categories:
+        if results.categories.violence_graphic:
             # TODO: add flag to project, but allow it to be used
             return True
         
@@ -285,7 +233,6 @@ class OpenAIProvider:
 
         image = await self.dal.image_dal.get_image_by_id(image_id)
 
-        completed_images_stream = RedisStream("completed-jobs", group_name="image")
 
         key = None
 
@@ -308,24 +255,7 @@ class OpenAIProvider:
                         await ImageDAL(session).update_image(
                             id=image_id, project_id=project_id, storage_key=key
                         )
-                await completed_images_stream.send_msg(
-                    ImageAction(
-                        type="image",
-                        function_name="edit_image",
-                        project_id=project_id,
-                        image_id=image_id,
-                        is_partial=True,
-                        params={
-                            "image_id": image_id,
-                            "project_id": project_id,
-                            "parent_image_id": parent_image_id,
-                            "prompt": prompt,
-                            "n": n,
-                            "size": size,
-                            "quality": quality,
-                        },
-                    )
-                )
+                
             elif event.type == "response.image_generation_call.completed":
                 if key != None:
                     async with AsyncSessionLocal() as session:
@@ -333,24 +263,7 @@ class OpenAIProvider:
                             id=image_id, external_id=event.item_id
                         )
 
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="edit_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "parent_image_id": parent_image_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                        )
-                    )
+                    
             elif event.type == "response.completed":
                 if key == None:
                     # error likely happened
@@ -369,25 +282,6 @@ class OpenAIProvider:
                             id=image_id, error=error_msg, storage_key=None
                         )
 
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="edit_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "parent_image_id": parent_image_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                            successful=False,
-                        )
-                    )
 
         if key != None:
             await self.save_thumbnail(image_id, image_storage_key=key)

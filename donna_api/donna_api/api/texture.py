@@ -46,7 +46,6 @@ from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.models.texture import Texture
 from donna_common.orm.models.user import User
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
 from donna_common.redis.types import MeshAction, TexturedMeshAction
 from donna_worker.worker.mesh import MESH_DIR
 
