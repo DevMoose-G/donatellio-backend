@@ -76,6 +76,11 @@ async def api_calculate_texture_gen_cost(
     return ResponseGenerateTextureInfo(cost=cost)
 
 
+class ResponseCreateMesh(BaseModel):
+    mesh_id: str
+    project_id: str
+    job_ids: list[str]
+
 @router.post("/{project_id}/create", status_code=202)
 async def create_mesh(
     req: RequestCreateMesh,
@@ -167,7 +172,9 @@ async def create_mesh(
         )
         job_ids.append(job_id)
 
-    return {"image_id": req.image_id, "project_id": project_id, "job_ids": job_ids}
+    return ResponseCreateMesh(
+        mesh_id=req.image_id, project_id=project_id, job_ids=job_ids
+    )
 
 
 @router.post("/{project_id}/texture", status_code=202)

@@ -357,13 +357,14 @@ async def login(
     ).model_dump()
 
 
-# class RequestRefreshToken(BaseModel):
-#     refresh_token: str
+class RequestRefreshToken(BaseModel):
+    is_web: bool = True
+    refresh_token: Optional[str] = None
 
 
 @router.post("/refresh")
-async def refresh(request: Request, user_dal: UserDAL = Depends(get_user_dal)):
-    refresh_token = request.cookies.get("refresh_token")
+async def refresh(request: Request, body: RequestRefreshToken, user_dal: UserDAL = Depends(get_user_dal)):
+    refresh_token = request.cookies.get("refresh_token") if body.is_web else body.refresh_token
     # breakpoint()
     try:
         payload = decode_token(refresh_token, "refresh_token")

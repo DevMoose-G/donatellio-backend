@@ -70,13 +70,14 @@ class RunpodProvider(BaseProvider):
         self, mesh_id: str, new_mesh_id: str, simplify_ratio: float = None
     ):
         async with AsyncSessionLocal() as session:
-            mesh = await MeshDAL(session).get_mesh_by_id(mesh_id)
+            mesh_dal = MeshDAL(session)
+            mesh = await mesh_dal.get_mesh_by_id(mesh_id)
             assert mesh is not None
 
-            new_mesh = await MeshDAL(session).get_mesh_by_id(new_mesh_id)
+            new_mesh = await mesh_dal.get_mesh_by_id(new_mesh_id)
             assert new_mesh is not None
 
-            await MeshDAL(session).update_mesh(
+            await mesh_dal.update_mesh(
                 id=new_mesh_id,
                 status="PENDING",
             )
@@ -363,9 +364,6 @@ class RunpodProvider(BaseProvider):
                             face_count=n_faces,
                             gpu_provider_response=str(output)[-1000:],
                         )
-                    print(
-                        f"Sending mesh {mesh_id} of project {project_id} to completed queue"
-                    )
 
             except:
                 async with AsyncSessionLocal() as session:
@@ -386,7 +384,6 @@ class RunpodProvider(BaseProvider):
         texture_quality: str,  # normal, precise, or stylized
         seed: int,
         texture_id: str,
-        # completed_meshes_stream,
     ):
         # create mesh in database w/ status='PENDING'
         async with AsyncSessionLocal() as session:

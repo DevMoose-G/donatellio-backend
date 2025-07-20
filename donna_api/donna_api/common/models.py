@@ -119,9 +119,6 @@ class GetMeshInfo(BaseModel):
     mc_level: Optional[float] = None
     num_faces: Optional[int] = None
     mesh_url: Optional[str] = None
-    # do i need these
-    # mesh_status: Optional[str] = None
-    # texture_status: Optional[str] = None
 
 
 async def get_mesh_info(mesh_id: str):

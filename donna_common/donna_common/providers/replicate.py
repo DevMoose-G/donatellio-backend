@@ -2,8 +2,8 @@ import PIL
 import replicate
 import requests
 
+from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.main import AsyncSessionLocal
-from donna_common.orm.master import MasterDAL
 from donna_common.prompts import (
     GEMINI_IMAGE_GEN_PROMPT,
     KLING_VIDEO_MV_NEGATIVE_PROMPT,
@@ -20,7 +20,6 @@ STATIC_DIR = settings.static_dir
 class ReplicateProvider:
     def __init__(self):
         self.storage_provider = StorageProvider()
-        self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
 
         self.blackforest_headers = {
             "x-key": settings.black_forest_api_token,
@@ -37,9 +36,11 @@ class ReplicateProvider:
         key = self.storage_provider.upload_image(
             image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png"
         )
-        await self.dal.image_dal.update_image(
-            id=image_id, thumbnail_image_storage_key=key
-        )
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            await image_dal.update_image(
+                id=image_id, thumbnail_image_storage_key=key
+            )
 
     async def generate_image(
         self,
@@ -48,7 +49,7 @@ class ReplicateProvider:
         model: str,
         quality: str,
         prompt: str,
-        completed_images_stream,
+        n: int=1, size: str = "1024x1024",
     ) -> str:
         image_name = f"{image_id}.png"
 
@@ -83,7 +84,9 @@ class ReplicateProvider:
 
         output = replicate.run(image_model, input=input_data)
 
-        image = await self.dal.image_dal.get_image_by_id(image_id)
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            image = await image_dal.get_image_by_id(image_id)
 
         # Save the generated image
         output_path = f"{STATIC_DIR}/{image_name}"
@@ -94,7 +97,9 @@ class ReplicateProvider:
         key = self.storage_provider.upload_image(image_name, output_path)
 
         if image.storage_key == None:
-            await self.dal.image_dal.update_image(id=image_id, storage_key=key)
+            async with AsyncSessionLocal() as session:
+                image_dal = ImageDAL(session)
+                await image_dal.update_image(id=image_id, storage_key=key)
 
         image_url = self.storage_provider.generate_get_url(key)
 
@@ -143,7 +148,12 @@ class ReplicateProvider:
         else:
             raise ValueError("Unsupported model")
 
-        original_image = await self.dal.image_dal.get_image_by_id(parent_image_id)
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            # Get the original image URL
+            original_image = await image_dal.get_image_by_id(parent_image_id)
+            image = await image_dal.get_image_by_id(image_id)
+            
         original_image_url = self.storage_provider.generate_get_url(
             original_image.storage_key
         )
@@ -152,8 +162,6 @@ class ReplicateProvider:
         input_data["output_format"] = "png"
 
         output = replicate.run(image_model, input=input_data)
-
-        image = await self.dal.image_dal.get_image_by_id(image_id)
 
         # Save the generated image
         output_path = f"{STATIC_DIR}/{image_name}"
@@ -164,7 +172,9 @@ class ReplicateProvider:
         key = self.storage_provider.upload_image(image_name, output_path)
 
         if image.storage_key == None:
-            await self.dal.image_dal.update_image(id=image_id, storage_key=key)
+            async with AsyncSessionLocal() as session:
+                image_dal = ImageDAL(session)
+                await image_dal.update_image(id=image_id, storage_key=key)
 
         image_url = self.storage_provider.generate_get_url(key)
 
@@ -188,7 +198,9 @@ class ReplicateProvider:
         return output
 
     async def generate_multiviews(self, image_id):
-        image = await self.dal.image_dal.get_image_by_id(image_id)
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            image = await image_dal.get_image_by_id(image_id)
         image_url = self.storage_provider.generate_get_url(image.storage_key)
         input_data = {
             "start_image": image_url,
@@ -212,6 +224,8 @@ class ReplicateProvider:
                 f"{mv_storage_key}/frame_{i}.png", frame_path
             )
         mv_storage_key = f"images/{mv_storage_key}"
-        await self.dal.image_dal.update_image(
-            id=image_id, multiview_image_dir=mv_storage_key
-        )
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            await image_dal.update_image(
+                id=image_id, multiview_image_dir=mv_storage_key
+            )

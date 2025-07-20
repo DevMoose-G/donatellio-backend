@@ -418,9 +418,15 @@ def run_blender_convert(glb_path: str, out_dir: str) -> Dict[str, str]:
 
     # Build the Blender command:
     #   blender --background --python convert_script.py -- <glb_path> <out_dir>
+    # script_path = Path(__file__).parent.parent / "blender" / "blender_scripts" / "convert.py"
     script_path = os.path.join(CURRENT_DIR, "../blender/blender_scripts/convert.py")
     if not os.path.isfile(script_path):
         raise FileNotFoundError(f"Converter script not found: {script_path}")
+    
+    if not os.path.isfile(BLENDER_EXE):
+        # print the surrounding files in the blender dir?
+        
+        raise FileNotFoundError(f"Blender executable not found: {BLENDER_EXE}")
 
     cmd = [
         BLENDER_EXE,

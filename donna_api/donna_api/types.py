@@ -3,6 +3,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+from donna_common.utils.types import AssetDisplay, ItemImagePromptChat, ProjectDisplay
+
 
 class JWTToken(BaseModel):
     access_token: str
@@ -70,9 +72,9 @@ class RequestCreateMesh(BaseModel):
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: Optional[int]
-    labels: List[str]
-    max_polygon_count: Optional[int]
+    seed: Optional[int] = None
+    labels: List[str] = []
+    max_polygon_count: Optional[int] = 200_000  # default to 200k
 
 
 class RequestCreateImage(BaseModel):
@@ -119,20 +121,6 @@ class RequestCheckElaboratingQuestions(BaseModel):
     project_id: Optional[str] = None
     image_id: Optional[str] = None
     elaborating_questions: List[str]
-
-
-class ItemImagePromptChat(BaseModel):
-    image_id: str
-    prompt: str
-    created_at: datetime
-    image_url: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    parent_image_url: Optional[str] = None
-    error: Optional[str] = None
-
-
-class ResponseImagePromptChat(BaseModel):
-    chats: List[ItemImagePromptChat]
 
 
 class WSImageItem(BaseModel):
@@ -185,27 +173,6 @@ class WSModelItem(BaseModel):
 
 class WSModelResponse(BaseModel):
     models: List[WSModelItem]
-
-
-class AssetDisplay(BaseModel):
-    project_id: str
-    project_name: str
-    url: str
-    user_name: str
-
-    textured_image_url: Optional[str] = None
-    mesh_image_url: Optional[str] = None
-
-
-class ProjectDisplay(BaseModel):
-    project_id: str
-    project_name: str
-    url: Optional[str] = None
-    user_name: str
-    current_state: str
-
-    textured_image_url: Optional[str] = None
-    mesh_image_url: Optional[str] = None
 
 
 class GetAssetsResponse(BaseModel):

@@ -73,7 +73,6 @@ class BaseProvider:
         seed: int,
         labels: List[str],
         max_polygon_count: int,
-        completed_meshes_stream,
     ):
         pass
 
@@ -86,6 +85,5 @@ class BaseProvider:
         texture_quality: str,  # normal, precise, or stylized
         seed: int,
         texture_id: str,
-        # completed_meshes_stream,
     ):
         pass

@@ -39,6 +39,7 @@ router = APIRouter(prefix="/image")
 class ResponseImage(BaseModel):
     image_id: str
     project_id: str
+    job_id: Optional[str] = None
 
 
 @router.post("/create", status_code=202)
@@ -114,7 +115,7 @@ async def create_image(
         req_params.pop("style_image_storage_url")
 
         queue = RedisQueue()
-        queue.queue_image_action(
+        job_id = queue.queue_image_action(
             func_callback="donna_worker.worker.image.generate_image",
             expected_at=datetime.now(timezone.utc) + timedelta(seconds=5),
             image_id=image_id,
@@ -129,13 +130,13 @@ async def create_image(
         await project_dal.hard_delete_project(project.id)
         raise
 
-    return ResponseImage(image_id=image_id, project_id=project_id)
+    return ResponseImage(image_id=image_id, project_id=project_id, job_id=job_id)
 
 
 @router.get("/{image_id}", status_code=200)
 async def get_image(
     image_id: str,
-    project_id: str,
+    project_id: Optional[str] = None,
     image_dal: ImageDAL = Depends(get_image_dal),
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
@@ -143,8 +144,10 @@ async def get_image(
     if image_id == "null":
         images = await project_dal.get_uploaded_images(project_id)
         image_id = images[-1].id
-
     image = await image_dal.get_image_by_id(image_id)
+    if project_id is None: 
+        project_id = image.project_id
+
     project = await project_dal.get_project_by_id(project_id)
 
     if image is None:
@@ -200,7 +203,7 @@ async def edit_image(
         )
 
     queue = RedisQueue()
-    queue.queue_image_action(
+    job_id = queue.queue_image_action(
         func_callback="donna_worker.worker.image.edit_image",
         expected_at=datetime.now(timezone.utc) + timedelta(seconds=5),
         image_id=image_id,
@@ -230,7 +233,7 @@ async def edit_image(
         version_message="Image edited",
     )
 
-    return ResponseImage(image_id=image_id, project_id=project_id)
+    return ResponseImage(image_id=image_id, project_id=project_id, job_id=job_id)
 
 
 class RequestImageCost(BaseModel):

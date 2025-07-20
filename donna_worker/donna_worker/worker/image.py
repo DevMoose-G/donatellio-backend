@@ -1,3 +1,4 @@
+import asyncio
 import openai
 
 from donna_common.orm.dal.image import ImageDAL
@@ -12,8 +13,11 @@ openai_provider = OpenAIProvider()
 runpod_service = RunpodProvider()
 replicate_provider = ReplicateProvider()
 
+def generate_image(image_id, image_model, project_id, prompt, quality, size):
+    return asyncio.run(generate_image_t(image_id, image_model, project_id, prompt, quality, size))
 
-async def generate_image(image_id, image_model, project_id, prompt, quality, size):
+
+async def generate_image_t(image_id, image_model, project_id, prompt, quality, size):
     async with AsyncSessionLocal() as session:
         project = await ProjectDAL(session).get_project_by_id(project_id)
         # check if styleboard is attached to project if so, generate description for styleboard, update it
@@ -22,12 +26,14 @@ async def generate_image(image_id, image_model, project_id, prompt, quality, siz
                 project.styleboard_id
             )
             image_storage_key = styleboard.assets["images"][0]["storage_key"]
-            prompt += (
-                "\nStyle description: "
-                + await openai_provider.generate_style_description(
-                    project.styleboard_id, image_storage_key
-                )
+            
+    if project.styleboard_id and image_storage_key:
+        prompt += (
+            "\nStyle description: "
+            + await openai_provider.generate_style_description(
+                project.styleboard_id, image_storage_key
             )
+        )
 
     project_name = openai_provider.name_project(project_id)
     # wake up geometry pipeline

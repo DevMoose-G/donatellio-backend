@@ -4,12 +4,6 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from donna_api.types import (
-    AssetDisplay,
-    ItemImagePromptChat,
-    ProjectDisplay,
-    ResponseImagePromptChat,
-)
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.dal.project_branch import ProjectBranchDAL
 from donna_common.orm.dal.user import UserDAL
@@ -20,6 +14,7 @@ from donna_common.orm.models.project import Project
 from donna_common.orm.models.project_branch import ProjectBranch
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.storage import StorageProvider
+from donna_common.utils.types import AssetDisplay, ItemImagePromptChat, ProjectDisplay, ResponseImagePromptChat
 
 
 class ProjectDAL:

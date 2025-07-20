@@ -14,6 +14,8 @@ In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/ma
    rq worker jobs --url redis://localhost:6379  --worker-class rq.worker.SpawnWorker
    ```
 
+   for windows: rq worker jobs --url redis://localhost:6379  -w win_worker.WindowsSimpleWorker
+
    ```bash
    python worker.py
    ```
