@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -77,9 +77,9 @@ async def api_calculate_texture_gen_cost(
 
 
 class ResponseCreateMesh(BaseModel):
-    mesh_id: str
+    mesh_ids: List[str]
     project_id: str
-    job_ids: list[str]
+    job_ids: List[str]
 
 @router.post("/{project_id}/create", status_code=202)
 async def create_mesh(
@@ -173,7 +173,7 @@ async def create_mesh(
         job_ids.append(job_id)
 
     return ResponseCreateMesh(
-        mesh_id=req.image_id, project_id=project_id, job_ids=job_ids
+        mesh_ids=mesh_ids, project_id=project_id, job_ids=job_ids
     )
 
 

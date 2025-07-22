@@ -109,6 +109,7 @@ async def get_all_basic_model_infos(
 
 
 class GetMeshInfo(BaseModel):
+    id: str
     project_id: str
     # eventually remove this source_image_url and move it to GetModelInfo
     image_id: str
@@ -159,6 +160,7 @@ async def get_mesh_info(mesh_id: str):
         mesh_url = storage_provider.generate_get_url(mesh.storage_key)
 
     return GetMeshInfo(
+        id=mesh_id,
         project_id=mesh.project_id,
         num_faces=mesh.face_count,
         source_image_url=image_url,

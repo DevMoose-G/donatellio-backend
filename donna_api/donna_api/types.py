@@ -67,13 +67,13 @@ class RequestCreateTexture(BaseModel):
 
 
 class RequestCreateMesh(BaseModel):
-    project_id: str
     image_id: str
     mesh_model: str
     n_meshes: int
     quality: str
     seed: Optional[int] = None
     labels: List[str] = []
+    project_id: Optional[str] = None
     max_polygon_count: Optional[int] = 200_000  # default to 200k
 
 
@@ -122,20 +122,16 @@ class RequestCheckElaboratingQuestions(BaseModel):
     image_id: Optional[str] = None
     elaborating_questions: List[str]
 
-
-class WSImageItem(BaseModel):
-    id: str
-    url: Optional[str] = None
-    is_partial: bool = False
-
-
 class GetImageInfo(BaseModel):
     id: str
     url: Optional[str] = None
+    project_id: str = None
+    project_name: Optional[str] = None
+    is_partial: bool = False
 
 
 class WSImageEditsResponse(BaseModel):
-    images: List[WSImageItem]
+    images: List[GetImageInfo]
     chats: List[ItemImagePromptChat] = []
 
 

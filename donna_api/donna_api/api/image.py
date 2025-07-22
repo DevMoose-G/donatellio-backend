@@ -36,7 +36,7 @@ load_dotenv()  # reads .env from cwd
 router = APIRouter(prefix="/image")
 
 
-class ResponseImage(BaseModel):
+class ResponseNewImage(BaseModel):
     image_id: str
     project_id: str
     job_id: Optional[str] = None
@@ -130,7 +130,7 @@ async def create_image(
         await project_dal.hard_delete_project(project.id)
         raise
 
-    return ResponseImage(image_id=image_id, project_id=project_id, job_id=job_id)
+    return ResponseNewImage(image_id=image_id, project_id=project_id, job_id=job_id)
 
 
 @router.get("/{image_id}", status_code=200)
@@ -164,7 +164,7 @@ async def get_image(
 
     storage_provider = StorageProvider()
     image_url = storage_provider.generate_get_url(image.storage_key)
-    return GetImageInfo(id=image.id, url=image_url)
+    return GetImageInfo(id=image.id, url=image_url, project_id=project_id, project_name=project.name)
 
 
 @router.post("/{project_id}/edit", status_code=202)
@@ -233,7 +233,7 @@ async def edit_image(
         version_message="Image edited",
     )
 
-    return ResponseImage(image_id=image_id, project_id=project_id, job_id=job_id)
+    return ResponseNewImage(image_id=image_id, project_id=project_id, job_id=job_id)
 
 
 class RequestImageCost(BaseModel):
@@ -312,7 +312,7 @@ async def upload_image(
     project_branch_dal: ProjectBranchDAL = Depends(get_project_branch_dal),
     image_dal: ImageDAL = Depends(get_image_dal),
     current_user: User = Depends(get_current_user),
-) -> ResponseImage:
+) -> ResponseNewImage:
     storage_key = extract_s3_key(request.presigned_url)
     # moderate it
     openai_provider = OpenAIProvider()
@@ -362,7 +362,7 @@ async def upload_image(
     openai_provider = OpenAIProvider()
     await openai_provider.name_project(project_id)
 
-    return ResponseImage(image_id=image.id, project_id=project.id)
+    return ResponseNewImage(image_id=image.id, project_id=project.id)
 
 
 @router.post("/elaborate", status_code=200)

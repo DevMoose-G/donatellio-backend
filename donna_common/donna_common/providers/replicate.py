@@ -74,6 +74,8 @@ class ReplicateProvider:
                 image_model = "google/imagen-4"
             elif quality == "low":
                 image_model = "google/imagen-4-fast"
+            else:
+                raise ValueError("Unsupported quality")
 
             input_data["aspect_ratio"] = "1:1"
             input_data["safety_tolerance"] = "block_only_high"
@@ -81,7 +83,6 @@ class ReplicateProvider:
             raise ValueError("Unsupported model or quality")
 
         input_data["output_format"] = "png"
-
         output = replicate.run(image_model, input=input_data)
 
         async with AsyncSessionLocal() as session:

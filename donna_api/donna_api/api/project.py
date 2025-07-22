@@ -16,7 +16,7 @@ from donna_api.common.models import (
 from donna_api.types import (
     ItemCollection,
     WSImageEditsResponse,
-    WSImageItem,
+    GetImageInfo,
     WSModelResponse,
 )
 from donna_common.orm import ProjectDAL, get_project_dal
@@ -276,22 +276,6 @@ async def update_project(
     )
 
 
-@router.post("/{project_id}/edit", status_code=200)
-async def edit_project(
-    project_id: str,
-    project_dal: ProjectDAL = Depends(get_project_dal),
-    current_user: User = Depends(get_current_user),
-):
-    project = await project_dal.get_project_by_id(project_id)
-    if current_user.id != project.user_id:
-        return JSONResponse(
-            status_code=400,
-            content={"error_msg": "You don't have permission to edit this project"},
-        )
-    # TODO: implement
-    return
-
-
 class RenameProjectRequest(BaseModel):
     name: str
 
@@ -500,7 +484,7 @@ async def get_images(
         for image in images:
             if image.storage_key and image.storage_key != None:
                 img_url = storage_provider.generate_get_url(image.storage_key)
-                image_items.append(WSImageItem(id=image.id, url=img_url))
+                image_items.append(GetImageInfo(id=image.id, url=img_url, project_id=project_id, project_name=project.name))
 
         return WSImageEditsResponse(images=image_items, chats=chats.chats)
 

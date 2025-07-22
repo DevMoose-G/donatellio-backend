@@ -67,8 +67,8 @@ async def edit_image(
     if image_model == "gpt4o":
         try:
             await openai_provider.edit_image(
+                project_id=project_id,
                 image_id=image_id,
-                image_model=image_model,
                 prompt=prompt,
                 parent_image_id=parent_image_id,
                 quality=quality,
