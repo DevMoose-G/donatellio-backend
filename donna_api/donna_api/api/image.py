@@ -69,6 +69,7 @@ async def create_image(
     styleboard_id = None
     if req.style_image_storage_url:
         styleboard_id = str(uuid.uuid4())
+        print("Creating styleboard")
         styleboard = await styleboard_dal.create_styleboard(
             id=styleboard_id,
             name="Unnamed StyleBoard",
@@ -124,6 +125,7 @@ async def create_image(
             prompt=req.prompt,
             quality=req.quality,
             size=req.size,
+            message="Creating image...",
         )
     except:
         # delete project
@@ -214,6 +216,7 @@ async def edit_image(
         parent_image_id=req.parent_image_id,
         size=req.size,
         n=req.n,
+        message="Editing image...",
     )
 
     image = await image_dal.create_image(

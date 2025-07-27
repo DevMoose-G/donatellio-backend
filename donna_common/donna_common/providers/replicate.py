@@ -142,7 +142,7 @@ class ReplicateProvider:
             else:
                 image_model = "black-forest-labs/flux-kontext-pro"
 
-            input_data["aspect_ratio"] = "1:1"
+            input_data["aspect_ratio"] = "match_input_image"
             input_data["safety_tolerance"] = (
                 6  # TEMP: most permissive (TODO: check if this is too low)
             )

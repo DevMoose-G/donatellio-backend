@@ -157,6 +157,7 @@ async def unsubscribe_user(
 @router.get("/projects", status_code=200)
 async def get_users_projects(
     limit: int,
+    offset: Optional[int] = 0,
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ) -> GetProjectsResponse:
@@ -169,10 +170,15 @@ async def get_users_projects(
         if project.textures == []
     ]
     assets = []
-    for i in range(min(limit, len(projects))):
+    i = 0
+    while len(assets) < limit and i < len(projects):
         project = projects[i]
         project_display = await project_dal.get_project_display(project)
-        if project_display != None:  # skip finished projects (textured meshes)
+        i += 1
+        if project_display != None:  # skip unfinished projects
+            if offset > 0:
+                offset -= 1
+                continue
             assets.append(project_display)
 
     return GetProjectsResponse(projects=assets, count=len(assets))
@@ -181,22 +187,31 @@ async def get_users_projects(
 @router.get("/assets", status_code=200)
 async def get_users_assets(
     limit: int,
+    offset: Optional[int] = 0,
     project_dal: ProjectDAL = Depends(get_project_dal),
     current_user: User = Depends(get_current_user),
 ) -> GetAssetsResponse:
+    # TODO: have comprehensive filter instead of manually filtering
     projects = [
         project
         for project in await project_dal.get_all_projects_by(
-            filter=(Project.user_id == current_user.id)
+            filter=(Project.user_id == current_user.id),
+            order_by=Project.created_at.desc(),
         )
         if project.textures != []
     ]
     assets = []
-    for i in range(min(limit, len(projects))):
+    i = 0
+    while len(assets) < limit and i < len(projects):
         project = projects[i]
         asset_display = await project_dal.get_asset_display(project)
+        i += 1
         if asset_display != None:  # skip unfinished projects
+            if offset > 0:
+                offset -= 1
+                continue
             assets.append(asset_display)
+        
     return GetAssetsResponse(assets=assets, count=len(assets))
 
 
@@ -273,6 +288,7 @@ class GetUserInfoResponse(BaseModel):
     credit_balance: int
     n_projects: int
     profile_image_url: Optional[str] = None
+    created_at: datetime
 
 
 @router.get("/info", status_code=200)
@@ -315,6 +331,7 @@ async def get_user_info(
         credit_balance=current_user.credit_balance,
         n_projects=len(finished_projs),
         profile_image_url=image_url,
+        created_at=current_user.created_at,
     )
 
 

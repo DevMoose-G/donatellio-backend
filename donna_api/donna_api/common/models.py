@@ -56,6 +56,7 @@ async def get_all_basic_model_infos(
 
         for texture_id in texture_ids:
             texture = await texture_dal.get_texture_by_id(texture_id)
+            mesh = await mesh_dal.get_mesh_by_id(texture.mesh_id)
             if texture is None:
                 return
 

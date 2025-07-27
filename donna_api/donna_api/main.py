@@ -20,7 +20,6 @@ app.add_middleware(
         "http://localhost:3000",
         "https://donatell.io",
         "https://www.donatell.io",
-        "*",
     ],  # CRA’s default
     allow_credentials=True,
     allow_methods=["*"],

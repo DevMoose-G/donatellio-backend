@@ -3,7 +3,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -55,7 +55,7 @@ load_dotenv()  # reads .env from cwd
 
 router = APIRouter(prefix="/mesh")
 
-
+# TODO: remove project_id
 @router.post("/{project_id}/preview/mesh_cost", status_code=200)
 async def api_calculate_mesh_gen_cost(
     req: RequestCalculateMeshGenCost,
@@ -65,7 +65,7 @@ async def api_calculate_mesh_gen_cost(
     cost = calculate_mesh_gen_cost(req.n_meshes, req.quality, req.labels)
     return ResponseGenerateMeshInfo(cost=cost, labels=step1x_labels)
 
-
+# TODO: move this to texture.py
 @router.post("/{project_id}/preview/texture_cost", status_code=200)
 async def api_calculate_texture_gen_cost(
     req: RequestCalculateTextureGenCost,
@@ -168,7 +168,7 @@ async def create_mesh(
             seed=req.seed,
             max_polygon_count=req.max_polygon_count,
             mesh_model=req.mesh_model,
-            n_meshes=req.n_meshes,
+            message=f"Generating mesh...",
         )
         job_ids.append(job_id)
 
@@ -176,6 +176,10 @@ async def create_mesh(
         mesh_ids=mesh_ids, project_id=project_id, job_ids=job_ids
     )
 
+class ResponseCreateTexture(BaseModel):
+    texture_ids: List[str]
+    project_id: str
+    job_ids: List[str]
 
 @router.post("/{project_id}/texture", status_code=202)
 async def create_texture(
@@ -246,7 +250,7 @@ async def create_texture(
 
     queue = RedisQueue()
     seconds_offset = expected_texture_gen_time(req.texture_quality)
-    queue.queue_texture_action(
+    job_id = queue.queue_texture_action(
         func_callback="donna_worker.worker.mesh.generate_texture",
         expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
         project_id=project_id,
@@ -256,9 +260,12 @@ async def create_texture(
         prompt=req.prompt,
         texture_quality=req.texture_quality,
         seed=req.seed,
+        message=f"Generating texture...",
     )
 
-    return {"image_id": req.image_id, "project_id": project_id, "job_id": job_id}
+    return ResponseCreateTexture(
+        texture_ids=[texture_id], project_id=project_id, job_ids=[job_id]
+    )
 
 
 class RequestRegenerateMesh(BaseModel):
@@ -325,6 +332,7 @@ async def regenerate_mesh(
     )
 
     actions_performed = []
+    job_ids = []
     if req.level_of_detail != None and req.surface_thickness != None:  # temp
         if req.level_of_detail < 1 or req.level_of_detail > 5:
             await project_version_dal.hard_delete_version(version_id=version.id)
@@ -348,11 +356,10 @@ async def regenerate_mesh(
         # check if mesh needs to be regenerated
         if (
             old_mesh.octree_resolution != str(octree_resolution)
-            or old_mesh.mc_level != -1 * req.surface_thickness
+            or abs(old_mesh.mc_level - (-1 * req.surface_thickness)) > 0.005
         ):
             params = {
                 "project_id": project.id,
-                "mesh_id": new_mesh.id,
                 "mc_level": -1 * req.surface_thickness,
                 "octree_resolution": octree_resolution,
                 "old_mesh_id": old_mesh.id,
@@ -372,12 +379,14 @@ async def regenerate_mesh(
                 params["n_faces"] = req.face_count
 
             queue = RedisQueue()
-            queue.queue_mesh_action(
+
+            job_ids.append(queue.queue_mesh_action(
                 func_callback="donna_worker.worker.mesh.regenerate_from_latents",
                 expected_at=datetime.now(),
                 mesh_id=new_mesh.id,
+                message="Regenerating mesh..."
                 **params,
-            )
+            ))
 
             main_branch = await project_dal.get_main_branch(project_id=project_id)
 
@@ -428,13 +437,15 @@ async def regenerate_mesh(
         }
 
         queue = RedisQueue()
-        queue.queue_mesh_action(
+        job_ids.append(queue.queue_mesh_action(
             func_callback="donna_worker.worker.mesh.simplify_mesh",
             expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
+            project_id=project_id,
             mesh_id=old_mesh.id,
             new_mesh_id=new_mesh.id,
             simplify_ratio=simplify_ratio,
-        )
+            message="Simplifying mesh...",
+        ))
 
         main_branch = await project_dal.get_main_branch(project_id=project_id)
 
@@ -475,7 +486,11 @@ async def regenerate_mesh(
                 content={"error_msg": "User does not have enough credit"},
             )
 
-    return {"project_id": req.project_id, "mesh_id": new_mesh.id}
+    return ResponseCreateMesh(
+        project_id=project_id,
+        mesh_ids=[new_mesh.id],
+        job_ids=job_ids,
+    )
 
 
 @router.get("/{mesh_id}")

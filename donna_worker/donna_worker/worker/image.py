@@ -13,6 +13,7 @@ openai_provider = OpenAIProvider()
 runpod_service = RunpodProvider()
 replicate_provider = ReplicateProvider()
 
+# temp fix for something that is no longer an issue
 def generate_image(image_id, image_model, project_id, prompt, quality, size):
     return asyncio.run(generate_image_t(image_id, image_model, project_id, prompt, quality, size))
 

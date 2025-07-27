@@ -35,7 +35,10 @@ def export_to_fbx(output_path: str):
         use_mesh_modifiers=True,
         mesh_smooth_type="FACE",
         bake_space_transform=True,
-    )  # :contentReference[oaicite:7]{index=7}
+        # Texture included settings
+        path_mode="COPY",
+        embed_textures=True
+    )  
 
 
 def export_to_stl(output_path: str):

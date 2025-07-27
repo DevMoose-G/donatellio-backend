@@ -17,9 +17,9 @@ class RequestCalculateMeshGenCost(BaseModel):
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: Optional[int]
+    seed: Optional[int] = None
     labels: List[str]
-    max_polygon_count: Optional[int]
+    max_polygon_count: Optional[int] = 200_000
 
 
 class RequestCalculateTextureGenCost(BaseModel):

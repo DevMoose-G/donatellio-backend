@@ -11,6 +11,7 @@ class ItemImagePromptChat(BaseModel):
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     parent_image_url: Optional[str] = None
+    parent_image_id: Optional[str] = None
     error: Optional[str] = None
 
 

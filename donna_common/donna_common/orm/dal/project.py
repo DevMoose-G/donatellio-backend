@@ -50,10 +50,12 @@ class ProjectDAL:
                 displayed_error = image.error
 
             parent_image_url = None
+            parent_image_id = None
             if image.parent_image_id != None:
                 parent_image = await ImageDAL(self.session).get_image_by_id(
                     image.parent_image_id
                 )
+                parent_image_id = parent_image.id
                 parent_image_url = StorageProvider().generate_get_url(
                     parent_image.storage_key
                 )
@@ -65,6 +67,7 @@ class ProjectDAL:
                     thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
                     parent_image_url=parent_image_url,
+                    parent_image_id=parent_image_id,
                     error=displayed_error,
                 )
             )

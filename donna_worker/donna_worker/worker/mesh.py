@@ -190,6 +190,7 @@ async def generate_meshes(
             mesh_id=mesh_id,
             project_id=project_id,
             new_mesh_id=mesh_id,
+            message="Simplifying mesh...",
         )
 
     return mesh_ids
@@ -199,7 +200,6 @@ async def generate_mesh(
     image_id,
     project_id,
     mesh_model: str,
-    n_meshes: int,
     mesh_id: str,
     quality: str,
     seed: int,
@@ -214,7 +214,7 @@ async def generate_mesh(
         image_id,
         [mesh_id],
         mesh_model,
-        n_meshes,
+        1,
         quality,
         seed,
         labels,
@@ -232,6 +232,7 @@ async def generate_mesh(
         mesh_id=mesh_id,
         project_id=project_id,
         new_mesh_id=mesh_id,
+        message="Simplifying mesh...",
     )
 
     return mesh_ids
@@ -314,6 +315,7 @@ async def regenerate_from_latents(
         project_id=project_id,
         new_mesh_id=mesh_id,
         simplify_ratio=simplify_ratio,
+        message="Simplifying mesh...",
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)

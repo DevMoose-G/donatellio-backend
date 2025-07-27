@@ -24,6 +24,9 @@ In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/ma
    uvicorn app.main:app --reload
    ```
 
+**Run Stripe webhook**:
+stripe listen --forward-to localhost:8000/api/user/pay/processed
+
 ---
 
 ## Deployment
