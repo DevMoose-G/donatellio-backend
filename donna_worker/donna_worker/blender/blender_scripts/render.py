@@ -81,7 +81,7 @@ def render(is_textured, input_path, output_path):
 
     # 7. Set up lighting
     light_data = bpy.data.lights.new(name="KeyLight", type="SUN")
-    light_data.energy = 3
+    light_data.energy = 5
 
     # In front of and to the side of the subject (usually ~45° to the right or left, and slightly above)
     light = bpy.data.objects.new(name="KeyLight", object_data=light_data)
@@ -90,14 +90,14 @@ def render(is_textured, input_path, output_path):
 
     # Opposite side of the key light, also at ~45°, but lower intensity
     fill_light_data = bpy.data.lights.new(name="FillLight", type="SUN")
-    fill_light_data.energy = 1
+    fill_light_data.energy = 2
     fill_light = bpy.data.objects.new(name="FillLight", object_data=fill_light_data)
     fill_light.rotation_euler = (1.7, 0, 1.57 / 2)
     bpy.context.collection.objects.link(fill_light)
 
     # # Behind the subject, often above and pointing toward the back edge
     back_light_data = bpy.data.lights.new(name="BackLight", type="SUN")
-    back_light_data.energy = 1
+    back_light_data.energy = 2
     back_light = bpy.data.objects.new(name="BackLight", object_data=back_light_data)
     back_light.rotation_euler = (1.25, 0, 1.57 + (1.2 / 2))
     bpy.context.collection.objects.link(back_light)

@@ -73,6 +73,9 @@ class StorageProvider:
             10 * 60,  # 10 mins
         )
 
+    def delete_file(self, storage_key: str) -> None:
+        self.s3_client.delete_object(Bucket=self.bucket, Key=storage_key)
+
     def upload_image(self, image_filename, image_path):
         try:
             key = f"images/{image_filename}"

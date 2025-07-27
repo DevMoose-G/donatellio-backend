@@ -4,12 +4,6 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from donna_api.types import (
-    AssetDisplay,
-    ItemImagePromptChat,
-    ProjectDisplay,
-    ResponseImagePromptChat,
-)
 from donna_common.orm.dal.image import ImageDAL
 from donna_common.orm.dal.project_branch import ProjectBranchDAL
 from donna_common.orm.dal.user import UserDAL
@@ -20,6 +14,7 @@ from donna_common.orm.models.project import Project
 from donna_common.orm.models.project_branch import ProjectBranch
 from donna_common.orm.models.texture import Texture
 from donna_common.providers.storage import StorageProvider
+from donna_common.utils.types import AssetDisplay, ItemImagePromptChat, ProjectDisplay, ResponseImagePromptChat
 
 
 class ProjectDAL:
@@ -55,10 +50,12 @@ class ProjectDAL:
                 displayed_error = image.error
 
             parent_image_url = None
+            parent_image_id = None
             if image.parent_image_id != None:
                 parent_image = await ImageDAL(self.session).get_image_by_id(
                     image.parent_image_id
                 )
+                parent_image_id = parent_image.id
                 parent_image_url = StorageProvider().generate_get_url(
                     parent_image.storage_key
                 )
@@ -70,6 +67,7 @@ class ProjectDAL:
                     thumbnail_url=thumbnail_url,
                     created_at=image.created_at,
                     parent_image_url=parent_image_url,
+                    parent_image_id=parent_image_id,
                     error=displayed_error,
                 )
             )
@@ -205,13 +203,15 @@ class ProjectDAL:
         return [texture for texture in project.textures if texture.storage_key != None]
 
     async def get_all_projects_by(
-        self, filter, limit=None, offset=None
+        self, filter, limit=None, offset=None, order_by=None
     ) -> List[Project]:
         exec = select(Project).where(filter)
         if offset is not None:
             exec = exec.offset(offset)
         if limit is not None:
             exec = exec.limit(limit)
+        if order_by is not None:
+            exec = exec.order_by(order_by)
         projects = await self.session.execute(exec)
         return projects.scalars().all()
 

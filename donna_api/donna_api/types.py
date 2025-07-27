@@ -3,21 +3,23 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+from donna_common.utils.types import AssetDisplay, ItemImagePromptChat, ProjectDisplay
+
 
 class JWTToken(BaseModel):
     access_token: str
-    # refresh_token: str
     token_type: str
     expires_in: datetime  # access token expires in
+    refresh_token: Optional[str] = None
 
 
 class RequestCalculateMeshGenCost(BaseModel):
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: Optional[int]
+    seed: Optional[int] = None
     labels: List[str]
-    max_polygon_count: Optional[int]
+    max_polygon_count: Optional[int] = 200_000
 
 
 class RequestCalculateTextureGenCost(BaseModel):
@@ -65,14 +67,14 @@ class RequestCreateTexture(BaseModel):
 
 
 class RequestCreateMesh(BaseModel):
-    project_id: str
     image_id: str
     mesh_model: str
     n_meshes: int
     quality: str
-    seed: Optional[int]
-    labels: List[str]
-    max_polygon_count: Optional[int]
+    seed: Optional[int] = None
+    labels: List[str] = []
+    project_id: Optional[str] = None
+    max_polygon_count: Optional[int] = 200_000  # default to 200k
 
 
 class RequestCreateImage(BaseModel):
@@ -105,6 +107,7 @@ class RequestLoginUser(BaseModel):
     password: str
     username: Optional[str] = None
     email: Optional[str] = None
+    is_web: Optional[bool] = True
 
 
 class RequestGetElaboratingQuestions(BaseModel):
@@ -119,34 +122,16 @@ class RequestCheckElaboratingQuestions(BaseModel):
     image_id: Optional[str] = None
     elaborating_questions: List[str]
 
-
-class ItemImagePromptChat(BaseModel):
-    image_id: str
-    prompt: str
-    created_at: datetime
-    image_url: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    parent_image_url: Optional[str] = None
-    error: Optional[str] = None
-
-
-class ResponseImagePromptChat(BaseModel):
-    chats: List[ItemImagePromptChat]
-
-
-class WSImageItem(BaseModel):
-    id: str
-    url: Optional[str] = None
-    is_partial: bool = False
-
-
 class GetImageInfo(BaseModel):
     id: str
     url: Optional[str] = None
+    project_id: str = None
+    project_name: Optional[str] = None
+    is_partial: bool = False
 
 
 class WSImageEditsResponse(BaseModel):
-    images: List[WSImageItem]
+    images: List[GetImageInfo]
     chats: List[ItemImagePromptChat] = []
 
 
@@ -186,27 +171,6 @@ class WSModelResponse(BaseModel):
     models: List[WSModelItem]
 
 
-class AssetDisplay(BaseModel):
-    project_id: str
-    project_name: str
-    url: str
-    user_name: str
-
-    textured_image_url: Optional[str] = None
-    mesh_image_url: Optional[str] = None
-
-
-class ProjectDisplay(BaseModel):
-    project_id: str
-    project_name: str
-    url: Optional[str] = None
-    user_name: str
-    current_state: str
-
-    textured_image_url: Optional[str] = None
-    mesh_image_url: Optional[str] = None
-
-
 class GetAssetsResponse(BaseModel):
     assets: List[AssetDisplay]
     count: int
@@ -215,3 +179,9 @@ class GetAssetsResponse(BaseModel):
 class GetProjectsResponse(BaseModel):
     projects: List[ProjectDisplay]
     count: int
+
+
+class ResponseMeshPreviewUrl(BaseModel):
+    mesh_id: str
+    texture_id: Optional[str] = None
+    preview_url: str

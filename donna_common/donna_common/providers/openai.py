@@ -8,9 +8,9 @@ import requests
 from openai import OpenAI
 
 from donna_common.orm.dal.image import ImageDAL
+from donna_common.orm.dal.project import ProjectDAL
 from donna_common.orm.dal.styleboard import StyleBoardDAL
 from donna_common.orm.main import AsyncSessionLocal
-from donna_common.orm.master import MasterDAL
 from donna_common.prompts import (
     CHECK_ELABORATION_PROMPT,
     ELABORATION_PROMPT,
@@ -20,8 +20,6 @@ from donna_common.prompts import (
     STYLE_IMAGE_DESCRIPTION_PROMPT,
 )
 from donna_common.providers.storage import StorageProvider
-from donna_common.redis.redisstream import RedisStream
-from donna_common.redis.types import ImageAction
 from donna_common.settings import settings
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -36,10 +34,11 @@ class OpenAIProvider:
             api_key=settings.openai_api_key,
         )
         self.storage_provider = StorageProvider()
-        self.dal = MasterDAL(AsyncSessionLocal())  # figure out teardown
 
     async def name_project(self, project_id):
-        project = await self.dal.project_dal.get_project_by_id(project_id)
+        async with AsyncSessionLocal() as session:
+            project_dal = ProjectDAL(session)
+            project = await project_dal.get_project_by_id(project_id)
         prompt = project.images[0].prompt
 
         user_input = {"role": "user", "content": []}
@@ -69,9 +68,11 @@ class OpenAIProvider:
         )
         project_name = res.output_text
 
-        project = await self.dal.project_dal.update_project(
-            id=project_id, name=project_name
-        )
+        async with AsyncSessionLocal() as session:
+            project_dal = ProjectDAL(session)
+            project = await project_dal.update_project(
+                id=project_id, name=project_name
+            )
 
         return project_name
 
@@ -84,12 +85,14 @@ class OpenAIProvider:
         key = self.storage_provider.upload_image(
             image_filename, f"{STATIC_DIR}/{image_id}_thumbnail.png"
         )
-        await self.dal.image_dal.update_image(
-            id=image_id, thumbnail_image_storage_key=key
-        )
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            await image_dal.update_image(
+                id=image_id, thumbnail_image_storage_key=key
+            )
 
     async def generate_image(
-        self, image_id, project_id, prompt, n, size, quality, completed_images_stream
+        self, image_id, project_id, prompt, n, size, quality
     ) -> str:
         if n != 1:
             n = 1
@@ -113,7 +116,9 @@ class OpenAIProvider:
             stream=True,
         )
 
-        image = await self.dal.image_dal.get_image_by_id(image_id)
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            image = await image_dal.get_image_by_id(image_id)
 
         try:
             for event in stream:
@@ -129,82 +134,40 @@ class OpenAIProvider:
                     key = self.storage_provider.upload_image(image_name, img_filepath)
 
                     if image.storage_key == None:
-                        await self.dal.image_dal.update_image(
-                            id=image_id, project_id=project_id, storage_key=key
-                        )
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="generate_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=True,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                        )
-                    )
+                        async with AsyncSessionLocal() as session:
+                            image_dal = ImageDAL(session)
+                            await image_dal.update_image(
+                                id=image_id, project_id=project_id, storage_key=key
+                            )
+
                 if event.type == "response.image_generation_call.completed":
-                    await self.dal.image_dal.update_image(
-                        id=image_id, external_id=event.item_id
-                    )
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="generate_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
+                    async with AsyncSessionLocal() as session:
+                        image_dal = ImageDAL(session)
+                        await image_dal.update_image(
+                            id=image_id, external_id=event.item_id
                         )
-                    )
+
         except openai.APIError as e:
             # set project to be inactive
-            await self.dal.project_dal.update_project(id=project_id, active=False)
+            async with AsyncSessionLocal() as session:
+                project_dal = ProjectDAL(session)
+                await project_dal.update_project(id=project_id, active=False)
             raise e
 
         await self.save_thumbnail(image_id, image_storage_key=key)
 
-        await completed_images_stream.send_msg(
-            ImageAction(
-                type="image",
-                function_name="generate_image",
-                project_id=project_id,
-                image_id=image_id,
-                is_partial=False,
-                params={
-                    "image_id": image_id,
-                    "project_id": project_id,
-                    "prompt": prompt,
-                    "n": n,
-                    "size": size,
-                    "quality": quality,
-                },
-            )
-        )
-
         return key
-    
+
     async def is_nsfw(self, image_id=None, image_storage_key=None):
-        if(image_id == None and image_storage_key == None):
+        if image_id == None and image_storage_key == None:
             raise Exception("Either image_id or image_storage_key must be provided")
-        
-        if(image_storage_key == None):
-            image = await self.dal.image_dal.get_image_by_id(image_id)
+
+        if image_storage_key == None:
+            async with AsyncSessionLocal() as session:
+                image_dal = ImageDAL(session)
+                image = await image_dal.get_image_by_id(image_id)
             image_storage_key = image.storage_key
-        
+
         response = self.client.moderations.create(
             model="omni-moderation-latest",
             input=[
@@ -212,21 +175,24 @@ class OpenAIProvider:
                     "type": "image_url",
                     "image_url": {
                         "url": self.storage_provider.generate_get_url(image_storage_key)
-                    }
+                    },
                 }
-            ]
+            ],
         )
 
         results = response.results[0]
-        flagged_categories = [results.categories[k] for k in results.categories if results.categories[k] == True]
-        if "sexual" in flagged_categories or "sexual/minors" in flagged_categories:
+        if results.categories.sexual or results.categories.sexual_minors:
             return True
-        if "self-harm" in flagged_categories or "self-harm/intent" in flagged_categories or "self-harm/instructions" in flagged_categories:
+        if (
+            results.categories.self_harm
+            or results.categories.self_harm_intent
+            or results.categories.self_harm_instructions
+        ):
             return True
-        if "violence/graphic" in flagged_categories:
+        if results.categories.violence_graphic:
             # TODO: add flag to project, but allow it to be used
             return True
-        
+
         return False
 
     async def edit_image(
@@ -237,18 +203,21 @@ class OpenAIProvider:
 
         image_name = f"{image_id}.png"
 
-        original_image = await self.dal.image_dal.get_image_by_id(parent_image_id)
-        while (
-            original_image.error != None and original_image.parent_image_id is not None
-        ):
-            original_image = await self.dal.image_dal.get_image_by_id(
-                original_image.parent_image_id
-            )
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            original_image = await image_dal.get_image_by_id(parent_image_id)
+            
+            while (
+                original_image.error != None and original_image.parent_image_id is not None
+            ):
+                original_image = await image_dal.get_image_by_id(
+                    original_image.parent_image_id
+                )
         assert original_image is not None  # TODO: better error
 
         # TODO: get directly with aws sdk python
         if original_image.storage_key == None:
-            return # bug
+            return  # bug
 
         prompt = f"{GPT4O_IMAGE_GEN_PROMPT}\n{prompt}"
 
@@ -283,9 +252,9 @@ class OpenAIProvider:
             stream=True,
         )
 
-        image = await self.dal.image_dal.get_image_by_id(image_id)
-
-        completed_images_stream = RedisStream("completed-jobs", group_name="image")
+        async with AsyncSessionLocal() as session:
+            image_dal = ImageDAL(session)
+            image = await image_dal.get_image_by_id(image_id)
 
         key = None
 
@@ -308,24 +277,7 @@ class OpenAIProvider:
                         await ImageDAL(session).update_image(
                             id=image_id, project_id=project_id, storage_key=key
                         )
-                await completed_images_stream.send_msg(
-                    ImageAction(
-                        type="image",
-                        function_name="edit_image",
-                        project_id=project_id,
-                        image_id=image_id,
-                        is_partial=True,
-                        params={
-                            "image_id": image_id,
-                            "project_id": project_id,
-                            "parent_image_id": parent_image_id,
-                            "prompt": prompt,
-                            "n": n,
-                            "size": size,
-                            "quality": quality,
-                        },
-                    )
-                )
+
             elif event.type == "response.image_generation_call.completed":
                 if key != None:
                     async with AsyncSessionLocal() as session:
@@ -333,24 +285,6 @@ class OpenAIProvider:
                             id=image_id, external_id=event.item_id
                         )
 
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="edit_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "parent_image_id": parent_image_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                        )
-                    )
             elif event.type == "response.completed":
                 if key == None:
                     # error likely happened
@@ -368,26 +302,6 @@ class OpenAIProvider:
                         await ImageDAL(session).update_image(
                             id=image_id, error=error_msg, storage_key=None
                         )
-
-                    await completed_images_stream.send_msg(
-                        ImageAction(
-                            type="image",
-                            function_name="edit_image",
-                            project_id=project_id,
-                            image_id=image_id,
-                            is_partial=False,
-                            params={
-                                "image_id": image_id,
-                                "project_id": project_id,
-                                "parent_image_id": parent_image_id,
-                                "prompt": prompt,
-                                "n": n,
-                                "size": size,
-                                "quality": quality,
-                            },
-                            successful=False,
-                        )
-                    )
 
         if key != None:
             await self.save_thumbnail(image_id, image_storage_key=key)

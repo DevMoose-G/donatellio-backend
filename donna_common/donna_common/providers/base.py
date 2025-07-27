@@ -1,22 +1,7 @@
 from abc import abstractmethod
-import asyncio
-import json
 from typing import List
-from urllib.parse import urlparse
 
-import aiohttp
-import runpod
 from pydantic import BaseModel
-from runpod import AsyncioEndpoint, AsyncioJob
-
-from donna_common.orm.dal.image import ImageDAL
-from donna_common.orm.dal.mesh import MeshDAL
-from donna_common.orm.dal.project import ProjectDAL
-from donna_common.orm.dal.texture import TextureDAL
-from donna_common.orm.main import AsyncSessionLocal
-from donna_common.providers.storage import StorageProvider
-from donna_common.redis.types import MeshAction
-from donna_common.settings import settings
 
 
 class JobsStatus(BaseModel):
@@ -39,8 +24,8 @@ class EndpointHealth(BaseModel):
     jobs: JobsStatus
     workers: WorkersStatus
 
-class BaseProvider:
 
+class BaseProvider:
     @abstractmethod
     async def wake_up_geometry(self):
         pass
@@ -88,7 +73,6 @@ class BaseProvider:
         seed: int,
         labels: List[str],
         max_polygon_count: int,
-        completed_meshes_stream,
     ):
         pass
 
@@ -101,6 +85,5 @@ class BaseProvider:
         texture_quality: str,  # normal, precise, or stylized
         seed: int,
         texture_id: str,
-        # completed_meshes_stream,
     ):
         pass

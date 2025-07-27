@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import URL, engine_from_config, pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from donna_common.settings import settings
@@ -27,7 +27,7 @@ fileConfig(config.config_file_name)
 # override the section dictionary directly
 section = config.get_section(config.config_ini_section)
 # section["sqlalchemy.url"] = url_object.render_as_string(hide_password=False)
-section['sqlalchemy.url'] = DATABASE_URL
+section["sqlalchemy.url"] = DATABASE_URL
 
 # now build the engine from that in-memory dict
 

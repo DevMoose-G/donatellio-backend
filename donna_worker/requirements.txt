@@ -1,6 +1,5 @@
 fastapi
 pydantic
-rq
 sqlalchemy
 pydantic-settings
 psycopg2-binary
@@ -16,3 +15,6 @@ openai
 python-jose
 redis
 numpy
+
+rq
+# rq-win==0.4.2 (for windows)

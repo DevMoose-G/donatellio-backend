@@ -1,0 +1,155 @@
+[
+    {
+        "name": "GenerateTexture",
+        "description": "Create a texture asset",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "quality": {
+                    "type": "string",
+                    "enum": [
+                        "normal",
+                        "stylized"
+                    ]
+                },
+                "generate_new_image": {
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "GenerateMesh",
+        "description": "Create a mesh asset",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "mesh_model": {
+                    "type": "string",
+                    "enum": [
+                        "step1x-3d"
+                    ],
+                    "description": "The default mesh model is 'step1x-3d'"
+                },
+                "n_meshes":{
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4,
+                    "description": "The number of meshes to generate"
+                },
+                "quality": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                },
+                "max_polygon_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500000,
+                    "description": "The maximum number of polygons in the mesh, will likely be less after simplification"
+                }
+            },
+            "required": ["mesh_model", "n_meshes"]
+        }
+    },
+    {
+        "name": "EditMesh",
+        "description": "Edit a mesh asset",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "octree_resolution": {
+                    "type": "string",
+                    "enum": [
+                        "128",
+                        "256",
+                        "384",
+                        "512",
+                        "768"
+                    ],
+                    "description": "The octree resolution to use for the edit, higher resolutions are more accurate but slower."
+                },
+                "surface_thickness":{
+                    "type": "number",
+                    "minimum": -0.5,
+                    "maximum": 0.5,
+                    "description": "The thickness (negative mc_level) of the surface to edit. 0.5 is the thickness it can get."
+                },
+                "simplify_ratio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "The ratio of the new face count to the old face count. 1 is no simplification since the ratio is 1:1, 0.5 is half the old face count, etc. Never simplify below 0.001."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "GenerateImage",
+        "description": "Create an image",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "The prompt to generate an image from, more descriptive prompts will result in better images."
+                },
+                "image_model": {
+                    "type": "string",
+                    "enum": [
+                        "gpt4o",
+                        "imagen4",
+                        "fluxkontext"
+                    ],
+                    "description": "The image model to use. GPT 4o is the most creative and overall best model, but it's also the slowest/most expensive. Imagen4 and Fluxkontext is the fastest/more affordable models. Imagen4 is the more realistic one and Fluxkontext is a bit more creative, often drawing stylized images."
+                },
+                "quality": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                }
+            },
+            "required": ["image_model", "prompt"]
+        }
+    },
+    {
+        "name": "EditImage",
+        "description": "Edit an image",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "The prompt to generate an image from, more descriptive prompts will result in better images."
+                },
+                "quality": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                },
+                "image_model":{
+                    "type": "string",
+                    "enum": [
+                        "gpt4o",
+                        "imagen4",
+                        "fluxkontext"
+                    ],
+                    "description": "The image model to use. GPT 4o is the most creative and overall best model, but it's also the slowest/most expensive. Imagen4 and Fluxkontext is the fastest/more affordable models. Imagen4 is the more realistic one and Fluxkontext is a bit more creative, often drawing stylized images."
+                }
+            },
+            "required": ["prompt"]
+        }
+    }
+]

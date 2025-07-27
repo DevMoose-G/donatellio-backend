@@ -1,6 +1,5 @@
 from donna_common.settings import settings
 
-
 BASE_URL = "http://localhost:8000"
 
 
@@ -27,8 +26,7 @@ TIER_FEATURES = {
 }
 
 
-
-if (settings.debug):
+if settings.debug:
     TIER_MAP = {
         "": "free",
         "prod_SfCXpkM5MHwplv": "pro",
@@ -36,7 +34,7 @@ if (settings.debug):
     PACKAGE_MAP = {
         "prod_Sgvbdr4C4lpCvr": "starter",
         "prod_SgvcdNFLJ1GOHq": "indie",
-        "prod_SgvcdYDH1LG6hj": 'studio'
+        "prod_SgvcdYDH1LG6hj": "studio",
     }
 else:
     TIER_MAP = {
@@ -48,7 +46,7 @@ else:
     PACKAGE_MAP = {
         "prod_SguUoV0ZU9X3Gd": "starter",
         "prod_SguVA1ZF7mPCCa": "indie",
-        "prod_SguWmIZH5x48cL": 'studio'
+        "prod_SguWmIZH5x48cL": "studio",
     }
 
 REVERSED_TIER_MAP = {v: k for k, v in TIER_MAP.items()}

@@ -9,6 +9,13 @@ In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/ma
 /etc/systemd/system/worker.service 
 
 **Launch Worker**:
+
+   ```bash
+   rq worker jobs --url redis://localhost:6379  --worker-class rq.worker.SpawnWorker
+   ```
+
+   for windows: rq worker jobs --url redis://localhost:6379  -w win_worker.WindowsSimpleWorker
+
    ```bash
    python worker.py
    ```
@@ -16,6 +23,9 @@ In whatever directory your .env file is in, run `fastapi dev ./donatellio/api/ma
    ```bash
    uvicorn app.main:app --reload
    ```
+
+**Run Stripe webhook**:
+stripe listen --forward-to localhost:8000/api/user/pay/processed
 
 ---
 

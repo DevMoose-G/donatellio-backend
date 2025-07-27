@@ -4,8 +4,11 @@ texture_quality_multiplier = {"normal": 3, "precise": 5, "stylized": 4}
 
 regen_mesh_cost = 2
 
+valid_image_models = ["gpt4o", "fluxkontext", "imagen4"]
 
 def image_cost(image_model, quality, has_style_image=False) -> int:
+    if image_model not in valid_image_models:
+        raise ValueError(f"Invalid image model: {image_model}. Valid models are: {valid_image_models}")
     if image_model == "gpt4o":
         if quality == "high":
             cost = 3

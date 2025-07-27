@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from donna_common.orm.base import AssetStage
 from donna_common.orm.dal.mesh import MeshDAL
 from donna_common.orm.dal.texture import TextureDAL
 from donna_common.orm.main import get_db
@@ -77,9 +78,9 @@ class ProjectVersionAssetDAL:
             # delete the links to old assets
 
             # For now, all images shown no matter what project version
-            # if action.asset_stage == "image" and action.asset_id in image_ids:
+            # if action.asset_stage == AssetStage.mesh and action.asset_id in image_ids:
             #     continue
-            if action.asset_stage == "mesh":
+            if action.asset_stage == AssetStage.mesh:
                 mesh = await MeshDAL(session=self.session).get_mesh_by_id(
                     action.asset_id
                 )
@@ -87,12 +88,12 @@ class ProjectVersionAssetDAL:
                     raise RuntimeError(400, detail="Mesh not found in project version")
                 if mesh.parent_mesh_id in old_assets.keys():
                     old_asset = old_assets[mesh.parent_mesh_id]
-                    self.unlink_asset(
+                    await self.unlink_asset(
                         project_version_id=project_version_id,
                         asset_type=old_asset.asset_type,
                         asset_id=old_asset.asset_id,
                     )
-            elif action.asset_stage == "texture":
+            elif action.asset_stage == AssetStage.texture:
                 texture = await TextureDAL(session=self.session).get_texture_by_id(
                     action.asset_id
                 )
@@ -102,7 +103,7 @@ class ProjectVersionAssetDAL:
                     )
                 if texture.parent_texture_id in old_assets.keys():
                     old_asset = old_assets[texture.parent_texture_id]
-                    self.unlink_asset(
+                    await self.unlink_asset(
                         project_version_id=project_version_id,
                         asset_type=old_asset.asset_type,
                         asset_id=old_asset.asset_id,

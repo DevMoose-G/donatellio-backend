@@ -3,6 +3,7 @@
       "./donna_api",
       "./donna_common",
       "./donna_worker"
-    ]
+    ],
+    "python.languageServer": "Pylance",
   }
   
