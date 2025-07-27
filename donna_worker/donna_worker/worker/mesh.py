@@ -187,9 +187,9 @@ async def generate_meshes(
         queue.queue_mesh_action(
             func_callback="donna_worker.worker.mesh.simplify_mesh",
             expected_at=datetime.now(timezone.utc) + timedelta(seconds=seconds_offset),
-            mesh_id=mesh_id,
+            old_mesh_id=mesh_id,
             project_id=project_id,
-            new_mesh_id=mesh_id,
+            mesh_id=mesh_id,
             message="Simplifying mesh...",
         )
 
@@ -229,9 +229,9 @@ async def generate_mesh(
     queue.queue_mesh_action(
         func_callback="donna_worker.worker.mesh.simplify_mesh",
         expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
-        mesh_id=mesh_id,
+        old_mesh_id=mesh_id,
         project_id=project_id,
-        new_mesh_id=mesh_id,
+        mesh_id=mesh_id,
         message="Simplifying mesh...",
     )
 
@@ -311,9 +311,9 @@ async def regenerate_from_latents(
     queue.queue_mesh_action(
         func_callback="donna_worker.worker.mesh.simplify_mesh",
         expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
-        mesh_id=mesh_id,
+        old_mesh_id=mesh_id,
         project_id=project_id,
-        new_mesh_id=mesh_id,
+        mesh_id=mesh_id,
         simplify_ratio=simplify_ratio,
         message="Simplifying mesh...",
     )
@@ -330,10 +330,10 @@ async def regenerate_from_latents(
     return mesh.id
 
 
-async def simplify_mesh(project_id, mesh_id, new_mesh_id, simplify_ratio=None):
+async def simplify_mesh(project_id, mesh_id, old_mesh_id, simplify_ratio=None):
     runpod_service = RunpodProvider()
     await runpod_service.simplify_mesh(
-        mesh_id, new_mesh_id, simplify_ratio=simplify_ratio
+        old_mesh_id, mesh_id, simplify_ratio=simplify_ratio
     )
 
     os.makedirs(MESH_DIR, exist_ok=True)
@@ -341,13 +341,13 @@ async def simplify_mesh(project_id, mesh_id, new_mesh_id, simplify_ratio=None):
     async with AsyncSessionLocal() as session:
         mesh_dal = MeshDAL(session)
 
-        new_mesh = await mesh_dal.get_mesh_by_id(new_mesh_id)
+        new_mesh = await mesh_dal.get_mesh_by_id(mesh_id)
 
         await generate_mesh_formats(
-            new_mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal
+            mesh_id, new_mesh.storage_key, mesh_dal=mesh_dal
         )
         await render_mesh_preview_image(
-            new_mesh.storage_key, new_mesh_id, mesh_dal=mesh_dal
+            new_mesh.storage_key, mesh_id, mesh_dal=mesh_dal
         )
     return new_mesh.id
 

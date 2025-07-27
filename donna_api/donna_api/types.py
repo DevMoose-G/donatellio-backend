@@ -179,3 +179,9 @@ class GetAssetsResponse(BaseModel):
 class GetProjectsResponse(BaseModel):
     projects: List[ProjectDisplay]
     count: int
+
+
+class ResponseMeshPreviewUrl(BaseModel):
+    mesh_id: str
+    texture_id: Optional[str] = None
+    preview_url: str

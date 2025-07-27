@@ -16,6 +16,7 @@ from donna_api.types import (
     RequestCreateTexture,
     ResponseGenerateMeshInfo,
     ResponseGenerateTextureInfo,
+    ResponseMeshPreviewUrl,
     step1x_labels,
 )
 from donna_api.utils import (
@@ -441,8 +442,8 @@ async def regenerate_mesh(
             func_callback="donna_worker.worker.mesh.simplify_mesh",
             expected_at=datetime.now(timezone.utc) + timedelta(seconds=15),
             project_id=project_id,
-            mesh_id=old_mesh.id,
-            new_mesh_id=new_mesh.id,
+            old_mesh_id=old_mesh.id,
+            mesh_id=new_mesh.id,
             simplify_ratio=simplify_ratio,
             message="Simplifying mesh...",
         ))
@@ -517,6 +518,35 @@ async def api_get_mesh_info(
 
     return await get_mesh_info(mesh_id=mesh.id)
 
+@router.get("/{mesh_id}/preview")
+async def get_mesh_preview_url(
+    mesh_id: str,
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    current_user: User = Depends(get_current_user),
+):
+    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+    if not mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    project = await project_dal.get_project_by_id(mesh.project_id)
+
+    if current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to view this mesh"},
+        )
+    
+    preview_url = None
+    if mesh.static_render_storage_key:
+        preview_url = StorageProvider().generate_get_url(mesh.static_render_storage_key)
+
+    return ResponseMeshPreviewUrl(
+        mesh_id=mesh.id,
+        preview_url=preview_url,
+    )
 
 @router.get("/{asset_id}/download")
 async def get_mesh_format_download(
