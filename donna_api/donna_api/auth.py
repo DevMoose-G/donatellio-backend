@@ -107,8 +107,9 @@ async def authenticate_user(
     username: str, email: str, password: str, user_dal: UserDAL = Depends(get_user_dal)
 ) -> User:
     db_user = await user_dal.get_user_by(filter=(User.username == username))
+    user_email = email.lower()
     if username is None:
-        db_user = await user_dal.get_user_by(filter=(User.email == email))
+        db_user = await user_dal.get_user_by(filter=(User.email == user_email))
     else:
         db_user = await user_dal.get_user_by(filter=(User.username == username))
 
@@ -181,7 +182,9 @@ async def register(
             status_code=400,
             content={"error_msg": "Username must be at least 3 characters long"},
         )
-    if (user.email.find("@") == -1) or (user.email.find(".") == -1):
+    
+    user_email = user.email.lower()
+    if (user_email.find("@") == -1) or (user_email.find(".") == -1):
         return JSONResponse(
             status_code=400, content={"error_msg": "Invalid email address"}
         )
@@ -198,7 +201,7 @@ async def register(
             },
         )
 
-    db_user = await user_dal.get_user_by(filter=(User.email == user.email))
+    db_user = await user_dal.get_user_by(filter=(User.email == user_email))
     if db_user is not None:
         return JSONResponse(
             status_code=400, content={"error_msg": "Email already in use"}
@@ -215,7 +218,7 @@ async def register(
     profile_img_storage_key = f"images/profile_images/{randint(0, len(ICON_STORAGE_KEYS) - 1)}_{randint(0, len(PALETTES) - 1)}.png"
     new_user = User(
         id=str(uuid.uuid4()),
-        email=user.email,
+        email=user_email,
         password=hashed_pw,
         username=user.username,
         profile_image_storage_key=profile_img_storage_key,
@@ -225,7 +228,7 @@ async def register(
     new_user = await user_dal.create_user(new_user)
 
     verification_token = generate_email_verification_token(new_user.id)
-    await send_verification_email(user.email, verification_token)
+    await send_verification_email(user_email, verification_token)
 
     return {}
 
@@ -471,7 +474,7 @@ async def google_auth(
             profile_image_storage_key=profile_pic_url,
             password="",
             credit_balance=CREDITS_BY_TIER["free"],
-            is_verified=True,
+            is_verified=False,
         )
 
         user = await user_dal.create_user(user)
