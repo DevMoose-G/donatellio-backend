@@ -12,4 +12,5 @@ sudo systemctl kill --kill-who=all --signal=KILL fastapi.service
 
 # logs
 sudo systemctl status fastapi.service
-sudo journalctl -u fastapi.service -f
+systemctl list-units --type=service --state=running 'worker@*'
+sudo journalctl -u worker.service -f
