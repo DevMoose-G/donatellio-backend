@@ -385,7 +385,7 @@ async def regenerate_mesh(
                 func_callback="donna_worker.worker.mesh.regenerate_from_latents",
                 expected_at=datetime.now(),
                 mesh_id=new_mesh.id,
-                message="Regenerating mesh..."
+                message="Regenerating mesh...",
                 **params,
             ))
 
