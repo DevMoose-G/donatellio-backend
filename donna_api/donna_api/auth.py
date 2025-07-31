@@ -107,8 +107,8 @@ async def authenticate_user(
     username: str, email: str, password: str, user_dal: UserDAL = Depends(get_user_dal)
 ) -> User:
     db_user = await user_dal.get_user_by(filter=(User.username == username))
-    user_email = email.lower()
     if username is None:
+        user_email = email.lower()
         db_user = await user_dal.get_user_by(filter=(User.email == user_email))
     else:
         db_user = await user_dal.get_user_by(filter=(User.username == username))
