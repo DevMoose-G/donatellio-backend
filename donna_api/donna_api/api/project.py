@@ -35,7 +35,6 @@ from donna_common.orm.dal.project_version import (
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
-from donna_common.prompts import GEN_3D_ASSET_LIST_PROMPT
 from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider
 
