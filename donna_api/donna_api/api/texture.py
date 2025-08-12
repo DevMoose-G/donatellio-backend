@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from donna_api.auth import get_current_user
-from donna_api.common.models import GetMeshInfo, get_mesh_info
-from donna_api.types import ResponseMeshPreviewUrl
+from donna_api.auth import get_current_user, optional_get_current_user
+from donna_api.common.models import get_mesh_info
+from donna_api.types import GetTextureInfo, ResponseMeshPreviewUrl
 from donna_common.orm.dal.mesh import MeshDAL, get_mesh_dal
 from donna_common.orm.dal.project import ProjectDAL, get_project_dal
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
@@ -18,24 +18,27 @@ load_dotenv()  # reads .env from cwd
 router = APIRouter(prefix="/texture")
 
 
-class GetTextureInfo(BaseModel):
-    mesh_info: GetMeshInfo
-    texture_id: str
-    texture_url: str
-
 
 @router.get("/{texture_id}")
 async def get_model(
     texture_id: str,
-    current_user: User = Depends(get_current_user),
     texture_dal: TextureDAL = Depends(get_texture_dal),
+    project_dal: ProjectDAL = Depends(get_project_dal),
     mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    current_user: User = Depends(optional_get_current_user),
 ) -> GetTextureInfo:
     texture = await texture_dal.get_texture_by_id(texture_id)
     if not texture:
         return JSONResponse(
             status_code=400,
             content={"error_msg": "Texture not found"},
+        )
+    
+    project = await project_dal.get_project_by_id(texture.project_id)
+    if project.public == False and current_user and current_user.id != project.user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to view this texture"},
         )
 
     mesh = await mesh_dal.get_mesh_by_id(texture.mesh_id)

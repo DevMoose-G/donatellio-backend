@@ -11,7 +11,8 @@ from donna_api.api.mesh import router as mesh_router
 from donna_api.api.project import router as project_router
 from donna_api.api.texture import router as texture_router
 from donna_api.api.user import router as user_router
-from donna_api.auth import get_current_user
+from donna_api.auth import get_current_user, optional_get_current_user
+from donna_api.consts import CREDITS_BY_PACKAGE
 from donna_api.types import GetAssetsResponse
 from donna_common.orm import Project, ProjectDAL, get_project_dal
 from donna_common.orm.models.user import User
@@ -36,15 +37,24 @@ async def get_market_assets(
     limit: int,
     offset: Optional[int] = 0,
     project_dal: ProjectDAL = Depends(get_project_dal),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(optional_get_current_user),
 ) -> GetAssetsResponse:
-    projects = [
-        project
-        for project in await project_dal.get_all_projects_by(
-            filter=((Project.user_id != current_user.id) & (Project.public))
-        )
-        if project.meshes != []
-    ]
+    if current_user != None:
+        projects = [
+            project
+            for project in await project_dal.get_all_projects_by(
+                filter=((Project.user_id != current_user.id) & (Project.public))
+            )
+            if project.meshes != []
+        ]
+    else:
+        projects = [
+            project
+            for project in await project_dal.get_all_projects_by(
+                filter=(Project.public)
+            )
+            if project.meshes != []
+        ]
 
     assets = []
     # TODO: need better way to implement limit & offset (prob need a static list of projects that gets updated periodically)
@@ -91,18 +101,18 @@ async def get_pricing():
             name="Starter",
             description="Perfect for getting started. For solo developers or hobbyists",
             price=9,
-            n_credits=50,
+            n_credits=CREDITS_BY_PACKAGE["starter"],
         ),
         indie=PricingPackage(
             name="Indie",
             description="The community's favorite. For small teams",
             price=39,
-            n_credits=250,
+            n_credits=CREDITS_BY_PACKAGE["indie"],
         ),
         studio=PricingPackage(
             name="Studio",
-            description="Unleash your creativity at scale. For studios in active production",
+            description="Unleash your creativity. For studios in active production",
             price=99,
-            n_credits=1000,
+            n_credits=CREDITS_BY_PACKAGE["studio"],
         ),
     )

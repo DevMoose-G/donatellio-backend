@@ -5,6 +5,7 @@ from typing import List, Optional, Set, Tuple
 from pydantic import BaseModel
 
 from donna_api.types import (
+    GetMeshInfo,
     WSMeshItem,
     WSModelItem,
     WSTextureItem,
@@ -31,7 +32,6 @@ class BasicModelInfo(BaseModel):
     mesh_id: str
     texture_id: Optional[str] = None
     model_preview_url: Optional[str] = None
-
 
 async def get_all_basic_model_infos(
     project_version_id,
@@ -107,21 +107,6 @@ async def get_all_basic_model_infos(
             )
 
     return model_items
-
-
-class GetMeshInfo(BaseModel):
-    id: str
-    project_id: str
-    # eventually remove this source_image_url and move it to GetModelInfo
-    image_id: str
-    source_image_url: str
-    mesh_quality: str
-    created_at: datetime
-    level_of_detail: Optional[int] = None
-    mc_level: Optional[float] = None
-    num_faces: Optional[int] = None
-    mesh_url: Optional[str] = None
-
 
 async def get_mesh_info(mesh_id: str):
     storage_provider = StorageProvider()

@@ -4,6 +4,7 @@ from typing import List
 
 from redis import Redis
 from rq import Queue, requeue_job, get_current_job, Retry
+import rq
 from rq.job import Job
 
 from rq.timeouts import JobTimeoutException
@@ -105,7 +106,10 @@ class RedisQueue:
     ) -> List[JobUpdate]:
         job_updates = []
         for job_id in self.redis.zrevrange(f"jobs_by_mesh_id:{mesh_id}", 0, limit - 1):
-            job_updates.append(self.get_job_update(job_id.decode("utf-8")))
+            try:
+                job_updates.append(self.get_job_update(job_id.decode("utf-8")))
+            except rq.exceptions.NoSuchJobError:
+                self.redis.zrem(f"jobs_by_mesh_id:{mesh_id}", job_id)
         return job_updates
 
     def get_job_updates_by_image_id(
@@ -125,5 +129,9 @@ class RedisQueue:
         for job_id in self.redis.zrevrange(
             f"jobs_by_texture_id:{texture_id}", 0, limit - 1
         ):
-            job_updates.append(self.get_job_update(job_id.decode("utf-8")))
+            try:
+                job_updates.append(self.get_job_update(job_id.decode("utf-8")))
+            except rq.exceptions.NoSuchJobError:
+                self.redis.zrem(f"jobs_by_texture_id:{texture_id}", job_id)
+        
         return job_updates

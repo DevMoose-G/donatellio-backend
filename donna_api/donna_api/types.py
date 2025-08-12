@@ -185,3 +185,22 @@ class ResponseMeshPreviewUrl(BaseModel):
     mesh_id: str
     texture_id: Optional[str] = None
     preview_url: str
+
+
+class GetMeshInfo(BaseModel):
+    id: str
+    project_id: str
+    # eventually remove this source_image_url and move it to GetModelInfo
+    image_id: str
+    source_image_url: str
+    mesh_quality: str
+    created_at: datetime
+    level_of_detail: Optional[int] = None
+    mc_level: Optional[float] = None
+    num_faces: Optional[int] = None
+    mesh_url: Optional[str] = None
+
+class GetTextureInfo(BaseModel):
+    mesh_info: GetMeshInfo
+    texture_id: str
+    texture_url: str

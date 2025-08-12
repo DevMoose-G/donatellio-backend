@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from donna_api.auth import get_current_user
+from donna_api.auth import get_current_user, optional_get_current_user
 from donna_api.common.models import (
     BasicModelInfo,
     get_all_basic_model_infos,
@@ -35,6 +35,8 @@ from donna_common.orm.dal.project_version import (
 from donna_common.orm.dal.texture import TextureDAL, get_texture_dal
 from donna_common.orm.dal.user import UserDAL, get_user_dal
 from donna_common.orm.models.user import User
+from donna_common.prompts import GEN_3D_ASSET_LIST_PROMPT
+from donna_common.providers.openai import OpenAIProvider
 from donna_common.providers.storage import StorageProvider
 
 load_dotenv()  # reads .env from cwd
@@ -115,6 +117,8 @@ class GetProjectInfoResponse(BaseModel):
 
     mesh_url: Optional[str] = None
     textured_url: Optional[str] = None
+    mesh_id: Optional[str] = None
+    texture_id: Optional[str] = None
 
     created_at: datetime
     is_public: bool
@@ -132,10 +136,10 @@ async def get_project_info(
     project_id: str,
     project_dal: ProjectDAL = Depends(get_project_dal),
     collection_dal: CollectionDAL = Depends(get_collection_dal),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(optional_get_current_user),
 ):
     project = await project_dal.get_project_by_id(project_id)
-    if project.user_id != current_user.id and not project.public:
+    if (not project.public) and (current_user is not None and project.user_id != current_user.id):
         return JSONResponse(
             status_code=403,
             content={"error_msg": "You don't have permission to view this project"},
@@ -154,7 +158,7 @@ async def get_project_info(
     preview_url = None
     if project.textures != []:
         if project.textures[-1].static_render_storage_key is None:
-            # TODO: send request to generate static render
+            # TODO: send request to generate static render if created more than 10 minutes ago
             pass
         else:
             preview_url = storage_provider.generate_get_url(
@@ -163,7 +167,7 @@ async def get_project_info(
 
     elif project.meshes != []:
         if project.meshes[-1].static_render_storage_key is None:
-            # TODO: send request to generate static render
+            # TODO: send request to generate static render if created more than 10 minutes ago
             pass
         else:
             preview_url = storage_provider.generate_get_url(
@@ -180,8 +184,10 @@ async def get_project_info(
     textured_url = None
     mesh_url = None
     main_branch_id = None
+    mesh_id = None
+    texture_id = None
 
-    if current_user.id == project.user_id:
+    if current_user is not None and current_user.id == project.user_id:
         # Get the full project info
         for collection in project.collections:
             path = []
@@ -215,9 +221,10 @@ async def get_project_info(
         main_branch_id = main_branch.id
     else:
         # not the creator, just show the basic info
-
         texture_key = project.textures[-1].storage_key if project.textures else None
+        texture_id = project.textures[-1].id if project.textures else None
         mesh_key = project.meshes[-1].storage_key if project.meshes else None
+        mesh_id = project.meshes[-1].id if project.meshes else None
         if texture_key:
             textured_url = storage_provider.generate_get_url(texture_key)
         if mesh_key:
@@ -236,9 +243,11 @@ async def get_project_info(
         ),
         collection_paths=coll_paths,
         current_progress=proj_progress,
-        editable=current_user.id == project.user_id,
+        editable=(current_user is not None and current_user.id == project.user_id),
         textured_url=textured_url,
         mesh_url=mesh_url,
+        mesh_id=mesh_id,
+        texture_id=texture_id,
         main_branch_id=main_branch_id,
     )
 
@@ -489,3 +498,13 @@ async def get_images(
         return WSImageEditsResponse(images=image_items, chats=chats.chats)
 
     return WSImageEditsResponse(images=[], chats=[])
+
+class GetAssetDescriptionsRequest(BaseModel):
+    game_description: str
+    platform: str
+
+async def get_asset_descriptions(req: GetAssetDescriptionsRequest):
+    openai_provider = OpenAIProvider()
+    game_overview = openai_provider.get_asset_descriptions(req.game_description, req.platform)
+
+    return game_overview

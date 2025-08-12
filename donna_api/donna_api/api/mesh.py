@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from donna_api.auth import get_current_user
 from donna_api.common.models import get_mesh_info
 from donna_api.types import (
+    GetTextureInfo,
     RequestCalculateMeshGenCost,
     RequestCalculateTextureGenCost,
     RequestCreateMesh,
@@ -651,3 +652,68 @@ async def delete_mesh(
         await texture_dal.delete_texture(texture_id)
 
     await mesh_dal.delete_mesh(mesh)
+
+@router.get("/{mesh_id}/texture")
+async def get_latest_texture(
+    mesh_id: str,
+    texture_dal: TextureDAL = Depends(get_texture_dal),
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+):
+    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+    if not mesh:    
+        return None # TODO: put an error message
+    textures = await texture_dal.get_textures_by(Texture.mesh_id == mesh_id)
+    if textures:
+        textures = sorted(textures, key=lambda x: x.created_at)
+        mesh_info = await get_mesh_info(mesh_id)
+        return GetTextureInfo(
+            mesh_info=mesh_info,
+            texture_id=textures[-1].id,
+            texture_url=StorageProvider().generate_get_url(textures[-1].storage_key),
+        )
+    return None
+
+class GetModelPreview(BaseModel):
+    mesh_id: str
+    preview_url: str
+    created_at: datetime
+    num_faces: int
+    texture_id: str
+    texture_url: str
+
+@router.get("/{mesh_id}/preview")
+async def get_mesh_preview(
+    mesh_id: str,
+    project_dal: ProjectDAL = Depends(get_project_dal),
+    mesh_dal: MeshDAL = Depends(get_mesh_dal),
+    texture_dal: TextureDAL = Depends(get_texture_dal),
+):
+    mesh = await mesh_dal.get_mesh_by_id(mesh_id)
+    if not mesh:
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "Mesh not found"},
+        )
+    
+    project = await project_dal.get_project_by_id(mesh.project_id)
+    if(project.public == False):
+        return JSONResponse(
+            status_code=400,
+            content={"error_msg": "You don't have permission to view this mesh"},
+        )
+
+    mesh_info = await get_mesh_info(mesh_id)
+
+    textures = await texture_dal.get_textures_by(Texture.mesh_id == mesh_id)
+    if textures:
+        pass
+    textures = sorted(textures, key=lambda x: x.created_at)
+    
+    return GetModelPreview(
+        mesh_id=mesh.id,
+        preview_url=StorageProvider().generate_get_url(mesh.static_render_storage_key),
+        created_at=mesh.created_at,
+        num_faces=mesh_info.num_faces,
+        texture_id=textures[-1].id,
+        texture_url=StorageProvider().generate_get_url(textures[-1].storage_key),
+    )

@@ -14,3 +14,5 @@ sudo systemctl kill --kill-who=all --signal=KILL fastapi.service
 sudo systemctl status fastapi.service
 systemctl list-units --type=service --state=running 'worker@*'
 sudo journalctl -u worker.service -f
+
+sudo less /var/log/cloud-init-output.log > user_data.log

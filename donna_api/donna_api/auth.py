@@ -31,6 +31,7 @@ redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 # 3. Define the “token URL” that the client will call to get a token:
 #    This corresponds to our login endpoint path (e.g. "/token").
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
 # this should be an environment variable. should this be regenerated on restart?
 SECRET_KEY = (
@@ -82,6 +83,26 @@ async def get_current_user(
         raise HTTPException(status_code=400, detail="Inactive user")
     return user
 
+async def optional_get_current_user(
+    token: str = Depends(optional_oauth2_scheme), user_dal: UserDAL = Depends(get_user_dal)
+) -> User:
+    """
+    Reads token from “Authorization: Bearer <token>” and returns user if successful
+    """
+    try:
+        # 1. Decode token; this can raise JWTError if invalid/expired
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+    except Exception:
+        return None
+    user = await user_dal.get_user_by(filter=(User.id == user_id))
+    if user is None:
+        return None
+    if user.active == False:
+        return None
+    return user
 
 async def authenticate_jwt(
     token: str, user_dal: UserDAL = Depends(get_user_dal)
