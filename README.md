@@ -4,11 +4,7 @@ Donatell.io turns a single image (or idea) into a game-ready, textured 3D model 
 
 ## Demo
 
-<video src="docs/media/donatellio-demo.mp4" controls width="720">
-  Your browser doesn't support inline video playback. Download the demo here: <a href="docs/media/donatellio-demo.mp4">docs/media/donatellio-demo.mp4</a>
-</video>
-
-*(If the video above doesn't render, watch/download it directly at [`docs/media/donatellio-demo.mp4`](docs/media/donatellio-demo.mp4).)*
+https://github.com/user-attachments/assets/1662aa6f-a330-4b26-99b9-70700a80eca7
 
 ## What it does
 
